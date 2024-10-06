@@ -186,10 +186,73 @@ namespace Smallwisdom.Windows.Forms
                     /*+ "Edge " + Convert.ToString(caesar1.Form1.edge[(int)(x), (int)(y)]) + Environment.NewLine*/
                     ;
 
+
+                // MDW_V2 add each of the water source tracers if active
+                if (caesar1.Form1.isTraceWater == true ) // water source tracers
+                {
+                    // add scrollbar 
+                    CAESAR_lisflood_1._0.Form2.textBox1.ScrollBars = ScrollBars.Vertical; 
+
+                    // insert empty line
+                    CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text + Environment.NewLine;
+
+                    // water source tracers
+                    CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text + "Water tracers (number = " + caesar1.Form1.nSources + "):" + Environment.NewLine;
+                    for (int src = 0; src < caesar1.Form1.nSources; src++)
+                    {
+                        string srcname = "";
+                        if (src == 0)
+                        {
+                            srcname = "Tide/stage";
+                        }
+                        else if (src == 1)
+                        {
+                            srcname = "Rain";
+                        } else
+                        {
+                            srcname = caesar1.Form1.inputfilenames[src - caesar1.Form1.sourceIndexAddition];
+                        }
+
+                        CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text +
+                        " " +
+                        Convert.ToString(src + 1) + " (" + srcname + "): " +
+                        Convert.ToString(Math.Round(caesar1.Form1.watertracer[(int)(x), (int)(y), src], 4)) + Environment.NewLine; // MDW_Apr24: increased output precision
+                    }
+
+                }
+                if (caesar1.Form1.isTraceRainZonation == true)
+                {
+                    // Rain zone tracers
+                    CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text + Environment.NewLine;
+                    CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text +
+                        "Rain zone tracers (this zone = " + Convert.ToString(caesar1.Form1.rainzonation[(int)(x), (int)(y)]) + "):" + Environment.NewLine;
+                    for (int src = 0; src < caesar1.Form1.nRainZones; src++)
+                    {
+                        CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text +
+                        " " +
+                        Convert.ToString(src + 1) + " (ID = " + Convert.ToString(caesar1.Form1.rainZones[src]) + "): " +
+                        Convert.ToString(Math.Round(caesar1.Form1.watertracerRainZone[(int)(x), (int)(y), src], 4)) + Environment.NewLine; // MDW_Apr24: increased output precision
+                    }
+                }
+                if (caesar1.Form1.isTraceSolutes == true)
+                {
+                    // Solute tracers
+                    CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text + Environment.NewLine;
+                    CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text + "Solutes (number = " + caesar1.Form1.nSolutes + "):" + Environment.NewLine;
+                    for (int src = 0; src < caesar1.Form1.nSolutes; src++)
+                    {
+                        CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text +
+                        " " +
+                        Convert.ToString(src + 1) + ": " +
+                        Convert.ToString(Math.Round(caesar1.Form1.solutetracer[(int)(x), (int)(y), src], 4)) + Environment.NewLine; // MDW_Apr24: increased output precision
+                    }
+                }
+                // end water source tracer info
+
                 if (CAESAR_lisflood_1._0.Form2.ElevcheckBox1.Checked == true)
                 {
                     caesar1.Form1.elev[x, y] += Convert.ToDouble(CAESAR_lisflood_1._0.Form2.textBox2.Text);
-                    
+
                 }
 
             }
