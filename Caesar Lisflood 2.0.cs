@@ -246,7 +246,7 @@ namespace caesar1
         double[,,] inputfile;
         int[,] inpoints;
         public static double[,,] veg;
-        double[,] edge, edge2; //TJC 27/1/05 array for edges
+        public static double[,] edge, edge2; //TJC 27/1/05 array for edges
         double[] old_j_mean_store;
         double[,] climate_data;
         double[,,,] sr, sl, su, sd;
@@ -288,12 +288,12 @@ namespace caesar1
         double m3 = 0.79;
         double Beta1 = 1067;
 
-        // sedi tpt flags   
+        // sedi tpt flags
         int einstein = 0;
         int wilcock = 0;
         int meyer = 0;
         int div_inputs = 1;
-        double rain_data_time_step = 60; // time step for rain data - default is 60. 
+        double rain_data_time_step = 60; // time step for rain data - default is 60.
         double mfiletimestep = 1440; // tiem step for variable M value file
 
 
@@ -302,14 +302,14 @@ namespace caesar1
         int totalinputpoints = 0;
 
         //JMW Vars
-        string basetext = "CAESAR - Lisflood 2.0.1 (14/04/2024)";
+        string basetext = "CAESAR - Lisflood 2.0h (17/9/2024)";
         string cfgname = null;  //Config file name
         string workdir = "c:\\program files\\Caesar\\work\\";
 
         // folder for outputs - MDW_V2
         private string outdir = "";
         private bool outdirDateTime = false;
-        private string googleAnimationDir = "animation"; // MDW_V2 - added to handle user folder 
+        private string googleAnimationDir = "animation"; // MDW_V2 - added to handle user folder
 
         // stage/tidal variables
         int fromx, tox, fromy, toy;
@@ -341,8 +341,15 @@ namespace caesar1
         int nHydroChecked = 0; //MDW_V2 - needed to correctly index extra sources
         public static int sourceIndexAddition = 2; //MDW_V2 - source numbering adjustment to accrount for whether if rain/ tide is on
 
+        // OIL_V1
+        public int oil_fromx, oil_tox, oil_fromy, oil_toy;
+        public static bool isOilSimulation, oil_eventtriggered = false;
+        public double oil_startt, oil_starth, oil_totalv, oil_spillt;
+        public static double[,] oildepth;
 
-        // TC mining 
+
+
+        // TC mining
         int minesitenumber = 0;
 
         private Graphics mygraphics;
@@ -375,6 +382,7 @@ namespace caesar1
         private System.Windows.Forms.TabPage NumericalTab;
         private System.Windows.Forms.TabPage GrainTab;
         private System.Windows.Forms.TabPage HydrologyTab;
+        private System.Windows.Forms.TabPage OilTab; // OIL_V1
         private System.Windows.Forms.TextBox gp3box;
         private System.Windows.Forms.TextBox gp4box;
         private System.Windows.Forms.TextBox gp5box;
@@ -798,6 +806,23 @@ namespace caesar1
         private Label label123;
         private Label label125;
         private Label label66;
+        private CheckBox OilTab_checkBox;
+        private GroupBox OilTab_groupBox_controls; // OIL_V1
+        private TextBox OilYmin;
+        private TextBox OilYmax;
+        private TextBox OilXmax;
+        private TextBox OilXmin;
+        private Label OilYlabel;
+        private Label OilXlabel;
+        private Label OilTextlabel;
+        private TextBox OilTimeMin;
+        private Label OilTimeMinlabel;
+        private TextBox OilDepthStart;
+        private Label OilDepthStartlabel;
+        private TextBox OilVolume;
+        private Label OilVolumelabel;
+        private TextBox OilSpillDuration;
+        private Label OilSpillDurationlabel;
         #endregion
 
 
@@ -1280,6 +1305,26 @@ namespace caesar1
             this.comboBox4 = new System.Windows.Forms.ComboBox();
             this.comboBox3 = new System.Windows.Forms.ComboBox();
             this.comboBox2 = new System.Windows.Forms.ComboBox();
+
+            this.OilTab = new System.Windows.Forms.TabPage(); // OIL_V1
+            this.OilTab_checkBox = new System.Windows.Forms.CheckBox();
+            this.OilTab_groupBox_controls = new System.Windows.Forms.GroupBox();
+            this.OilYmin = new System.Windows.Forms.TextBox();
+            this.OilYmax = new System.Windows.Forms.TextBox();
+            this.OilXmax = new System.Windows.Forms.TextBox();
+            this.OilXmin = new System.Windows.Forms.TextBox();
+            this.OilYlabel = new System.Windows.Forms.Label();
+            this.OilXlabel = new System.Windows.Forms.Label();
+            this.OilTextlabel = new System.Windows.Forms.Label();
+            this.OilTimeMin = new System.Windows.Forms.TextBox();
+            this.OilTimeMinlabel = new System.Windows.Forms.Label();
+            this.OilDepthStart = new System.Windows.Forms.TextBox();
+            this.OilDepthStartlabel = new System.Windows.Forms.Label();
+            this.OilVolume = new System.Windows.Forms.TextBox();
+            this.OilVolumelabel = new System.Windows.Forms.Label();
+            this.OilSpillDuration = new System.Windows.Forms.TextBox();
+            this.OilSpillDurationlabel = new System.Windows.Forms.Label();
+
             this.tabControl1.SuspendLayout();
             this.FilesTab.SuspendLayout();
             this.groupBox6.SuspendLayout();
@@ -1301,6 +1346,11 @@ namespace caesar1
             this.tabPage1.SuspendLayout();
             this.tabPage3.SuspendLayout();
             this.Panel1.SuspendLayout();
+
+            this.OilTab.SuspendLayout(); // OIL_V1
+            this.OilTab_groupBox_controls.SuspendLayout(); // OIL_V1
+
+
             ((System.ComponentModel.ISupportInitialize)(this.InfoStatusPanel)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.IterationStatusPanel)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.TimeStatusPanel)).BeginInit();
@@ -1314,9 +1364,9 @@ namespace caesar1
             this.groupBox9.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.trackBar3)).BeginInit();
             this.SuspendLayout();
-            // 
+            //
             // button2
-            // 
+            //
             this.button2.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.button2.Location = new System.Drawing.Point(9, 530);
             this.button2.Name = "button2";
@@ -1324,44 +1374,44 @@ namespace caesar1
             this.button2.TabIndex = 7;
             this.button2.Text = "load data";
             this.button2.Click += new System.EventHandler(this.button2_Click);
-            // 
+            //
             // mainMenu1
-            // 
+            //
             this.mainMenu1.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
             this.menuItemConfigFile,
             this.menuItem1,
             this.menuItem2,
             this.menuItem11});
-            // 
+            //
             // menuItemConfigFile
-            // 
+            //
             this.menuItemConfigFile.Index = 0;
             this.menuItemConfigFile.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
             this.menuItemConfigFileOpen,
             this.menuItemConfigFileSaveAs,
             this.menuItemConfigFileSave});
             this.menuItemConfigFile.Text = "Config &File";
-            // 
+            //
             // menuItemConfigFileOpen
-            // 
+            //
             this.menuItemConfigFileOpen.Index = 0;
             this.menuItemConfigFileOpen.Text = "&Open";
             this.menuItemConfigFileOpen.Click += new System.EventHandler(this.menuItemConfigFileOpen_Click);
-            // 
+            //
             // menuItemConfigFileSaveAs
-            // 
+            //
             this.menuItemConfigFileSaveAs.Index = 1;
             this.menuItemConfigFileSaveAs.Text = "Save &As";
             this.menuItemConfigFileSaveAs.Click += new System.EventHandler(this.menuItemConfigFileSave_Click);
-            // 
+            //
             // menuItemConfigFileSave
-            // 
+            //
             this.menuItemConfigFileSave.Index = 2;
             this.menuItemConfigFileSave.Text = "&Save";
             this.menuItemConfigFileSave.Click += new System.EventHandler(this.menuItemConfigFileSave_Click);
-            // 
+            //
             // menuItem1
-            // 
+            //
             this.menuItem1.Index = 1;
             this.menuItem1.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
             this.menuItem30,
@@ -1370,40 +1420,40 @@ namespace caesar1
             this.menuItem5,
             this.menuItem10});
             this.menuItem1.Text = "&Top Graphics";
-            // 
+            //
             // menuItem30
-            // 
+            //
             this.menuItem30.Index = 0;
             this.menuItem30.Text = "DEM";
             this.menuItem30.Click += new System.EventHandler(this.menuItem30_Click);
-            // 
+            //
             // menuItem3
-            // 
+            //
             this.menuItem3.Checked = true;
             this.menuItem3.Index = 1;
             this.menuItem3.Text = "water depth (low scale)";
             this.menuItem3.Click += new System.EventHandler(this.menuItem3_Click);
-            // 
+            //
             // menuItem4
-            // 
+            //
             this.menuItem4.Index = 2;
             this.menuItem4.Text = "erosion/dep";
             this.menuItem4.Click += new System.EventHandler(this.menuItem4_Click);
-            // 
+            //
             // menuItem5
-            // 
+            //
             this.menuItem5.Index = 3;
             this.menuItem5.Text = "Grass/veg cover";
             this.menuItem5.Click += new System.EventHandler(this.menuItem5_Click);
-            // 
+            //
             // menuItem10
-            // 
+            //
             this.menuItem10.Index = 4;
             this.menuItem10.Text = "water source tracer";
             this.menuItem10.Click += new System.EventHandler(this.menuItem10_Click);
-            // 
+            //
             // menuItem2
-            // 
+            //
             this.menuItem2.Index = 2;
             this.menuItem2.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
             this.menuItem7,
@@ -1414,51 +1464,51 @@ namespace caesar1
             this.menuItem28,
             this.menuItem31});
             this.menuItem2.Text = "&Top graphics II";
-            // 
+            //
             // menuItem7
-            // 
+            //
             this.menuItem7.Index = 0;
             this.menuItem7.Text = "lateral gradient";
             this.menuItem7.Click += new System.EventHandler(this.menuItem7_Click);
-            // 
+            //
             // menuItem8
-            // 
+            //
             this.menuItem8.Index = 1;
             this.menuItem8.Text = "Bed sheer stress";
             this.menuItem8.Click += new System.EventHandler(this.menuItem8_Click);
-            // 
+            //
             // menuItem9
-            // 
+            //
             this.menuItem9.Index = 2;
             this.menuItem9.Text = "grainsize (new scale)";
             this.menuItem9.Click += new System.EventHandler(this.menuItem9_Click);
-            // 
+            //
             // menuItem26
-            // 
+            //
             this.menuItem26.Index = 3;
             this.menuItem26.Text = "Drainage area";
             this.menuItem26.Click += new System.EventHandler(this.menuItem26_Click);
-            // 
+            //
             // menuItem27
-            // 
+            //
             this.menuItem27.Index = 4;
             this.menuItem27.Text = "susp conc";
             this.menuItem27.Click += new System.EventHandler(this.menuItem27_Click);
-            // 
+            //
             // menuItem28
-            // 
+            //
             this.menuItem28.Index = 5;
             this.menuItem28.Text = "soil depth";
             this.menuItem28.Click += new System.EventHandler(this.menuItem28_Click);
-            // 
+            //
             // menuItem31
-            // 
+            //
             this.menuItem31.Index = 6;
             this.menuItem31.Text = "flow velocity";
             this.menuItem31.Click += new System.EventHandler(this.menuItem31_Click);
-            // 
+            //
             // menuItem11
-            // 
+            //
             this.menuItem11.Index = 3;
             this.menuItem11.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
             this.menuItem12,
@@ -1473,81 +1523,81 @@ namespace caesar1
             this.menuItem16,
             this.menuItemSoluteTracer});
             this.menuItem11.Text = "Save Options";
-            // 
+            //
             // menuItem12
-            // 
+            //
             this.menuItem12.Checked = true;
             this.menuItem12.Index = 0;
             this.menuItem12.Text = "elevations";
             this.menuItem12.Click += new System.EventHandler(this.menuItem12_Click);
-            // 
+            //
             // menuItem13
-            // 
+            //
             this.menuItem13.Checked = true;
             this.menuItem13.Index = 1;
             this.menuItem13.Text = "elev diff";
             this.menuItem13.Click += new System.EventHandler(this.menuItem13_Click);
-            // 
+            //
             // menuItem14
-            // 
+            //
             this.menuItem14.Checked = true;
             this.menuItem14.Index = 2;
             this.menuItem14.Text = "grainsize";
             this.menuItem14.Click += new System.EventHandler(this.menuItem14_Click);
-            // 
+            //
             // menuItem25
-            // 
+            //
             this.menuItem25.Index = 3;
             this.menuItem25.Text = "water depth";
             this.menuItem25.Click += new System.EventHandler(this.menuItem25_Click);
-            // 
+            //
             // menuItem29
-            // 
+            //
             this.menuItem29.Checked = true;
             this.menuItem29.Index = 4;
             this.menuItem29.Text = "d50 top layer";
             this.menuItem29.Click += new System.EventHandler(this.menuItem29_Click);
-            // 
+            //
             // menuItem33
-            // 
+            //
             this.menuItem33.Index = 5;
             this.menuItem33.Text = "flow velocity";
             this.menuItem33.Click += new System.EventHandler(this.menuItem33_Click);
-            // 
+            //
             // menuItem34
-            // 
+            //
             this.menuItem34.Index = 6;
             this.menuItem34.Text = "Veloc vectors";
             this.menuItem34.Click += new System.EventHandler(this.menuItem34_Click);
-            // 
+            //
             // menuItem6
-            // 
+            //
             this.menuItem6.Index = 7;
             this.menuItem6.Text = "water tracers";
             this.menuItem6.Click += new System.EventHandler(this.menuItem6_Click);
-            // 
+            //
             // menuItem15
-            // 
+            //
             this.menuItem15.Index = 8;
             this.menuItem15.Text = "rain zone tracers";
             this.menuItem15.Click += new System.EventHandler(this.menuItem15_Click);
-            // 
+            //
             // menuItem16
-            // 
+            //
             this.menuItem16.Index = 9;
             this.menuItem16.Text = "sediment tracers";
             this.menuItem16.Click += new System.EventHandler(this.menuItem16_Click);
-            // 
+            //
             // menuItemSoluteTracer
-            // 
+            //
             this.menuItemSoluteTracer.Index = 10;
             this.menuItemSoluteTracer.Text = "solute tracers";
             this.menuItemSoluteTracer.Click += new System.EventHandler(this.menuItemSoluteTracer_Click);
-            // 
+            //
             // tabControl1
-            // 
-            this.tabControl1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            //
+            this.tabControl1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.tabControl1.Controls.Add(this.FilesTab);
             this.tabControl1.Controls.Add(this.NumericalTab);
@@ -1560,15 +1610,16 @@ namespace caesar1
             this.tabControl1.Controls.Add(this.tabPage5);
             this.tabControl1.Controls.Add(this.tabPage1);
             this.tabControl1.Controls.Add(this.tabPage3);
+            this.tabControl1.Controls.Add(this.OilTab);
             this.tabControl1.Location = new System.Drawing.Point(6, 1);
             this.tabControl1.Name = "tabControl1";
             this.tabControl1.SelectedIndex = 0;
             this.tabControl1.Size = new System.Drawing.Size(1331, 530);
             this.tabControl1.TabIndex = 143;
             this.tabControl1.Tag = "Flow Model";
-            // 
+            //
             // FilesTab
-            // 
+            //
             this.FilesTab.Controls.Add(this.label123);
             this.FilesTab.Controls.Add(this.label124);
             this.FilesTab.Controls.Add(this.label122);
@@ -1608,9 +1659,9 @@ namespace caesar1
             this.FilesTab.TabIndex = 0;
             this.FilesTab.Text = "Files";
             this.FilesTab.UseVisualStyleBackColor = true;
-            // 
+            //
             // label123
-            // 
+            //
             this.label123.AutoSize = true;
             this.label123.Location = new System.Drawing.Point(333, 136);
             this.label123.Name = "label123";
@@ -1618,9 +1669,9 @@ namespace caesar1
             this.label123.TabIndex = 216;
             this.label123.Text = "minesites file";
             this.label123.Visible = false;
-            // 
+            //
             // label124
-            // 
+            //
             this.label124.AutoSize = true;
             this.label124.Location = new System.Drawing.Point(333, 110);
             this.label124.Name = "label124";
@@ -1628,9 +1679,9 @@ namespace caesar1
             this.label124.TabIndex = 215;
             this.label124.Text = "Tracer index file";
             this.label124.Visible = false;
-            // 
+            //
             // label122
-            // 
+            //
             this.label122.AutoSize = true;
             this.label122.Location = new System.Drawing.Point(333, 84);
             this.label122.Name = "label122";
@@ -1638,26 +1689,26 @@ namespace caesar1
             this.label122.TabIndex = 213;
             this.label122.Text = "Number of tracers";
             this.label122.Visible = false;
-            // 
+            //
             // grain_index_file
-            // 
+            //
             this.grain_index_file.Location = new System.Drawing.Point(131, 127);
             this.grain_index_file.Name = "grain_index_file";
             this.grain_index_file.Size = new System.Drawing.Size(120, 20);
             this.grain_index_file.TabIndex = 212;
             this.grain_index_file.Text = "null";
-            // 
+            //
             // label121
-            // 
+            //
             this.label121.AutoSize = true;
             this.label121.Location = new System.Drawing.Point(47, 130);
             this.label121.Name = "label121";
             this.label121.Size = new System.Drawing.Size(76, 13);
             this.label121.TabIndex = 211;
             this.label121.Text = "Grain index file";
-            // 
+            //
             // tracer_file
-            // 
+            //
             this.tracer_file.Location = new System.Drawing.Point(430, 107);
             this.tracer_file.Name = "tracer_file";
             this.tracer_file.Size = new System.Drawing.Size(100, 20);
@@ -1665,18 +1716,18 @@ namespace caesar1
             this.tracer_file.Text = "null";
             this.tracer_file.Visible = false;
             this.tracer_file.TextChanged += new System.EventHandler(this.tracer_file_TextChanged);
-            // 
+            //
             // tracer_num
-            // 
+            //
             this.tracer_num.Location = new System.Drawing.Point(430, 81);
             this.tracer_num.Name = "tracer_num";
             this.tracer_num.Size = new System.Drawing.Size(100, 20);
             this.tracer_num.TabIndex = 209;
             this.tracer_num.Text = "0";
             this.tracer_num.Visible = false;
-            // 
+            //
             // checkBox_tracer
-            // 
+            //
             this.checkBox_tracer.AutoSize = true;
             this.checkBox_tracer.Location = new System.Drawing.Point(392, 54);
             this.checkBox_tracer.Name = "checkBox_tracer";
@@ -1685,9 +1736,9 @@ namespace caesar1
             this.checkBox_tracer.Text = "Sediment tracer";
             this.checkBox_tracer.UseVisualStyleBackColor = true;
             this.checkBox_tracer.CheckedChanged += new System.EventHandler(this.checkBox_tracer_CheckedChanged);
-            // 
+            //
             // groupBox6
-            // 
+            //
             this.groupBox6.Controls.Add(this.textBox21);
             this.groupBox6.Controls.Add(this.groupBox4);
             this.groupBox6.Controls.Add(this.UTMgridcheckbox);
@@ -1704,16 +1755,16 @@ namespace caesar1
             this.groupBox6.TabIndex = 205;
             this.groupBox6.TabStop = false;
             this.groupBox6.Text = "Google Earth output variables";
-            // 
+            //
             // textBox21
-            // 
+            //
             this.textBox21.Location = new System.Drawing.Point(940, 180);
             this.textBox21.Name = "textBox21";
             this.textBox21.Size = new System.Drawing.Size(100, 20);
             this.textBox21.TabIndex = 210;
-            // 
+            //
             // groupBox4
-            // 
+            //
             this.groupBox4.Controls.Add(this.textBox6);
             this.groupBox4.Controls.Add(this.UTMsouthcheck);
             this.groupBox4.Controls.Add(this.UTMzonebox);
@@ -1723,9 +1774,9 @@ namespace caesar1
             this.groupBox4.TabIndex = 201;
             this.groupBox4.TabStop = false;
             this.groupBox4.Visible = false;
-            // 
+            //
             // textBox6
-            // 
+            //
             this.textBox6.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.textBox6.Location = new System.Drawing.Point(6, 17);
             this.textBox6.Multiline = true;
@@ -1735,9 +1786,9 @@ namespace caesar1
             this.textBox6.TabIndex = 196;
             this.textBox6.Text = "UTM zone (1-60)";
             this.textBox6.Visible = false;
-            // 
+            //
             // UTMsouthcheck
-            // 
+            //
             this.UTMsouthcheck.AutoSize = true;
             this.UTMsouthcheck.Location = new System.Drawing.Point(6, 42);
             this.UTMsouthcheck.Name = "UTMsouthcheck";
@@ -1746,9 +1797,9 @@ namespace caesar1
             this.UTMsouthcheck.Text = "Southern Hemisphere";
             this.UTMsouthcheck.UseVisualStyleBackColor = true;
             this.UTMsouthcheck.Visible = false;
-            // 
+            //
             // UTMzonebox
-            // 
+            //
             this.UTMzonebox.Location = new System.Drawing.Point(99, 16);
             this.UTMzonebox.Name = "UTMzonebox";
             this.UTMzonebox.Size = new System.Drawing.Size(39, 20);
@@ -1756,9 +1807,9 @@ namespace caesar1
             this.UTMzonebox.Tag = "UTM zone";
             this.toolTip1.SetToolTip(this.UTMzonebox, "Enter the UTM zone");
             this.UTMzonebox.Visible = false;
-            // 
+            //
             // UTMgridcheckbox
-            // 
+            //
             this.UTMgridcheckbox.AutoSize = true;
             this.UTMgridcheckbox.Location = new System.Drawing.Point(225, 116);
             this.UTMgridcheckbox.Name = "UTMgridcheckbox";
@@ -1767,9 +1818,9 @@ namespace caesar1
             this.UTMgridcheckbox.Text = "Grid is UTM";
             this.UTMgridcheckbox.UseVisualStyleBackColor = true;
             this.UTMgridcheckbox.CheckedChanged += new System.EventHandler(this.UTMgridcheckbox_CheckedChanged);
-            // 
+            //
             // textBox5
-            // 
+            //
             this.textBox5.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.textBox5.Location = new System.Drawing.Point(26, 112);
             this.textBox5.Multiline = true;
@@ -1778,34 +1829,34 @@ namespace caesar1
             this.textBox5.Size = new System.Drawing.Size(190, 35);
             this.textBox5.TabIndex = 199;
             this.textBox5.Text = "For DTMs using British National Grid or UTM WGS84";
-            // 
+            //
             // googleBeginDate
-            // 
+            //
             this.googleBeginDate.AcceptsTab = true;
             this.googleBeginDate.Location = new System.Drawing.Point(222, 84);
             this.googleBeginDate.Name = "googleBeginDate";
             this.googleBeginDate.Size = new System.Drawing.Size(106, 20);
             this.googleBeginDate.TabIndex = 191;
-            // 
+            //
             // label78
-            // 
+            //
             this.label78.AutoSize = true;
             this.label78.Location = new System.Drawing.Point(96, 87);
             this.label78.Name = "label78";
             this.label78.Size = new System.Drawing.Size(120, 13);
             this.label78.TabIndex = 190;
             this.label78.Text = "begin date (yyyy-mm-dd)";
-            // 
+            //
             // googAnimationSaveInterval
-            // 
+            //
             this.googAnimationSaveInterval.Location = new System.Drawing.Point(222, 58);
             this.googAnimationSaveInterval.Name = "googAnimationSaveInterval";
             this.googAnimationSaveInterval.Size = new System.Drawing.Size(56, 20);
             this.googAnimationSaveInterval.TabIndex = 188;
             this.googAnimationSaveInterval.Text = "1000";
-            // 
+            //
             // label79
-            // 
+            //
             this.label79.Location = new System.Drawing.Point(64, 58);
             this.label79.Name = "label79";
             this.label79.Size = new System.Drawing.Size(152, 25);
@@ -1813,27 +1864,27 @@ namespace caesar1
             this.label79.Text = "Save file every * mins";
             this.label79.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             this.toolTip1.SetToolTip(this.label79, "How often the avi file AND the other data files are saved");
-            // 
+            //
             // googleAnimationTextBox
-            // 
+            //
             this.googleAnimationTextBox.Location = new System.Drawing.Point(222, 32);
             this.googleAnimationTextBox.Name = "googleAnimationTextBox";
             this.googleAnimationTextBox.Size = new System.Drawing.Size(106, 20);
             this.googleAnimationTextBox.TabIndex = 185;
             this.googleAnimationTextBox.Text = "animation.kmz";
             this.toolTip1.SetToolTip(this.googleAnimationTextBox, "File name for avi file");
-            // 
+            //
             // googleAnimationCheckbox
-            // 
+            //
             this.googleAnimationCheckbox.Location = new System.Drawing.Point(27, 31);
             this.googleAnimationCheckbox.Name = "googleAnimationCheckbox";
             this.googleAnimationCheckbox.Size = new System.Drawing.Size(195, 24);
             this.googleAnimationCheckbox.TabIndex = 184;
             this.googleAnimationCheckbox.Text = "Generate Google Earth Animation";
             this.toolTip1.SetToolTip(this.googleAnimationCheckbox, "Check to generate a movie file of the screen display");
-            // 
+            //
             // checkBox3
-            // 
+            //
             this.checkBox3.Location = new System.Drawing.Point(307, 5);
             this.checkBox3.Name = "checkBox3";
             this.checkBox3.Size = new System.Drawing.Size(147, 42);
@@ -1841,43 +1892,43 @@ namespace caesar1
             this.checkBox3.Text = "Stage/Tidal input";
             this.toolTip1.SetToolTip(this.checkBox3, "CAESAR can run in both catchment and reach mode combined. But if you have reach m" +
         "ode selected, you should enter an input file in the hydrology tab");
-            // 
+            //
             // outputfilesaveintervalbox
-            // 
+            //
             this.outputfilesaveintervalbox.Location = new System.Drawing.Point(208, 327);
             this.outputfilesaveintervalbox.Name = "outputfilesaveintervalbox";
             this.outputfilesaveintervalbox.Size = new System.Drawing.Size(56, 20);
             this.outputfilesaveintervalbox.TabIndex = 166;
             this.outputfilesaveintervalbox.Text = "60";
-            // 
+            //
             // TimeseriesOutBox
-            // 
+            //
             this.TimeseriesOutBox.Location = new System.Drawing.Point(208, 303);
             this.TimeseriesOutBox.Name = "TimeseriesOutBox";
             this.TimeseriesOutBox.Size = new System.Drawing.Size(112, 20);
             this.TimeseriesOutBox.TabIndex = 168;
             this.TimeseriesOutBox.Text = "catchment.dat";
-            // 
+            //
             // tracerOutputtextBox
-            // 
+            //
             this.tracerOutputtextBox.Location = new System.Drawing.Point(743, 14);
             this.tracerOutputtextBox.Name = "tracerOutputtextBox";
             this.tracerOutputtextBox.Size = new System.Drawing.Size(112, 20);
             this.tracerOutputtextBox.TabIndex = 181;
             this.tracerOutputtextBox.Text = "tracer_output.txt";
             this.tracerOutputtextBox.Visible = false;
-            // 
+            //
             // tracerOutcheckBox
-            // 
+            //
             this.tracerOutcheckBox.Location = new System.Drawing.Point(979, 11);
             this.tracerOutcheckBox.Name = "tracerOutcheckBox";
             this.tracerOutcheckBox.Size = new System.Drawing.Size(160, 24);
             this.tracerOutcheckBox.TabIndex = 180;
             this.tracerOutcheckBox.Text = "Generate tracer output";
             this.tracerOutcheckBox.Visible = false;
-            // 
+            //
             // reach_mode_box
-            // 
+            //
             this.reach_mode_box.Checked = true;
             this.reach_mode_box.CheckState = System.Windows.Forms.CheckState.Checked;
             this.reach_mode_box.Location = new System.Drawing.Point(196, 5);
@@ -1887,9 +1938,9 @@ namespace caesar1
             this.reach_mode_box.Text = "Reach Mode";
             this.toolTip1.SetToolTip(this.reach_mode_box, "CAESAR can run in both catchment and reach mode combined. But if you have reach m" +
         "ode selected, you should enter an input file in the hydrology tab");
-            // 
+            //
             // catchment_mode_box
-            // 
+            //
             this.catchment_mode_box.Location = new System.Drawing.Point(54, 9);
             this.catchment_mode_box.Name = "catchment_mode_box";
             this.catchment_mode_box.Size = new System.Drawing.Size(147, 34);
@@ -1898,52 +1949,52 @@ namespace caesar1
             this.toolTip1.SetToolTip(this.catchment_mode_box, "CAESAR can run in both catchment and reach mode, but if you have catchment mode c" +
         "hecked, you should input a rainfall data file");
             this.catchment_mode_box.CheckedChanged += new System.EventHandler(this.checkBox1_CheckedChanged);
-            // 
+            //
             // checkBoxGenerateTimeSeries
-            // 
+            //
             this.checkBoxGenerateTimeSeries.Location = new System.Drawing.Point(44, 304);
             this.checkBoxGenerateTimeSeries.Name = "checkBoxGenerateTimeSeries";
             this.checkBoxGenerateTimeSeries.Size = new System.Drawing.Size(170, 24);
             this.checkBoxGenerateTimeSeries.TabIndex = 173;
             this.checkBoxGenerateTimeSeries.Text = "Generate time series output";
-            // 
+            //
             // checkBoxGenerateIterations
-            // 
+            //
             this.checkBoxGenerateIterations.Location = new System.Drawing.Point(45, 367);
             this.checkBoxGenerateIterations.Name = "checkBoxGenerateIterations";
             this.checkBoxGenerateIterations.Size = new System.Drawing.Size(152, 24);
             this.checkBoxGenerateIterations.TabIndex = 172;
             this.checkBoxGenerateIterations.Text = "Generate iteration output";
             this.checkBoxGenerateIterations.Visible = false;
-            // 
+            //
             // IterationOutbox
-            // 
+            //
             this.IterationOutbox.Location = new System.Drawing.Point(208, 367);
             this.IterationOutbox.Name = "IterationOutbox";
             this.IterationOutbox.Size = new System.Drawing.Size(112, 20);
             this.IterationOutbox.TabIndex = 170;
             this.IterationOutbox.Text = "iterout.dat";
             this.IterationOutbox.Visible = false;
-            // 
+            //
             // saveintervalbox
-            // 
+            //
             this.saveintervalbox.Location = new System.Drawing.Point(175, 224);
             this.saveintervalbox.Name = "saveintervalbox";
             this.saveintervalbox.Size = new System.Drawing.Size(56, 20);
             this.saveintervalbox.TabIndex = 163;
             this.saveintervalbox.Text = "1000";
-            // 
+            //
             // label45
-            // 
+            //
             this.label45.Location = new System.Drawing.Point(48, 327);
             this.label45.Name = "label45";
             this.label45.Size = new System.Drawing.Size(152, 24);
             this.label45.TabIndex = 167;
             this.label45.Text = "Save file every * mins";
             this.label45.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // label33
-            // 
+            //
             this.label33.Location = new System.Drawing.Point(17, 221);
             this.label33.Name = "label33";
             this.label33.Size = new System.Drawing.Size(152, 25);
@@ -1951,60 +2002,60 @@ namespace caesar1
             this.label33.Text = "Save file every * mins";
             this.label33.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             this.toolTip1.SetToolTip(this.label33, "How often the avi file AND the other data files are saved");
-            // 
+            //
             // uniquefilecheck
-            // 
+            //
             this.uniquefilecheck.Location = new System.Drawing.Point(44, 245);
             this.uniquefilecheck.Name = "uniquefilecheck";
             this.uniquefilecheck.Size = new System.Drawing.Size(120, 25);
             this.uniquefilecheck.TabIndex = 164;
             this.uniquefilecheck.Text = "unique file name?";
             this.toolTip1.SetToolTip(this.uniquefilecheck, "Whether the data files are given a unqiu file name - ");
-            // 
+            //
             // tracerhydrofile
-            // 
+            //
             this.tracerhydrofile.Location = new System.Drawing.Point(617, 12);
             this.tracerhydrofile.Name = "tracerhydrofile";
             this.tracerhydrofile.Size = new System.Drawing.Size(120, 20);
             this.tracerhydrofile.TabIndex = 105;
             this.tracerhydrofile.Text = "null";
             this.tracerhydrofile.Visible = false;
-            // 
+            //
             // mine_input_textBox
-            // 
+            //
             this.mine_input_textBox.Location = new System.Drawing.Point(430, 133);
             this.mine_input_textBox.Name = "mine_input_textBox";
             this.mine_input_textBox.Size = new System.Drawing.Size(100, 20);
             this.mine_input_textBox.TabIndex = 104;
             this.mine_input_textBox.Text = "null";
             this.mine_input_textBox.Visible = false;
-            // 
+            //
             // bedrockbox
-            // 
+            //
             this.bedrockbox.Location = new System.Drawing.Point(131, 97);
             this.bedrockbox.Name = "bedrockbox";
             this.bedrockbox.Size = new System.Drawing.Size(120, 20);
             this.bedrockbox.TabIndex = 102;
             this.bedrockbox.Text = "null";
-            // 
+            //
             // graindataloadbox
-            // 
+            //
             this.graindataloadbox.Location = new System.Drawing.Point(131, 73);
             this.graindataloadbox.Name = "graindataloadbox";
             this.graindataloadbox.Size = new System.Drawing.Size(120, 20);
             this.graindataloadbox.TabIndex = 101;
             this.graindataloadbox.Text = "null";
-            // 
+            //
             // openfiletextbox
-            // 
+            //
             this.openfiletextbox.Location = new System.Drawing.Point(131, 49);
             this.openfiletextbox.Name = "openfiletextbox";
             this.openfiletextbox.Size = new System.Drawing.Size(120, 20);
             this.openfiletextbox.TabIndex = 100;
             this.openfiletextbox.Text = "whole9.dat";
-            // 
+            //
             // tracerbox
-            // 
+            //
             this.tracerbox.Location = new System.Drawing.Point(845, 11);
             this.tracerbox.Name = "tracerbox";
             this.tracerbox.Size = new System.Drawing.Size(88, 23);
@@ -2012,9 +2063,9 @@ namespace caesar1
             this.tracerbox.Text = "tracer run?";
             this.toolTip1.SetToolTip(this.tracerbox, "Check to run in \'tracer mode\'");
             this.tracerbox.Visible = false;
-            // 
+            //
             // label39
-            // 
+            //
             this.label39.Location = new System.Drawing.Point(19, 97);
             this.label39.Name = "label39";
             this.label39.Size = new System.Drawing.Size(104, 24);
@@ -2022,27 +2073,27 @@ namespace caesar1
             this.label39.Text = "Bedrock data file";
             this.label39.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             this.toolTip1.SetToolTip(this.label39, "A DEM of the bedrock - below which the model cannot erode");
-            // 
+            //
             // label24
-            // 
+            //
             this.label24.Location = new System.Drawing.Point(19, 73);
             this.label24.Name = "label24";
             this.label24.Size = new System.Drawing.Size(104, 24);
             this.label24.TabIndex = 58;
             this.label24.Text = "Grain data file";
             this.label24.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // label23
-            // 
+            //
             this.label23.Location = new System.Drawing.Point(19, 49);
             this.label23.Name = "label23";
             this.label23.Size = new System.Drawing.Size(104, 24);
             this.label23.TabIndex = 56;
             this.label23.Text = "DEM data file";
             this.label23.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // groupBoxOutputDirectory
-            // 
+            //
             this.groupBoxOutputDirectory.Controls.Add(this.labelOutDir);
             this.groupBoxOutputDirectory.Controls.Add(this.textBoxOutDir);
             this.groupBoxOutputDirectory.Controls.Add(this.buttonOutDir);
@@ -2053,35 +2104,35 @@ namespace caesar1
             this.groupBoxOutputDirectory.TabIndex = 217;
             this.groupBoxOutputDirectory.TabStop = false;
             this.groupBoxOutputDirectory.Text = "Output directory";
-            // 
+            //
             // labelOutDir
-            // 
+            //
             this.labelOutDir.Location = new System.Drawing.Point(19, 24);
             this.labelOutDir.Name = "labelOutDir";
             this.labelOutDir.Size = new System.Drawing.Size(330, 24);
             this.labelOutDir.TabIndex = 0;
             this.labelOutDir.Text = "Set directory for outputs (defaults to the model run directory):";
             this.labelOutDir.TextAlign = System.Drawing.ContentAlignment.BottomLeft;
-            // 
+            //
             // textBoxOutDir
-            // 
+            //
             this.textBoxOutDir.Location = new System.Drawing.Point(19, 55);
             this.textBoxOutDir.Name = "textBoxOutDir";
             this.textBoxOutDir.Size = new System.Drawing.Size(330, 20);
             this.textBoxOutDir.TabIndex = 1;
             this.textBoxOutDir.TextChanged += new System.EventHandler(this.textBoxOutDir_TextChanged);
-            // 
+            //
             // buttonOutDir
-            // 
+            //
             this.buttonOutDir.Location = new System.Drawing.Point(355, 55);
             this.buttonOutDir.Name = "buttonOutDir";
             this.buttonOutDir.Size = new System.Drawing.Size(30, 20);
             this.buttonOutDir.TabIndex = 2;
             this.buttonOutDir.Text = "...";
             this.buttonOutDir.Click += new System.EventHandler(this.buttonOutDir_Click);
-            // 
+            //
             // checkboxOutDirDateTime
-            // 
+            //
             this.checkboxOutDirDateTime.Location = new System.Drawing.Point(19, 90);
             this.checkboxOutDirDateTime.Name = "checkboxOutDirDateTime";
             this.checkboxOutDirDateTime.Size = new System.Drawing.Size(380, 30);
@@ -2089,9 +2140,9 @@ namespace caesar1
             this.checkboxOutDirDateTime.Text = "If checked, outputs will be saved in a subfolder of the above path, using the Dat" +
     "e-Time of the simulation start";
             this.checkboxOutDirDateTime.Click += new System.EventHandler(this.checkboxOutDirDateTime_CheckChanged);
-            // 
+            //
             // NumericalTab
-            // 
+            //
             this.NumericalTab.Controls.Add(this.bedslopebox2);
             this.NumericalTab.Controls.Add(this.max_time_step_Box);
             this.NumericalTab.Controls.Add(this.label76);
@@ -2116,9 +2167,9 @@ namespace caesar1
             this.NumericalTab.TabIndex = 2;
             this.NumericalTab.Text = "Numerical";
             this.NumericalTab.UseVisualStyleBackColor = true;
-            // 
+            //
             // bedslopebox2
-            // 
+            //
             this.bedslopebox2.Location = new System.Drawing.Point(84, 298);
             this.bedslopebox2.Name = "bedslopebox2";
             this.bedslopebox2.Size = new System.Drawing.Size(153, 35);
@@ -2126,26 +2177,26 @@ namespace caesar1
             this.bedslopebox2.Text = "redundant now hidden";
             this.bedslopebox2.Visible = false;
             this.bedslopebox2.CheckedChanged += new System.EventHandler(this.bedslopebox2_CheckedChanged);
-            // 
+            //
             // max_time_step_Box
-            // 
+            //
             this.max_time_step_Box.Location = new System.Drawing.Point(184, 80);
             this.max_time_step_Box.Name = "max_time_step_Box";
             this.max_time_step_Box.Size = new System.Drawing.Size(64, 20);
             this.max_time_step_Box.TabIndex = 186;
             this.max_time_step_Box.Text = "3600";
-            // 
+            //
             // label76
-            // 
+            //
             this.label76.Location = new System.Drawing.Point(40, 80);
             this.label76.Name = "label76";
             this.label76.Size = new System.Drawing.Size(136, 24);
             this.label76.TabIndex = 187;
             this.label76.Text = "Max time step (secs)";
             this.label76.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // veltaubox
-            // 
+            //
             this.veltaubox.Location = new System.Drawing.Point(77, 368);
             this.veltaubox.Name = "veltaubox";
             this.veltaubox.Size = new System.Drawing.Size(160, 27);
@@ -2153,9 +2204,9 @@ namespace caesar1
             this.veltaubox.Text = "Tau based on velocity";
             this.veltaubox.Visible = false;
             this.veltaubox.CheckedChanged += new System.EventHandler(this.veltaubox_CheckedChanged);
-            // 
+            //
             // label52
-            // 
+            //
             this.label52.Location = new System.Drawing.Point(81, 342);
             this.label52.Name = "label52";
             this.label52.Size = new System.Drawing.Size(133, 28);
@@ -2163,9 +2214,9 @@ namespace caesar1
             this.label52.Text = "Slope used to calc Tau (for erosion)";
             this.toolTip1.SetToolTip(this.label52, "See notes on lateral tab for more. ");
             this.label52.Visible = false;
-            // 
+            //
             // bedslope_box
-            // 
+            //
             this.bedslope_box.Checked = true;
             this.bedslope_box.CheckState = System.Windows.Forms.CheckState.Checked;
             this.bedslope_box.Location = new System.Drawing.Point(22, 345);
@@ -2175,86 +2226,86 @@ namespace caesar1
             this.bedslope_box.Text = "Bedslope (original method)";
             this.bedslope_box.Visible = false;
             this.bedslope_box.CheckedChanged += new System.EventHandler(this.bedslope_box_CheckedChanged);
-            // 
+            //
             // label47
-            // 
+            //
             this.label47.Location = new System.Drawing.Point(256, 53);
             this.label47.Name = "label47";
             this.label47.Size = new System.Drawing.Size(66, 23);
             this.label47.TabIndex = 176;
             this.label47.Text = "(caution !)";
             this.label47.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            // 
+            //
             // mintimestepbox
-            // 
+            //
             this.mintimestepbox.Location = new System.Drawing.Point(184, 53);
             this.mintimestepbox.Name = "mintimestepbox";
             this.mintimestepbox.Size = new System.Drawing.Size(64, 20);
             this.mintimestepbox.TabIndex = 166;
             this.mintimestepbox.Text = "1";
-            // 
+            //
             // textBox1
-            // 
+            //
             this.textBox1.Location = new System.Drawing.Point(184, 118);
             this.textBox1.Name = "textBox1";
             this.textBox1.Size = new System.Drawing.Size(64, 20);
             this.textBox1.TabIndex = 164;
             this.textBox1.Text = "0";
-            // 
+            //
             // smoothbox
-            // 
+            //
             this.smoothbox.Location = new System.Drawing.Point(163, 360);
             this.smoothbox.Name = "smoothbox";
             this.smoothbox.Size = new System.Drawing.Size(40, 20);
             this.smoothbox.TabIndex = 160;
             this.smoothbox.Text = "1";
             this.smoothbox.Visible = false;
-            // 
+            //
             // cyclemaxbox
-            // 
+            //
             this.cyclemaxbox.Location = new System.Drawing.Point(184, 142);
             this.cyclemaxbox.Name = "cyclemaxbox";
             this.cyclemaxbox.Size = new System.Drawing.Size(64, 20);
             this.cyclemaxbox.TabIndex = 155;
             this.cyclemaxbox.Text = "1000";
-            // 
+            //
             // itermaxbox
-            // 
+            //
             this.itermaxbox.Location = new System.Drawing.Point(200, 318);
             this.itermaxbox.Name = "itermaxbox";
             this.itermaxbox.Size = new System.Drawing.Size(64, 20);
             this.itermaxbox.TabIndex = 154;
             this.itermaxbox.Text = "100000";
             this.itermaxbox.Visible = false;
-            // 
+            //
             // limitbox
-            // 
+            //
             this.limitbox.Location = new System.Drawing.Point(184, 179);
             this.limitbox.Name = "limitbox";
             this.limitbox.Size = new System.Drawing.Size(40, 20);
             this.limitbox.TabIndex = 144;
             this.limitbox.Text = "1";
-            // 
+            //
             // label31
-            // 
+            //
             this.label31.Location = new System.Drawing.Point(56, 118);
             this.label31.Name = "label31";
             this.label31.Size = new System.Drawing.Size(120, 24);
             this.label31.TabIndex = 165;
             this.label31.Text = "run start time (h)";
             this.label31.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // label27
-            // 
+            //
             this.label27.Location = new System.Drawing.Point(64, 142);
             this.label27.Name = "label27";
             this.label27.Size = new System.Drawing.Size(112, 24);
             this.label27.TabIndex = 157;
             this.label27.Text = "max run duration (h)";
             this.label27.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // label26
-            // 
+            //
             this.label26.Location = new System.Drawing.Point(56, 318);
             this.label26.Name = "label26";
             this.label26.Size = new System.Drawing.Size(136, 24);
@@ -2262,27 +2313,27 @@ namespace caesar1
             this.label26.Text = "max # of iterations";
             this.label26.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             this.label26.Visible = false;
-            // 
+            //
             // label10
-            // 
+            //
             this.label10.Location = new System.Drawing.Point(56, 175);
             this.label10.Name = "label10";
             this.label10.Size = new System.Drawing.Size(120, 24);
             this.label10.TabIndex = 152;
             this.label10.Text = "memory limit";
             this.label10.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // label49
-            // 
+            //
             this.label49.Location = new System.Drawing.Point(40, 53);
             this.label49.Name = "label49";
             this.label49.Size = new System.Drawing.Size(136, 24);
             this.label49.TabIndex = 167;
             this.label49.Text = "Min time step (s)";
             this.label49.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // GrainTab
-            // 
+            //
             this.GrainTab.Controls.Add(this.label125);
             this.GrainTab.Controls.Add(this.landslide_grainsize);
             this.GrainTab.Controls.Add(this.label120);
@@ -2400,9 +2451,9 @@ namespace caesar1
             this.GrainTab.TabIndex = 3;
             this.GrainTab.Text = "Sediment";
             this.GrainTab.UseVisualStyleBackColor = true;
-            // 
+            //
             // label125
-            // 
+            //
             this.label125.Location = new System.Drawing.Point(828, 62);
             this.label125.Name = "label125";
             this.label125.Size = new System.Drawing.Size(80, 39);
@@ -2411,9 +2462,9 @@ namespace caesar1
             this.label125.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.label125.Visible = false;
             this.label125.Click += new System.EventHandler(this.label125_Click);
-            // 
+            //
             // landslide_grainsize
-            // 
+            //
             this.landslide_grainsize.AutoSize = true;
             this.landslide_grainsize.Location = new System.Drawing.Point(782, 25);
             this.landslide_grainsize.Name = "landslide_grainsize";
@@ -2422,9 +2473,9 @@ namespace caesar1
             this.landslide_grainsize.Text = "landslide_grainsize";
             this.landslide_grainsize.UseVisualStyleBackColor = true;
             this.landslide_grainsize.CheckedChanged += new System.EventHandler(this.landslide_grainsize_CheckedChanged);
-            // 
+            //
             // label120
-            // 
+            //
             this.label120.ForeColor = System.Drawing.SystemColors.ControlText;
             this.label120.Location = new System.Drawing.Point(875, 292);
             this.label120.Name = "label120";
@@ -2433,18 +2484,18 @@ namespace caesar1
             this.label120.Text = "sum must equal 1.0";
             this.label120.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             this.label120.Visible = false;
-            // 
+            //
             // label119
-            // 
+            //
             this.label119.AutoSize = true;
             this.label119.Location = new System.Drawing.Point(39, 30);
             this.label119.Name = "label119";
             this.label119.Size = new System.Drawing.Size(62, 13);
             this.label119.TabIndex = 249;
             this.label119.Text = "particle one";
-            // 
+            //
             // label111
-            // 
+            //
             this.label111.Location = new System.Drawing.Point(828, 90);
             this.label111.Name = "label111";
             this.label111.Size = new System.Drawing.Size(80, 39);
@@ -2452,9 +2503,9 @@ namespace caesar1
             this.label111.Text = "size3";
             this.label111.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.label111.Visible = false;
-            // 
+            //
             // label112
-            // 
+            //
             this.label112.Location = new System.Drawing.Point(828, 120);
             this.label112.Name = "label112";
             this.label112.Size = new System.Drawing.Size(80, 38);
@@ -2462,9 +2513,9 @@ namespace caesar1
             this.label112.Text = "size4";
             this.label112.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.label112.Visible = false;
-            // 
+            //
             // label113
-            // 
+            //
             this.label113.Location = new System.Drawing.Point(828, 146);
             this.label113.Name = "label113";
             this.label113.Size = new System.Drawing.Size(80, 38);
@@ -2472,9 +2523,9 @@ namespace caesar1
             this.label113.Text = "size5";
             this.label113.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.label113.Visible = false;
-            // 
+            //
             // label114
-            // 
+            //
             this.label114.Location = new System.Drawing.Point(828, 171);
             this.label114.Name = "label114";
             this.label114.Size = new System.Drawing.Size(80, 40);
@@ -2482,9 +2533,9 @@ namespace caesar1
             this.label114.Text = "size6";
             this.label114.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.label114.Visible = false;
-            // 
+            //
             // label115
-            // 
+            //
             this.label115.Location = new System.Drawing.Point(828, 197);
             this.label115.Name = "label115";
             this.label115.Size = new System.Drawing.Size(80, 39);
@@ -2492,9 +2543,9 @@ namespace caesar1
             this.label115.Text = "size7";
             this.label115.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.label115.Visible = false;
-            // 
+            //
             // label116
-            // 
+            //
             this.label116.Location = new System.Drawing.Point(828, 226);
             this.label116.Name = "label116";
             this.label116.Size = new System.Drawing.Size(80, 39);
@@ -2502,9 +2553,9 @@ namespace caesar1
             this.label116.Text = "size8";
             this.label116.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.label116.Visible = false;
-            // 
+            //
             // label117
-            // 
+            //
             this.label117.Location = new System.Drawing.Point(828, 251);
             this.label117.Name = "label117";
             this.label117.Size = new System.Drawing.Size(80, 40);
@@ -2512,9 +2563,9 @@ namespace caesar1
             this.label117.Text = "size9";
             this.label117.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.label117.Visible = false;
-            // 
+            //
             // label118
-            // 
+            //
             this.label118.Location = new System.Drawing.Point(827, 38);
             this.label118.Name = "label118";
             this.label118.Size = new System.Drawing.Size(80, 40);
@@ -2522,171 +2573,171 @@ namespace caesar1
             this.label118.Text = "size1";
             this.label118.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.label118.Visible = false;
-            // 
+            //
             // gp9_box
-            // 
+            //
             this.gp9_box.Location = new System.Drawing.Point(997, 262);
             this.gp9_box.Name = "gp9_box";
             this.gp9_box.Size = new System.Drawing.Size(130, 20);
             this.gp9_box.TabIndex = 239;
             this.gp9_box.Text = "0.121";
             this.gp9_box.Visible = false;
-            // 
+            //
             // gp8_box
-            // 
+            //
             this.gp8_box.Location = new System.Drawing.Point(997, 236);
             this.gp8_box.Name = "gp8_box";
             this.gp8_box.Size = new System.Drawing.Size(130, 20);
             this.gp8_box.TabIndex = 238;
             this.gp8_box.Text = "0.231";
             this.gp8_box.Visible = false;
-            // 
+            //
             // gp7_box
-            // 
+            //
             this.gp7_box.Location = new System.Drawing.Point(997, 207);
             this.gp7_box.Name = "gp7_box";
             this.gp7_box.Size = new System.Drawing.Size(130, 20);
             this.gp7_box.TabIndex = 237;
             this.gp7_box.Text = "0.220";
             this.gp7_box.Visible = false;
-            // 
+            //
             // gp6_box
-            // 
+            //
             this.gp6_box.Location = new System.Drawing.Point(997, 182);
             this.gp6_box.Name = "gp6_box";
             this.gp6_box.Size = new System.Drawing.Size(130, 20);
             this.gp6_box.TabIndex = 236;
             this.gp6_box.Text = "0.146";
             this.gp6_box.Visible = false;
-            // 
+            //
             // gp5_box
-            // 
+            //
             this.gp5_box.Location = new System.Drawing.Point(997, 156);
             this.gp5_box.Name = "gp5_box";
             this.gp5_box.Size = new System.Drawing.Size(130, 20);
             this.gp5_box.TabIndex = 235;
             this.gp5_box.Text = "0.068";
             this.gp5_box.Visible = false;
-            // 
+            //
             // gp4_box
-            // 
+            //
             this.gp4_box.Location = new System.Drawing.Point(997, 130);
             this.gp4_box.Name = "gp4_box";
             this.gp4_box.Size = new System.Drawing.Size(130, 20);
             this.gp4_box.TabIndex = 234;
             this.gp4_box.Text = "0.029";
             this.gp4_box.Visible = false;
-            // 
+            //
             // gp3_box
-            // 
+            //
             this.gp3_box.Location = new System.Drawing.Point(997, 104);
             this.gp3_box.Name = "gp3_box";
             this.gp3_box.Size = new System.Drawing.Size(130, 20);
             this.gp3_box.TabIndex = 233;
             this.gp3_box.Text = "0.019";
             this.gp3_box.Visible = false;
-            // 
+            //
             // gp2_box
-            // 
+            //
             this.gp2_box.Location = new System.Drawing.Point(997, 75);
             this.gp2_box.Name = "gp2_box";
             this.gp2_box.Size = new System.Drawing.Size(130, 20);
             this.gp2_box.TabIndex = 232;
             this.gp2_box.Text = "0.022";
             this.gp2_box.Visible = false;
-            // 
+            //
             // gp1_box
-            // 
+            //
             this.gp1_box.Location = new System.Drawing.Point(997, 49);
             this.gp1_box.Name = "gp1_box";
             this.gp1_box.Size = new System.Drawing.Size(130, 20);
             this.gp1_box.TabIndex = 231;
             this.gp1_box.Text = "0.144";
             this.gp1_box.Visible = false;
-            // 
+            //
             // g9_box
-            // 
+            //
             this.g9_box.Location = new System.Drawing.Point(911, 262);
             this.g9_box.Name = "g9_box";
             this.g9_box.Size = new System.Drawing.Size(71, 20);
             this.g9_box.TabIndex = 230;
             this.g9_box.Text = "0.128";
             this.g9_box.Visible = false;
-            // 
+            //
             // g8_box
-            // 
+            //
             this.g8_box.Location = new System.Drawing.Point(911, 236);
             this.g8_box.Name = "g8_box";
             this.g8_box.Size = new System.Drawing.Size(71, 20);
             this.g8_box.TabIndex = 229;
             this.g8_box.Text = "0.064";
             this.g8_box.Visible = false;
-            // 
+            //
             // g7_box
-            // 
+            //
             this.g7_box.Location = new System.Drawing.Point(911, 208);
             this.g7_box.Name = "g7_box";
             this.g7_box.Size = new System.Drawing.Size(71, 20);
             this.g7_box.TabIndex = 228;
             this.g7_box.Text = "0.032";
             this.g7_box.Visible = false;
-            // 
+            //
             // g6_box
-            // 
+            //
             this.g6_box.Location = new System.Drawing.Point(911, 182);
             this.g6_box.Name = "g6_box";
             this.g6_box.Size = new System.Drawing.Size(71, 20);
             this.g6_box.TabIndex = 227;
             this.g6_box.Text = "0.016";
             this.g6_box.Visible = false;
-            // 
+            //
             // g5_box
-            // 
+            //
             this.g5_box.Location = new System.Drawing.Point(911, 156);
             this.g5_box.Name = "g5_box";
             this.g5_box.Size = new System.Drawing.Size(71, 20);
             this.g5_box.TabIndex = 226;
             this.g5_box.Text = "0.008";
             this.g5_box.Visible = false;
-            // 
+            //
             // g4_box
-            // 
+            //
             this.g4_box.Location = new System.Drawing.Point(911, 130);
             this.g4_box.Name = "g4_box";
             this.g4_box.Size = new System.Drawing.Size(71, 20);
             this.g4_box.TabIndex = 225;
             this.g4_box.Text = "0.004";
             this.g4_box.Visible = false;
-            // 
+            //
             // g3_box
-            // 
+            //
             this.g3_box.Location = new System.Drawing.Point(911, 102);
             this.g3_box.Name = "g3_box";
             this.g3_box.Size = new System.Drawing.Size(71, 20);
             this.g3_box.TabIndex = 224;
             this.g3_box.Text = "0.002";
             this.g3_box.Visible = false;
-            // 
+            //
             // g2_box
-            // 
+            //
             this.g2_box.Location = new System.Drawing.Point(911, 76);
             this.g2_box.Name = "g2_box";
             this.g2_box.Size = new System.Drawing.Size(71, 20);
             this.g2_box.TabIndex = 223;
             this.g2_box.Text = "0.001";
             this.g2_box.Visible = false;
-            // 
+            //
             // g1_box
-            // 
+            //
             this.g1_box.Location = new System.Drawing.Point(911, 49);
             this.g1_box.Name = "g1_box";
             this.g1_box.Size = new System.Drawing.Size(71, 20);
             this.g1_box.TabIndex = 222;
             this.g1_box.Text = "0.0005";
             this.g1_box.Visible = false;
-            // 
+            //
             // label32
-            // 
+            //
             this.label32.AutoSize = true;
             this.label32.Location = new System.Drawing.Point(994, 26);
             this.label32.Name = "label32";
@@ -2695,9 +2746,9 @@ namespace caesar1
             this.label32.Text = "proportion";
             this.label32.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             this.label32.Visible = false;
-            // 
+            //
             // label30
-            // 
+            //
             this.label30.AutoSize = true;
             this.label30.Location = new System.Drawing.Point(911, 26);
             this.label30.Name = "label30";
@@ -2706,9 +2757,9 @@ namespace caesar1
             this.label30.Text = "grain size (m)";
             this.label30.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             this.label30.Visible = false;
-            // 
+            //
             // meyerbox
-            // 
+            //
             this.meyerbox.AutoSize = true;
             this.meyerbox.Location = new System.Drawing.Point(549, 71);
             this.meyerbox.Name = "meyerbox";
@@ -2717,9 +2768,9 @@ namespace caesar1
             this.meyerbox.Text = "Meyer Peter Muller";
             this.meyerbox.UseVisualStyleBackColor = true;
             this.meyerbox.CheckedChanged += new System.EventHandler(this.meyerbox_CheckedChanged);
-            // 
+            //
             // checkBox8
-            // 
+            //
             this.checkBox8.Checked = true;
             this.checkBox8.CheckState = System.Windows.Forms.CheckState.Checked;
             this.checkBox8.Location = new System.Drawing.Point(27, 322);
@@ -2727,115 +2778,115 @@ namespace caesar1
             this.checkBox8.Size = new System.Drawing.Size(169, 28);
             this.checkBox8.TabIndex = 218;
             this.checkBox8.Text = "All 9 grainsizes?";
-            // 
+            //
             // bedrock_erosion_threshold_box
-            // 
+            //
             this.bedrock_erosion_threshold_box.Location = new System.Drawing.Point(27, 362);
             this.bedrock_erosion_threshold_box.Name = "bedrock_erosion_threshold_box";
             this.bedrock_erosion_threshold_box.Size = new System.Drawing.Size(100, 20);
             this.bedrock_erosion_threshold_box.TabIndex = 214;
             this.bedrock_erosion_threshold_box.Text = "0";
-            // 
+            //
             // bedrock_erosion_rate_box
-            // 
+            //
             this.bedrock_erosion_rate_box.Location = new System.Drawing.Point(27, 395);
             this.bedrock_erosion_rate_box.Name = "bedrock_erosion_rate_box";
             this.bedrock_erosion_rate_box.Size = new System.Drawing.Size(100, 20);
             this.bedrock_erosion_rate_box.TabIndex = 215;
             this.bedrock_erosion_rate_box.Text = "0";
-            // 
+            //
             // label92
-            // 
+            //
             this.label92.Location = new System.Drawing.Point(133, 358);
             this.label92.Name = "label92";
             this.label92.Size = new System.Drawing.Size(167, 33);
             this.label92.TabIndex = 217;
             this.label92.Text = "Bedrock erosion threshold (Pa)";
             this.label92.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // label93
-            // 
+            //
             this.label93.Location = new System.Drawing.Point(138, 393);
             this.label93.Name = "label93";
             this.label93.Size = new System.Drawing.Size(162, 24);
             this.label93.TabIndex = 216;
             this.label93.Text = "Bedrock erosion rate (m/Pa/Yr)";
             this.label93.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // label65
-            // 
+            //
             this.label65.Location = new System.Drawing.Point(630, 415);
             this.label65.Name = "label65";
             this.label65.Size = new System.Drawing.Size(131, 27);
             this.label65.TabIndex = 213;
             this.label65.Text = "Max difference allowed in cross channel smoothing";
-            // 
+            //
             // textBox7
-            // 
+            //
             this.textBox7.Location = new System.Drawing.Point(549, 415);
             this.textBox7.Name = "textBox7";
             this.textBox7.Size = new System.Drawing.Size(73, 20);
             this.textBox7.TabIndex = 212;
             this.textBox7.Text = "0.0001";
-            // 
+            //
             // label58
-            // 
+            //
             this.label58.Location = new System.Drawing.Point(630, 384);
             this.label58.Name = "label58";
             this.label58.Size = new System.Drawing.Size(131, 27);
             this.label58.TabIndex = 211;
             this.label58.Text = "Number of cells to shift lat erosion downstream";
-            // 
+            //
             // downstreamshiftbox
-            // 
+            //
             this.downstreamshiftbox.Location = new System.Drawing.Point(549, 384);
             this.downstreamshiftbox.Name = "downstreamshiftbox";
             this.downstreamshiftbox.Size = new System.Drawing.Size(73, 20);
             this.downstreamshiftbox.TabIndex = 210;
             this.downstreamshiftbox.Text = "5";
-            // 
+            //
             // label55
-            // 
+            //
             this.label55.Location = new System.Drawing.Point(627, 103);
             this.label55.Name = "label55";
             this.label55.Size = new System.Drawing.Size(195, 27);
             this.label55.TabIndex = 209;
             this.label55.Text = "Max velocity used to calc Tau from vel.";
-            // 
+            //
             // max_vel_box
-            // 
+            //
             this.max_vel_box.Location = new System.Drawing.Point(547, 104);
             this.max_vel_box.Name = "max_vel_box";
             this.max_vel_box.Size = new System.Drawing.Size(40, 20);
             this.max_vel_box.TabIndex = 208;
             this.max_vel_box.Text = "5";
-            // 
+            //
             // textBox3
-            // 
+            //
             this.textBox3.Location = new System.Drawing.Point(548, 324);
             this.textBox3.Name = "textBox3";
             this.textBox3.Size = new System.Drawing.Size(40, 20);
             this.textBox3.TabIndex = 202;
             this.textBox3.Text = "0";
-            // 
+            //
             // label60
-            // 
+            //
             this.label60.Location = new System.Drawing.Point(627, 350);
             this.label60.Name = "label60";
             this.label60.Size = new System.Drawing.Size(131, 27);
             this.label60.TabIndex = 201;
             this.label60.Text = "Number of passes for edge smoothing filter";
-            // 
+            //
             // avge_smoothbox
-            // 
+            //
             this.avge_smoothbox.Location = new System.Drawing.Point(548, 353);
             this.avge_smoothbox.Name = "avge_smoothbox";
             this.avge_smoothbox.Size = new System.Drawing.Size(73, 20);
             this.avge_smoothbox.TabIndex = 200;
             this.avge_smoothbox.Text = "100";
-            // 
+            //
             // nolateral
-            // 
+            //
             this.nolateral.Checked = true;
             this.nolateral.CheckState = System.Windows.Forms.CheckState.Checked;
             this.nolateral.Location = new System.Drawing.Point(386, 334);
@@ -2844,17 +2895,17 @@ namespace caesar1
             this.nolateral.TabIndex = 199;
             this.nolateral.Text = "No Lateral erosion";
             this.nolateral.Visible = false;
-            // 
+            //
             // newlateral
-            // 
+            //
             this.newlateral.Location = new System.Drawing.Point(550, 290);
             this.newlateral.Name = "newlateral";
             this.newlateral.Size = new System.Drawing.Size(106, 28);
             this.newlateral.TabIndex = 198;
             this.newlateral.Text = "Lateral Erosion";
-            // 
+            //
             // label7
-            // 
+            //
             this.label7.Location = new System.Drawing.Point(615, 323);
             this.label7.Name = "label7";
             this.label7.Size = new System.Drawing.Size(95, 24);
@@ -2863,76 +2914,76 @@ namespace caesar1
             this.label7.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             this.toolTip1.SetToolTip(this.label7, "Lateral erosion constant that is applied to method 1 (old laterla) and method 2 (" +
         "new lateral)");
-            // 
+            //
             // lateralratebox
-            // 
+            //
             this.lateralratebox.Location = new System.Drawing.Point(547, 256);
             this.lateralratebox.Name = "lateralratebox";
             this.lateralratebox.Size = new System.Drawing.Size(64, 20);
             this.lateralratebox.TabIndex = 196;
             this.lateralratebox.Text = "20";
-            // 
+            //
             // label48
-            // 
+            //
             this.label48.Location = new System.Drawing.Point(627, 253);
             this.label48.Name = "label48";
             this.label48.Size = new System.Drawing.Size(152, 24);
             this.label48.TabIndex = 195;
             this.label48.Text = "in channel lateral erosion rate";
             this.label48.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            // 
+            //
             // label54
-            // 
+            //
             this.label54.Location = new System.Drawing.Point(627, 214);
             this.label54.Name = "label54";
             this.label54.Size = new System.Drawing.Size(195, 27);
             this.label54.TabIndex = 193;
             this.label54.Text = "Proportion re-circulated if recirculate box is checked";
-            // 
+            //
             // propremaining
-            // 
+            //
             this.propremaining.Location = new System.Drawing.Point(547, 217);
             this.propremaining.Name = "propremaining";
             this.propremaining.Size = new System.Drawing.Size(64, 20);
             this.propremaining.TabIndex = 192;
             this.propremaining.Text = "1.0";
-            // 
+            //
             // label50
-            // 
+            //
             this.label50.Location = new System.Drawing.Point(622, 154);
             this.label50.Name = "label50";
             this.label50.Size = new System.Drawing.Size(172, 48);
             this.label50.TabIndex = 173;
             this.label50.Text = "Active layer thickness (m) must be at least 4 times max erode limit";
             this.label50.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // activebox
-            // 
+            //
             this.activebox.Location = new System.Drawing.Point(547, 160);
             this.activebox.Name = "activebox";
             this.activebox.Size = new System.Drawing.Size(64, 20);
             this.activebox.TabIndex = 172;
             this.activebox.Text = "0.1";
-            // 
+            //
             // erodefactorbox
-            // 
+            //
             this.erodefactorbox.Location = new System.Drawing.Point(547, 133);
             this.erodefactorbox.Name = "erodefactorbox";
             this.erodefactorbox.Size = new System.Drawing.Size(40, 20);
             this.erodefactorbox.TabIndex = 170;
             this.erodefactorbox.Text = "0.02";
-            // 
+            //
             // label12
-            // 
+            //
             this.label12.Location = new System.Drawing.Point(617, 130);
             this.label12.Name = "label12";
             this.label12.Size = new System.Drawing.Size(87, 24);
             this.label12.TabIndex = 171;
             this.label12.Text = "Max erode limit";
             this.label12.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // einsteinbox
-            // 
+            //
             this.einsteinbox.AutoSize = true;
             this.einsteinbox.Location = new System.Drawing.Point(549, 51);
             this.einsteinbox.Name = "einsteinbox";
@@ -2941,9 +2992,9 @@ namespace caesar1
             this.einsteinbox.Text = "Einstein";
             this.einsteinbox.UseVisualStyleBackColor = true;
             this.einsteinbox.CheckedChanged += new System.EventHandler(this.einsteinbox_CheckedChanged);
-            // 
+            //
             // wilcockbox
-            // 
+            //
             this.wilcockbox.AutoSize = true;
             this.wilcockbox.Checked = true;
             this.wilcockbox.CheckState = System.Windows.Forms.CheckState.Checked;
@@ -2954,9 +3005,9 @@ namespace caesar1
             this.wilcockbox.Text = "Wilcock and Crowe";
             this.wilcockbox.UseVisualStyleBackColor = true;
             this.wilcockbox.CheckedChanged += new System.EventHandler(this.wilcockbox_CheckedChanged);
-            // 
+            //
             // fallGS9box
-            // 
+            //
             this.fallGS9box.Enabled = false;
             this.fallGS9box.Location = new System.Drawing.Point(416, 378);
             this.fallGS9box.Name = "fallGS9box";
@@ -2964,9 +3015,9 @@ namespace caesar1
             this.fallGS9box.TabIndex = 90;
             this.fallGS9box.Text = "1.357";
             this.fallGS9box.Visible = false;
-            // 
+            //
             // fallGS8box
-            // 
+            //
             this.fallGS8box.Enabled = false;
             this.fallGS8box.Location = new System.Drawing.Point(376, 378);
             this.fallGS8box.Name = "fallGS8box";
@@ -2974,9 +3025,9 @@ namespace caesar1
             this.fallGS8box.TabIndex = 89;
             this.fallGS8box.Text = "0.959";
             this.fallGS8box.Visible = false;
-            // 
+            //
             // fallGS7box
-            // 
+            //
             this.fallGS7box.Enabled = false;
             this.fallGS7box.Location = new System.Drawing.Point(424, 343);
             this.fallGS7box.Name = "fallGS7box";
@@ -2984,9 +3035,9 @@ namespace caesar1
             this.fallGS7box.TabIndex = 88;
             this.fallGS7box.Text = "0.678";
             this.fallGS7box.Visible = false;
-            // 
+            //
             // fallGS6box
-            // 
+            //
             this.fallGS6box.Enabled = false;
             this.fallGS6box.Location = new System.Drawing.Point(386, 364);
             this.fallGS6box.Name = "fallGS6box";
@@ -2994,9 +3045,9 @@ namespace caesar1
             this.fallGS6box.TabIndex = 87;
             this.fallGS6box.Text = "0.479";
             this.fallGS6box.Visible = false;
-            // 
+            //
             // fallGS5box
-            // 
+            //
             this.fallGS5box.Enabled = false;
             this.fallGS5box.Location = new System.Drawing.Point(386, 364);
             this.fallGS5box.Name = "fallGS5box";
@@ -3004,9 +3055,9 @@ namespace caesar1
             this.fallGS5box.TabIndex = 86;
             this.fallGS5box.Text = "0.338";
             this.fallGS5box.Visible = false;
-            // 
+            //
             // fallGS4box
-            // 
+            //
             this.fallGS4box.Enabled = false;
             this.fallGS4box.Location = new System.Drawing.Point(393, 368);
             this.fallGS4box.Name = "fallGS4box";
@@ -3014,9 +3065,9 @@ namespace caesar1
             this.fallGS4box.TabIndex = 85;
             this.fallGS4box.Text = "0.237";
             this.fallGS4box.Visible = false;
-            // 
+            //
             // fallGS3box
-            // 
+            //
             this.fallGS3box.Enabled = false;
             this.fallGS3box.Location = new System.Drawing.Point(386, 364);
             this.fallGS3box.Name = "fallGS3box";
@@ -3024,18 +3075,18 @@ namespace caesar1
             this.fallGS3box.TabIndex = 84;
             this.fallGS3box.Text = "0.164";
             this.fallGS3box.Visible = false;
-            // 
+            //
             // gpSumLabel
-            // 
+            //
             this.gpSumLabel.Location = new System.Drawing.Point(229, 343);
             this.gpSumLabel.Name = "gpSumLabel";
             this.gpSumLabel.Size = new System.Drawing.Size(96, 16);
             this.gpSumLabel.TabIndex = 105;
             this.gpSumLabel.Text = "OK";
             this.gpSumLabel.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // gpSumLabel2
-            // 
+            //
             this.gpSumLabel2.ForeColor = System.Drawing.SystemColors.ControlText;
             this.gpSumLabel2.Location = new System.Drawing.Point(229, 319);
             this.gpSumLabel2.Name = "gpSumLabel2";
@@ -3043,376 +3094,376 @@ namespace caesar1
             this.gpSumLabel2.TabIndex = 104;
             this.gpSumLabel2.Text = "sum must equal 1.0";
             this.gpSumLabel2.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            // 
+            //
             // suspGS9box
-            // 
+            //
             this.suspGS9box.Location = new System.Drawing.Point(401, 374);
             this.suspGS9box.Name = "suspGS9box";
             this.suspGS9box.Size = new System.Drawing.Size(16, 24);
             this.suspGS9box.TabIndex = 81;
             this.suspGS9box.Visible = false;
             this.suspGS9box.CheckedChanged += new System.EventHandler(this.suspCheckedChange);
-            // 
+            //
             // suspGS8box
-            // 
+            //
             this.suspGS8box.Location = new System.Drawing.Point(394, 368);
             this.suspGS8box.Name = "suspGS8box";
             this.suspGS8box.Size = new System.Drawing.Size(16, 24);
             this.suspGS8box.TabIndex = 80;
             this.suspGS8box.Visible = false;
             this.suspGS8box.CheckedChanged += new System.EventHandler(this.suspCheckedChange);
-            // 
+            //
             // suspGS7box
-            // 
+            //
             this.suspGS7box.Location = new System.Drawing.Point(394, 368);
             this.suspGS7box.Name = "suspGS7box";
             this.suspGS7box.Size = new System.Drawing.Size(16, 24);
             this.suspGS7box.TabIndex = 79;
             this.suspGS7box.Visible = false;
             this.suspGS7box.CheckedChanged += new System.EventHandler(this.suspCheckedChange);
-            // 
+            //
             // suspGS6box
-            // 
+            //
             this.suspGS6box.Location = new System.Drawing.Point(401, 372);
             this.suspGS6box.Name = "suspGS6box";
             this.suspGS6box.Size = new System.Drawing.Size(16, 24);
             this.suspGS6box.TabIndex = 78;
             this.suspGS6box.Visible = false;
             this.suspGS6box.CheckedChanged += new System.EventHandler(this.suspCheckedChange);
-            // 
+            //
             // suspGS5box
-            // 
+            //
             this.suspGS5box.Location = new System.Drawing.Point(416, 372);
             this.suspGS5box.Name = "suspGS5box";
             this.suspGS5box.Size = new System.Drawing.Size(16, 24);
             this.suspGS5box.TabIndex = 77;
             this.suspGS5box.Visible = false;
             this.suspGS5box.CheckedChanged += new System.EventHandler(this.suspCheckedChange);
-            // 
+            //
             // suspGS4box
-            // 
+            //
             this.suspGS4box.Location = new System.Drawing.Point(399, 368);
             this.suspGS4box.Name = "suspGS4box";
             this.suspGS4box.Size = new System.Drawing.Size(16, 24);
             this.suspGS4box.TabIndex = 76;
             this.suspGS4box.Visible = false;
             this.suspGS4box.CheckedChanged += new System.EventHandler(this.suspCheckedChange);
-            // 
+            //
             // suspGS3box
-            // 
+            //
             this.suspGS3box.Location = new System.Drawing.Point(423, 368);
             this.suspGS3box.Name = "suspGS3box";
             this.suspGS3box.Size = new System.Drawing.Size(16, 24);
             this.suspGS3box.TabIndex = 75;
             this.suspGS3box.Visible = false;
             this.suspGS3box.CheckedChanged += new System.EventHandler(this.suspCheckedChange);
-            // 
+            //
             // suspGS2box
-            // 
+            //
             this.suspGS2box.Location = new System.Drawing.Point(416, 371);
             this.suspGS2box.Name = "suspGS2box";
             this.suspGS2box.Size = new System.Drawing.Size(16, 24);
             this.suspGS2box.TabIndex = 74;
             this.suspGS2box.Visible = false;
             this.suspGS2box.CheckedChanged += new System.EventHandler(this.suspCheckedChange);
-            // 
+            //
             // fallGS2box
-            // 
+            //
             this.fallGS2box.Location = new System.Drawing.Point(386, 364);
             this.fallGS2box.Name = "fallGS2box";
             this.fallGS2box.Size = new System.Drawing.Size(100, 20);
             this.fallGS2box.TabIndex = 83;
             this.fallGS2box.Text = "0.109";
             this.fallGS2box.Visible = false;
-            // 
+            //
             // fallGS1box
-            // 
+            //
             this.fallGS1box.Location = new System.Drawing.Point(424, 40);
             this.fallGS1box.Name = "fallGS1box";
             this.fallGS1box.Size = new System.Drawing.Size(100, 20);
             this.fallGS1box.TabIndex = 82;
             this.fallGS1box.Text = "0.066";
-            // 
+            //
             // label28
-            // 
+            //
             this.label28.Location = new System.Drawing.Point(432, 16);
             this.label28.Name = "label28";
             this.label28.Size = new System.Drawing.Size(88, 16);
             this.label28.TabIndex = 95;
             this.label28.Text = "fall velocity (m/s)";
             this.label28.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // label4
-            // 
+            //
             this.label4.Location = new System.Drawing.Point(336, 16);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(96, 16);
             this.label4.TabIndex = 85;
             this.label4.Text = "suspended ?";
             this.label4.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // suspGS1box
-            // 
+            //
             this.suspGS1box.Location = new System.Drawing.Point(376, 40);
             this.suspGS1box.Name = "suspGS1box";
             this.suspGS1box.Size = new System.Drawing.Size(16, 24);
             this.suspGS1box.TabIndex = 73;
             this.suspGS1box.CheckedChanged += new System.EventHandler(this.suspCheckedChange);
-            // 
+            //
             // gp3box
-            // 
+            //
             this.gp3box.Location = new System.Drawing.Point(232, 104);
             this.gp3box.Name = "gp3box";
             this.gp3box.Size = new System.Drawing.Size(100, 20);
             this.gp3box.TabIndex = 66;
             this.gp3box.Text = "0.019";
             this.gp3box.TextChanged += new System.EventHandler(this.fracGSchanged);
-            // 
+            //
             // gp4box
-            // 
+            //
             this.gp4box.Location = new System.Drawing.Point(232, 136);
             this.gp4box.Name = "gp4box";
             this.gp4box.Size = new System.Drawing.Size(100, 20);
             this.gp4box.TabIndex = 67;
             this.gp4box.Text = "0.029";
             this.gp4box.TextChanged += new System.EventHandler(this.fracGSchanged);
-            // 
+            //
             // gp5box
-            // 
+            //
             this.gp5box.Location = new System.Drawing.Point(232, 168);
             this.gp5box.Name = "gp5box";
             this.gp5box.Size = new System.Drawing.Size(100, 20);
             this.gp5box.TabIndex = 68;
             this.gp5box.Text = "0.068";
             this.gp5box.TextChanged += new System.EventHandler(this.fracGSchanged);
-            // 
+            //
             // gp6box
-            // 
+            //
             this.gp6box.Location = new System.Drawing.Point(232, 200);
             this.gp6box.Name = "gp6box";
             this.gp6box.Size = new System.Drawing.Size(100, 20);
             this.gp6box.TabIndex = 69;
             this.gp6box.Text = "0.146";
             this.gp6box.TextChanged += new System.EventHandler(this.fracGSchanged);
-            // 
+            //
             // gp7box
-            // 
+            //
             this.gp7box.Location = new System.Drawing.Point(232, 232);
             this.gp7box.Name = "gp7box";
             this.gp7box.Size = new System.Drawing.Size(100, 20);
             this.gp7box.TabIndex = 70;
             this.gp7box.Text = "0.220";
             this.gp7box.TextChanged += new System.EventHandler(this.fracGSchanged);
-            // 
+            //
             // gp8box
-            // 
+            //
             this.gp8box.Location = new System.Drawing.Point(232, 264);
             this.gp8box.Name = "gp8box";
             this.gp8box.Size = new System.Drawing.Size(100, 20);
             this.gp8box.TabIndex = 71;
             this.gp8box.Text = "0.231";
             this.gp8box.TextChanged += new System.EventHandler(this.fracGSchanged);
-            // 
+            //
             // gp9box
-            // 
+            //
             this.gp9box.Location = new System.Drawing.Point(232, 296);
             this.gp9box.Name = "gp9box";
             this.gp9box.Size = new System.Drawing.Size(100, 20);
             this.gp9box.TabIndex = 72;
             this.gp9box.Text = "0.121";
             this.gp9box.TextChanged += new System.EventHandler(this.fracGSchanged);
-            // 
+            //
             // gp2box
-            // 
+            //
             this.gp2box.Location = new System.Drawing.Point(232, 72);
             this.gp2box.Name = "gp2box";
             this.gp2box.Size = new System.Drawing.Size(100, 20);
             this.gp2box.TabIndex = 65;
             this.gp2box.Text = "0.022";
             this.gp2box.TextChanged += new System.EventHandler(this.fracGSchanged);
-            // 
+            //
             // gp1box
-            // 
+            //
             this.gp1box.Location = new System.Drawing.Point(232, 40);
             this.gp1box.Name = "gp1box";
             this.gp1box.Size = new System.Drawing.Size(100, 20);
             this.gp1box.TabIndex = 64;
             this.gp1box.Text = "0.144";
             this.gp1box.TextChanged += new System.EventHandler(this.fracGSchanged);
-            // 
+            //
             // g3box
-            // 
+            //
             this.g3box.Location = new System.Drawing.Point(96, 104);
             this.g3box.Name = "g3box";
             this.g3box.Size = new System.Drawing.Size(100, 20);
             this.g3box.TabIndex = 57;
             this.g3box.Text = "0.002";
-            // 
+            //
             // g4box
-            // 
+            //
             this.g4box.Location = new System.Drawing.Point(96, 136);
             this.g4box.Name = "g4box";
             this.g4box.Size = new System.Drawing.Size(100, 20);
             this.g4box.TabIndex = 58;
             this.g4box.Text = "0.004";
-            // 
+            //
             // g5box
-            // 
+            //
             this.g5box.Location = new System.Drawing.Point(96, 168);
             this.g5box.Name = "g5box";
             this.g5box.Size = new System.Drawing.Size(100, 20);
             this.g5box.TabIndex = 59;
             this.g5box.Text = "0.008";
-            // 
+            //
             // g6box
-            // 
+            //
             this.g6box.Location = new System.Drawing.Point(96, 200);
             this.g6box.Name = "g6box";
             this.g6box.Size = new System.Drawing.Size(100, 20);
             this.g6box.TabIndex = 60;
             this.g6box.Text = "0.016";
-            // 
+            //
             // g7box
-            // 
+            //
             this.g7box.Location = new System.Drawing.Point(96, 232);
             this.g7box.Name = "g7box";
             this.g7box.Size = new System.Drawing.Size(100, 20);
             this.g7box.TabIndex = 61;
             this.g7box.Text = "0.032";
-            // 
+            //
             // g8box
-            // 
+            //
             this.g8box.Location = new System.Drawing.Point(96, 264);
             this.g8box.Name = "g8box";
             this.g8box.Size = new System.Drawing.Size(100, 20);
             this.g8box.TabIndex = 62;
             this.g8box.Text = "0.064";
-            // 
+            //
             // g9box
-            // 
+            //
             this.g9box.Location = new System.Drawing.Point(96, 296);
             this.g9box.Name = "g9box";
             this.g9box.Size = new System.Drawing.Size(100, 20);
             this.g9box.TabIndex = 63;
             this.g9box.Text = "0.128";
-            // 
+            //
             // g2box
-            // 
+            //
             this.g2box.Location = new System.Drawing.Point(96, 72);
             this.g2box.Name = "g2box";
             this.g2box.Size = new System.Drawing.Size(100, 20);
             this.g2box.TabIndex = 56;
             this.g2box.Text = "0.001";
-            // 
+            //
             // g1box
-            // 
+            //
             this.g1box.Location = new System.Drawing.Point(96, 40);
             this.g1box.Name = "g1box";
             this.g1box.Size = new System.Drawing.Size(100, 20);
             this.g1box.TabIndex = 55;
             this.g1box.Text = "0.0005";
-            // 
+            //
             // label22
-            // 
+            //
             this.label22.Location = new System.Drawing.Point(232, 16);
             this.label22.Name = "label22";
             this.label22.Size = new System.Drawing.Size(96, 16);
             this.label22.TabIndex = 83;
             this.label22.Text = "proportion";
             this.label22.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // label21
-            // 
+            //
             this.label21.Location = new System.Drawing.Point(96, 16);
             this.label21.Name = "label21";
             this.label21.Size = new System.Drawing.Size(96, 16);
             this.label21.TabIndex = 82;
             this.label21.Text = "grain size (m)";
             this.label21.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // label20
-            // 
+            //
             this.label20.Location = new System.Drawing.Point(24, 72);
             this.label20.Name = "label20";
             this.label20.Size = new System.Drawing.Size(40, 24);
             this.label20.TabIndex = 81;
             this.label20.Text = "size2";
             this.label20.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // label19
-            // 
+            //
             this.label19.Location = new System.Drawing.Point(24, 104);
             this.label19.Name = "label19";
             this.label19.Size = new System.Drawing.Size(40, 24);
             this.label19.TabIndex = 80;
             this.label19.Text = "size3";
             this.label19.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // label18
-            // 
+            //
             this.label18.Location = new System.Drawing.Point(24, 136);
             this.label18.Name = "label18";
             this.label18.Size = new System.Drawing.Size(40, 24);
             this.label18.TabIndex = 79;
             this.label18.Text = "size4";
             this.label18.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // label17
-            // 
+            //
             this.label17.Location = new System.Drawing.Point(24, 168);
             this.label17.Name = "label17";
             this.label17.Size = new System.Drawing.Size(40, 24);
             this.label17.TabIndex = 78;
             this.label17.Text = "size5";
             this.label17.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // label16
-            // 
+            //
             this.label16.Location = new System.Drawing.Point(24, 200);
             this.label16.Name = "label16";
             this.label16.Size = new System.Drawing.Size(40, 24);
             this.label16.TabIndex = 77;
             this.label16.Text = "size6";
             this.label16.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // label15
-            // 
+            //
             this.label15.Location = new System.Drawing.Point(24, 232);
             this.label15.Name = "label15";
             this.label15.Size = new System.Drawing.Size(40, 24);
             this.label15.TabIndex = 76;
             this.label15.Text = "size7";
             this.label15.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // label14
-            // 
+            //
             this.label14.Location = new System.Drawing.Point(24, 264);
             this.label14.Name = "label14";
             this.label14.Size = new System.Drawing.Size(40, 24);
             this.label14.TabIndex = 75;
             this.label14.Text = "size8";
             this.label14.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // label13
-            // 
+            //
             this.label13.Location = new System.Drawing.Point(24, 296);
             this.label13.Name = "label13";
             this.label13.Size = new System.Drawing.Size(40, 24);
             this.label13.TabIndex = 74;
             this.label13.Text = "size9";
             this.label13.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // label6
-            // 
+            //
             this.label6.Location = new System.Drawing.Point(24, 40);
             this.label6.Name = "label6";
             this.label6.Size = new System.Drawing.Size(40, 24);
             this.label6.TabIndex = 73;
             this.label6.Text = "size1";
             this.label6.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
+            //
             // DescriptionTab
-            // 
+            //
             this.DescriptionTab.Controls.Add(this.DescBox);
             this.DescriptionTab.Location = new System.Drawing.Point(4, 22);
             this.DescriptionTab.Name = "DescriptionTab";
@@ -3420,11 +3471,11 @@ namespace caesar1
             this.DescriptionTab.TabIndex = 5;
             this.DescriptionTab.Text = "Description";
             this.DescriptionTab.UseVisualStyleBackColor = true;
-            // 
+            //
             // DescBox
-            // 
-            this.DescBox.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            //
+            this.DescBox.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.DescBox.Location = new System.Drawing.Point(16, 16);
             this.DescBox.Multiline = true;
@@ -3432,9 +3483,9 @@ namespace caesar1
             this.DescBox.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
             this.DescBox.Size = new System.Drawing.Size(1126, 681);
             this.DescBox.TabIndex = 132;
-            // 
+            //
             // GridTab
-            // 
+            //
             this.GridTab.Controls.Add(this.overrideheaderBox);
             this.GridTab.Controls.Add(this.dxbox);
             this.GridTab.Controls.Add(this.label11);
@@ -3448,27 +3499,27 @@ namespace caesar1
             this.GridTab.TabIndex = 1;
             this.GridTab.Text = "Grid";
             this.GridTab.UseVisualStyleBackColor = true;
-            // 
+            //
             // overrideheaderBox
-            // 
+            //
             this.overrideheaderBox.Location = new System.Drawing.Point(16, 16);
             this.overrideheaderBox.Name = "overrideheaderBox";
             this.overrideheaderBox.Size = new System.Drawing.Size(200, 24);
             this.overrideheaderBox.TabIndex = 27;
             this.overrideheaderBox.Text = "override header file";
             this.overrideheaderBox.CheckedChanged += new System.EventHandler(this.overrideheaderBox_CheckedChanged);
-            // 
+            //
             // dxbox
-            // 
+            //
             this.dxbox.Enabled = false;
             this.dxbox.Location = new System.Drawing.Point(120, 88);
             this.dxbox.Name = "dxbox";
             this.dxbox.Size = new System.Drawing.Size(40, 20);
             this.dxbox.TabIndex = 25;
             this.dxbox.Text = "5";
-            // 
+            //
             // label11
-            // 
+            //
             this.label11.Enabled = false;
             this.label11.Location = new System.Drawing.Point(16, 88);
             this.label11.Name = "label11";
@@ -3476,27 +3527,27 @@ namespace caesar1
             this.label11.TabIndex = 26;
             this.label11.Text = "Cell size";
             this.label11.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // ytextbox
-            // 
+            //
             this.ytextbox.Enabled = false;
             this.ytextbox.Location = new System.Drawing.Point(120, 64);
             this.ytextbox.Name = "ytextbox";
             this.ytextbox.Size = new System.Drawing.Size(56, 20);
             this.ytextbox.TabIndex = 5;
             this.ytextbox.Text = "358";
-            // 
+            //
             // xtextbox
-            // 
+            //
             this.xtextbox.Enabled = false;
             this.xtextbox.Location = new System.Drawing.Point(120, 40);
             this.xtextbox.Name = "xtextbox";
             this.xtextbox.Size = new System.Drawing.Size(56, 20);
             this.xtextbox.TabIndex = 4;
             this.xtextbox.Text = "593";
-            // 
+            //
             // label2
-            // 
+            //
             this.label2.Enabled = false;
             this.label2.Location = new System.Drawing.Point(16, 64);
             this.label2.Name = "label2";
@@ -3504,9 +3555,9 @@ namespace caesar1
             this.label2.TabIndex = 7;
             this.label2.Text = "Y coordinates";
             this.label2.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // label1
-            // 
+            //
             this.label1.Enabled = false;
             this.label1.Location = new System.Drawing.Point(24, 40);
             this.label1.Name = "label1";
@@ -3514,9 +3565,9 @@ namespace caesar1
             this.label1.TabIndex = 6;
             this.label1.Text = "X coordinates";
             this.label1.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // HydrologyTab
-            // 
+            //
             this.HydrologyTab.Controls.Add(this.groupBox7);
             this.HydrologyTab.Controls.Add(this.groupBox5);
             this.HydrologyTab.Controls.Add(this.groupBoxWaterSourceTracer);
@@ -3528,9 +3579,9 @@ namespace caesar1
             this.HydrologyTab.Text = "Hydrology";
             this.HydrologyTab.UseVisualStyleBackColor = true;
             this.HydrologyTab.Click += new System.EventHandler(this.HydrologyTab_Click);
-            // 
+            //
             // groupBox7
-            // 
+            //
             this.groupBox7.Controls.Add(this.label105);
             this.groupBox7.Controls.Add(this.mfiletimestepbox);
             this.groupBox7.Controls.Add(this.hydroindexBox);
@@ -3553,35 +3604,35 @@ namespace caesar1
             this.groupBox7.TabIndex = 222;
             this.groupBox7.TabStop = false;
             this.groupBox7.Text = "Rainfall input variables";
-            // 
+            //
             // label105
-            // 
+            //
             this.label105.Location = new System.Drawing.Point(106, 144);
             this.label105.Name = "label105";
             this.label105.Size = new System.Drawing.Size(104, 39);
             this.label105.TabIndex = 235;
             this.label105.Text = "Time varying M file time step (min)";
             this.label105.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // mfiletimestepbox
-            // 
+            //
             this.mfiletimestepbox.Location = new System.Drawing.Point(215, 149);
             this.mfiletimestepbox.Name = "mfiletimestepbox";
             this.mfiletimestepbox.Size = new System.Drawing.Size(56, 20);
             this.mfiletimestepbox.TabIndex = 234;
             this.mfiletimestepbox.Text = "1440";
-            // 
+            //
             // hydroindexBox
-            // 
+            //
             this.hydroindexBox.Enabled = false;
             this.hydroindexBox.Location = new System.Drawing.Point(292, 252);
             this.hydroindexBox.Name = "hydroindexBox";
             this.hydroindexBox.Size = new System.Drawing.Size(118, 20);
             this.hydroindexBox.TabIndex = 233;
             this.hydroindexBox.Text = "null";
-            // 
+            //
             // label103
-            // 
+            //
             this.label103.AutoSize = true;
             this.label103.Enabled = false;
             this.label103.Location = new System.Drawing.Point(213, 255);
@@ -3589,26 +3640,26 @@ namespace caesar1
             this.label103.Size = new System.Drawing.Size(74, 13);
             this.label103.TabIndex = 232;
             this.label103.Text = "hydroindex file";
-            // 
+            //
             // label37
-            // 
+            //
             this.label37.Location = new System.Drawing.Point(16, 81);
             this.label37.Name = "label37";
             this.label37.Size = new System.Drawing.Size(128, 24);
             this.label37.TabIndex = 200;
             this.label37.Text = "\'m\' value";
             this.label37.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // mvaluebox
-            // 
+            //
             this.mvaluebox.Location = new System.Drawing.Point(153, 85);
             this.mvaluebox.Name = "mvaluebox";
             this.mvaluebox.Size = new System.Drawing.Size(40, 20);
             this.mvaluebox.TabIndex = 199;
             this.mvaluebox.Text = "0.01";
-            // 
+            //
             // label102
-            // 
+            //
             this.label102.AutoSize = true;
             this.label102.Enabled = false;
             this.label102.Location = new System.Drawing.Point(40, 255);
@@ -3616,18 +3667,18 @@ namespace caesar1
             this.label102.Size = new System.Drawing.Size(98, 13);
             this.label102.TabIndex = 231;
             this.label102.Text = "number of rain cells";
-            // 
+            //
             // rfnumBox
-            // 
+            //
             this.rfnumBox.Enabled = false;
             this.rfnumBox.Location = new System.Drawing.Point(143, 252);
             this.rfnumBox.Name = "rfnumBox";
             this.rfnumBox.Size = new System.Drawing.Size(56, 20);
             this.rfnumBox.TabIndex = 230;
             this.rfnumBox.Text = "1";
-            // 
+            //
             // checkBox7
-            // 
+            //
             this.checkBox7.AutoSize = true;
             this.checkBox7.Location = new System.Drawing.Point(23, 227);
             this.checkBox7.Name = "checkBox7";
@@ -3636,26 +3687,26 @@ namespace caesar1
             this.checkBox7.Text = "Spatially variable rainfall and M value (if M value file used)";
             this.checkBox7.UseVisualStyleBackColor = true;
             this.checkBox7.CheckedChanged += new System.EventHandler(this.checkBox7_CheckedChanged);
-            // 
+            //
             // label35
-            // 
+            //
             this.label35.Location = new System.Drawing.Point(40, 47);
             this.label35.Name = "label35";
             this.label35.Size = new System.Drawing.Size(104, 39);
             this.label35.TabIndex = 228;
             this.label35.Text = "Rainfall data file time step (min)";
             this.label35.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // raintimestepbox
-            // 
+            //
             this.raintimestepbox.Location = new System.Drawing.Point(153, 51);
             this.raintimestepbox.Name = "raintimestepbox";
             this.raintimestepbox.Size = new System.Drawing.Size(56, 20);
             this.raintimestepbox.TabIndex = 227;
             this.raintimestepbox.Text = "60";
-            // 
+            //
             // jmeaninputfilebox
-            // 
+            //
             this.jmeaninputfilebox.AutoSize = true;
             this.jmeaninputfilebox.Location = new System.Drawing.Point(23, 201);
             this.jmeaninputfilebox.Name = "jmeaninputfilebox";
@@ -3663,34 +3714,34 @@ namespace caesar1
             this.jmeaninputfilebox.TabIndex = 226;
             this.jmeaninputfilebox.Text = "if checked, discharge is read direct from rainfall file";
             this.jmeaninputfilebox.UseVisualStyleBackColor = true;
-            // 
+            //
             // label59
-            // 
+            //
             this.label59.AutoSize = true;
             this.label59.Location = new System.Drawing.Point(40, 126);
             this.label59.Name = "label59";
             this.label59.Size = new System.Drawing.Size(95, 13);
             this.label59.TabIndex = 225;
             this.label59.Text = "Time varying M file";
-            // 
+            //
             // mvalueloadbox
-            // 
+            //
             this.mvalueloadbox.Location = new System.Drawing.Point(153, 120);
             this.mvalueloadbox.Name = "mvalueloadbox";
             this.mvalueloadbox.Size = new System.Drawing.Size(118, 20);
             this.mvalueloadbox.TabIndex = 224;
             this.mvalueloadbox.Text = "null";
-            // 
+            //
             // raindataloadbox
-            // 
+            //
             this.raindataloadbox.Location = new System.Drawing.Point(152, 25);
             this.raindataloadbox.Name = "raindataloadbox";
             this.raindataloadbox.Size = new System.Drawing.Size(120, 20);
             this.raindataloadbox.TabIndex = 223;
             this.raindataloadbox.Text = "null";
-            // 
+            //
             // label25
-            // 
+            //
             this.label25.Location = new System.Drawing.Point(40, 25);
             this.label25.Name = "label25";
             this.label25.Size = new System.Drawing.Size(104, 24);
@@ -3698,9 +3749,9 @@ namespace caesar1
             this.label25.Text = "Rainfall data file";
             this.label25.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             this.toolTip1.SetToolTip(this.label25, "Hourly rainfall data - in an ascii format");
-            // 
+            //
             // groupBox5
-            // 
+            //
             this.groupBox5.Controls.Add(this.label83);
             this.groupBox5.Controls.Add(this.div_inputs_box);
             this.groupBox5.Controls.Add(this.inboxExtra);
@@ -3749,320 +3800,320 @@ namespace caesar1
             this.groupBox5.TabIndex = 214;
             this.groupBox5.TabStop = false;
             this.groupBox5.Text = "Reach input variables";
-            // 
+            //
             // label83
-            // 
+            //
             this.label83.Location = new System.Drawing.Point(118, 300);
             this.label83.Name = "label83";
             this.label83.Size = new System.Drawing.Size(100, 20);
             this.label83.TabIndex = 202;
             this.label83.Text = "Divide inputs by..";
-            // 
+            //
             // div_inputs_box
-            // 
+            //
             this.div_inputs_box.Location = new System.Drawing.Point(224, 297);
             this.div_inputs_box.Name = "div_inputs_box";
             this.div_inputs_box.Size = new System.Drawing.Size(31, 20);
             this.div_inputs_box.TabIndex = 201;
             this.div_inputs_box.Text = "1";
-            // 
+            //
             // inboxExtra
-            // 
+            //
             this.inboxExtra.Location = new System.Drawing.Point(9, 264);
             this.inboxExtra.Name = "inboxExtra";
             this.inboxExtra.Size = new System.Drawing.Size(156, 16);
             this.inboxExtra.TabIndex = 203;
             this.inboxExtra.Text = "Load extra inputs from file:";
-            // 
+            //
             // infileExtra
-            // 
+            //
             this.infileExtra.Location = new System.Drawing.Point(166, 264);
             this.infileExtra.Name = "infileExtra";
             this.infileExtra.Size = new System.Drawing.Size(120, 20);
             this.infileExtra.TabIndex = 204;
-            // 
+            //
             // infile8
-            // 
+            //
             this.infile8.Location = new System.Drawing.Point(166, 236);
             this.infile8.Name = "infile8";
             this.infile8.Size = new System.Drawing.Size(120, 20);
             this.infile8.TabIndex = 198;
-            // 
+            //
             // ybox8
-            // 
+            //
             this.ybox8.Location = new System.Drawing.Point(120, 236);
             this.ybox8.Name = "ybox8";
             this.ybox8.Size = new System.Drawing.Size(31, 20);
             this.ybox8.TabIndex = 197;
-            // 
+            //
             // xbox8
-            // 
+            //
             this.xbox8.Location = new System.Drawing.Point(73, 236);
             this.xbox8.Name = "xbox8";
             this.xbox8.Size = new System.Drawing.Size(32, 20);
             this.xbox8.TabIndex = 196;
-            // 
+            //
             // inbox8
-            // 
+            //
             this.inbox8.Location = new System.Drawing.Point(9, 236);
             this.inbox8.Name = "inbox8";
             this.inbox8.Size = new System.Drawing.Size(64, 16);
             this.inbox8.TabIndex = 195;
             this.inbox8.Text = "Input 8";
-            // 
+            //
             // infile7
-            // 
+            //
             this.infile7.Location = new System.Drawing.Point(166, 208);
             this.infile7.Name = "infile7";
             this.infile7.Size = new System.Drawing.Size(120, 20);
             this.infile7.TabIndex = 194;
-            // 
+            //
             // ybox7
-            // 
+            //
             this.ybox7.Location = new System.Drawing.Point(120, 208);
             this.ybox7.Name = "ybox7";
             this.ybox7.Size = new System.Drawing.Size(31, 20);
             this.ybox7.TabIndex = 193;
-            // 
+            //
             // xbox7
-            // 
+            //
             this.xbox7.Location = new System.Drawing.Point(73, 208);
             this.xbox7.Name = "xbox7";
             this.xbox7.Size = new System.Drawing.Size(32, 20);
             this.xbox7.TabIndex = 192;
-            // 
+            //
             // inbox7
-            // 
+            //
             this.inbox7.Location = new System.Drawing.Point(9, 208);
             this.inbox7.Name = "inbox7";
             this.inbox7.Size = new System.Drawing.Size(64, 17);
             this.inbox7.TabIndex = 191;
             this.inbox7.Text = "Input 7";
-            // 
+            //
             // infile6
-            // 
+            //
             this.infile6.Location = new System.Drawing.Point(166, 180);
             this.infile6.Name = "infile6";
             this.infile6.Size = new System.Drawing.Size(120, 20);
             this.infile6.TabIndex = 190;
-            // 
+            //
             // ybox6
-            // 
+            //
             this.ybox6.Location = new System.Drawing.Point(120, 180);
             this.ybox6.Name = "ybox6";
             this.ybox6.Size = new System.Drawing.Size(31, 20);
             this.ybox6.TabIndex = 189;
-            // 
+            //
             // xbox6
-            // 
+            //
             this.xbox6.Location = new System.Drawing.Point(73, 180);
             this.xbox6.Name = "xbox6";
             this.xbox6.Size = new System.Drawing.Size(32, 20);
             this.xbox6.TabIndex = 188;
-            // 
+            //
             // inbox6
-            // 
+            //
             this.inbox6.Location = new System.Drawing.Point(9, 180);
             this.inbox6.Name = "inbox6";
             this.inbox6.Size = new System.Drawing.Size(64, 17);
             this.inbox6.TabIndex = 187;
             this.inbox6.Text = "Input 6";
-            // 
+            //
             // infile5
-            // 
+            //
             this.infile5.Location = new System.Drawing.Point(166, 153);
             this.infile5.Name = "infile5";
             this.infile5.Size = new System.Drawing.Size(120, 20);
             this.infile5.TabIndex = 186;
-            // 
+            //
             // ybox5
-            // 
+            //
             this.ybox5.Location = new System.Drawing.Point(120, 153);
             this.ybox5.Name = "ybox5";
             this.ybox5.Size = new System.Drawing.Size(31, 20);
             this.ybox5.TabIndex = 185;
-            // 
+            //
             // xbox5
-            // 
+            //
             this.xbox5.Location = new System.Drawing.Point(73, 153);
             this.xbox5.Name = "xbox5";
             this.xbox5.Size = new System.Drawing.Size(32, 20);
             this.xbox5.TabIndex = 184;
-            // 
+            //
             // inbox5
-            // 
+            //
             this.inbox5.Location = new System.Drawing.Point(9, 153);
             this.inbox5.Name = "inbox5";
             this.inbox5.Size = new System.Drawing.Size(64, 16);
             this.inbox5.TabIndex = 183;
             this.inbox5.Text = "Input 5";
-            // 
+            //
             // input_time_step_box
-            // 
+            //
             this.input_time_step_box.Location = new System.Drawing.Point(320, 90);
             this.input_time_step_box.Name = "input_time_step_box";
             this.input_time_step_box.Size = new System.Drawing.Size(63, 20);
             this.input_time_step_box.TabIndex = 181;
             this.input_time_step_box.Text = "1440";
-            // 
+            //
             // infile4
-            // 
+            //
             this.infile4.Location = new System.Drawing.Point(166, 127);
             this.infile4.Name = "infile4";
             this.infile4.Size = new System.Drawing.Size(120, 20);
             this.infile4.TabIndex = 180;
-            // 
+            //
             // infile3
-            // 
+            //
             this.infile3.Location = new System.Drawing.Point(166, 103);
             this.infile3.Name = "infile3";
             this.infile3.Size = new System.Drawing.Size(120, 20);
             this.infile3.TabIndex = 179;
-            // 
+            //
             // infile2
-            // 
+            //
             this.infile2.Location = new System.Drawing.Point(166, 79);
             this.infile2.Name = "infile2";
             this.infile2.Size = new System.Drawing.Size(120, 20);
             this.infile2.TabIndex = 178;
-            // 
+            //
             // infile1
-            // 
+            //
             this.infile1.Location = new System.Drawing.Point(166, 55);
             this.infile1.Name = "infile1";
             this.infile1.Size = new System.Drawing.Size(120, 20);
             this.infile1.TabIndex = 177;
-            // 
+            //
             // ybox1
-            // 
+            //
             this.ybox1.Location = new System.Drawing.Point(121, 55);
             this.ybox1.Name = "ybox1";
             this.ybox1.Size = new System.Drawing.Size(32, 20);
             this.ybox1.TabIndex = 175;
-            // 
+            //
             // ybox2
-            // 
+            //
             this.ybox2.Location = new System.Drawing.Point(121, 79);
             this.ybox2.Name = "ybox2";
             this.ybox2.Size = new System.Drawing.Size(32, 20);
             this.ybox2.TabIndex = 174;
-            // 
+            //
             // ybox3
-            // 
+            //
             this.ybox3.Location = new System.Drawing.Point(121, 103);
             this.ybox3.Name = "ybox3";
             this.ybox3.Size = new System.Drawing.Size(32, 20);
             this.ybox3.TabIndex = 173;
-            // 
+            //
             // ybox4
-            // 
+            //
             this.ybox4.Location = new System.Drawing.Point(121, 127);
             this.ybox4.Name = "ybox4";
             this.ybox4.Size = new System.Drawing.Size(32, 20);
             this.ybox4.TabIndex = 172;
-            // 
+            //
             // xbox2
-            // 
+            //
             this.xbox2.Location = new System.Drawing.Point(73, 79);
             this.xbox2.Name = "xbox2";
             this.xbox2.Size = new System.Drawing.Size(32, 20);
             this.xbox2.TabIndex = 171;
-            // 
+            //
             // xbox3
-            // 
+            //
             this.xbox3.Location = new System.Drawing.Point(73, 103);
             this.xbox3.Name = "xbox3";
             this.xbox3.Size = new System.Drawing.Size(32, 20);
             this.xbox3.TabIndex = 170;
-            // 
+            //
             // xbox4
-            // 
+            //
             this.xbox4.Location = new System.Drawing.Point(73, 127);
             this.xbox4.Name = "xbox4";
             this.xbox4.Size = new System.Drawing.Size(32, 20);
             this.xbox4.TabIndex = 169;
-            // 
+            //
             // xbox1
-            // 
+            //
             this.xbox1.Location = new System.Drawing.Point(73, 55);
             this.xbox1.Name = "xbox1";
             this.xbox1.Size = new System.Drawing.Size(32, 20);
             this.xbox1.TabIndex = 168;
-            // 
+            //
             // label29
-            // 
+            //
             this.label29.Location = new System.Drawing.Point(317, 60);
             this.label29.Name = "label29";
             this.label29.Size = new System.Drawing.Size(100, 32);
             this.label29.TabIndex = 182;
             this.label29.Text = "input data time step (mins)";
-            // 
+            //
             // label44
-            // 
+            //
             this.label44.Location = new System.Drawing.Point(169, 31);
             this.label44.Name = "label44";
             this.label44.Size = new System.Drawing.Size(56, 16);
             this.label44.TabIndex = 176;
             this.label44.Text = "File Name";
-            // 
+            //
             // label43
-            // 
+            //
             this.label43.Location = new System.Drawing.Point(129, 31);
             this.label43.Name = "label43";
             this.label43.Size = new System.Drawing.Size(16, 16);
             this.label43.TabIndex = 167;
             this.label43.Text = "Y";
-            // 
+            //
             // label41
-            // 
+            //
             this.label41.Location = new System.Drawing.Point(81, 31);
             this.label41.Name = "label41";
             this.label41.Size = new System.Drawing.Size(16, 16);
             this.label41.TabIndex = 165;
             this.label41.Text = "X";
-            // 
+            //
             // inbox2
-            // 
+            //
             this.inbox2.Location = new System.Drawing.Point(9, 79);
             this.inbox2.Name = "inbox2";
             this.inbox2.Size = new System.Drawing.Size(64, 16);
             this.inbox2.TabIndex = 164;
             this.inbox2.Text = "Input 2";
-            // 
+            //
             // inbox3
-            // 
+            //
             this.inbox3.Location = new System.Drawing.Point(9, 103);
             this.inbox3.Name = "inbox3";
             this.inbox3.Size = new System.Drawing.Size(64, 16);
             this.inbox3.TabIndex = 163;
             this.inbox3.Text = "Input 3";
-            // 
+            //
             // inbox4
-            // 
+            //
             this.inbox4.Location = new System.Drawing.Point(9, 127);
             this.inbox4.Name = "inbox4";
             this.inbox4.Size = new System.Drawing.Size(64, 16);
             this.inbox4.TabIndex = 162;
             this.inbox4.Text = "Input 4";
-            // 
+            //
             // inbox1
-            // 
+            //
             this.inbox1.Location = new System.Drawing.Point(9, 55);
             this.inbox1.Name = "inbox1";
             this.inbox1.Size = new System.Drawing.Size(64, 16);
             this.inbox1.TabIndex = 161;
             this.inbox1.Text = "Input 1";
-            // 
+            //
             // label42
-            // 
+            //
             this.label42.Location = new System.Drawing.Point(81, 31);
             this.label42.Name = "label42";
             this.label42.Size = new System.Drawing.Size(16, 16);
             this.label42.TabIndex = 166;
             this.label42.Text = "X";
-            // 
+            //
             // groupBoxWaterSourceTracer
-            // 
+            //
             this.groupBoxWaterSourceTracer.Controls.Add(this.checkBoxSoluteTracer);
             this.groupBoxWaterSourceTracer.Controls.Add(this.textBox20);
             this.groupBoxWaterSourceTracer.Controls.Add(this.checkBox11);
@@ -4073,9 +4124,9 @@ namespace caesar1
             this.groupBoxWaterSourceTracer.TabIndex = 223;
             this.groupBoxWaterSourceTracer.TabStop = false;
             this.groupBoxWaterSourceTracer.Text = "Water source and solute tracing";
-            // 
+            //
             // checkBoxSoluteTracer
-            // 
+            //
             this.checkBoxSoluteTracer.AutoSize = true;
             this.checkBoxSoluteTracer.Enabled = false;
             this.checkBoxSoluteTracer.Location = new System.Drawing.Point(150, 54);
@@ -4086,18 +4137,18 @@ namespace caesar1
             this.toolTip1.SetToolTip(this.checkBoxSoluteTracer, "Activate tracing of time variable solutes input for each source");
             this.checkBoxSoluteTracer.UseVisualStyleBackColor = true;
             this.checkBoxSoluteTracer.CheckedChanged += new System.EventHandler(this.checkBoxSoluteTracer_CheckedChanged);
-            // 
+            //
             // textBox20
-            // 
+            //
             this.textBox20.Enabled = false;
             this.textBox20.Location = new System.Drawing.Point(320, 24);
             this.textBox20.Name = "textBox20";
             this.textBox20.Size = new System.Drawing.Size(118, 20);
             this.textBox20.TabIndex = 228;
             this.textBox20.Text = "null";
-            // 
+            //
             // checkBox11
-            // 
+            //
             this.checkBox11.AutoSize = true;
             this.checkBox11.Enabled = false;
             this.checkBox11.Location = new System.Drawing.Point(150, 24);
@@ -4108,9 +4159,9 @@ namespace caesar1
             this.toolTip1.SetToolTip(this.checkBox11, "Activate water source tracing for surface water (model runs slower)");
             this.checkBox11.UseVisualStyleBackColor = true;
             this.checkBox11.CheckedChanged += new System.EventHandler(this.checkBox11_CheckedChanged);
-            // 
+            //
             // checkBox10
-            // 
+            //
             this.checkBox10.AutoSize = true;
             this.checkBox10.Location = new System.Drawing.Point(9, 24);
             this.checkBox10.Name = "checkBox10";
@@ -4120,9 +4171,9 @@ namespace caesar1
             this.toolTip1.SetToolTip(this.checkBox10, "Activate water source tracing for surface water (model runs slower)");
             this.checkBox10.UseVisualStyleBackColor = true;
             this.checkBox10.CheckedChanged += new System.EventHandler(this.checkBox10_CheckedChanged);
-            // 
+            //
             // groupBox1
-            // 
+            //
             this.groupBox1.Controls.Add(this.label90);
             this.groupBox1.Controls.Add(this.TidalFileName);
             this.groupBox1.Controls.Add(this.TidalInputStep);
@@ -4139,89 +4190,89 @@ namespace caesar1
             this.groupBox1.TabIndex = 213;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Stage/Tidal input variables";
-            // 
+            //
             // label90
-            // 
+            //
             this.label90.Location = new System.Drawing.Point(206, 45);
             this.label90.Name = "label90";
             this.label90.Size = new System.Drawing.Size(60, 15);
             this.label90.TabIndex = 212;
             this.label90.Text = "File Name";
-            // 
+            //
             // TidalFileName
-            // 
+            //
             this.TidalFileName.Location = new System.Drawing.Point(207, 62);
             this.TidalFileName.Name = "TidalFileName";
             this.TidalFileName.Size = new System.Drawing.Size(120, 20);
             this.TidalFileName.TabIndex = 211;
-            // 
+            //
             // TidalInputStep
-            // 
+            //
             this.TidalInputStep.Location = new System.Drawing.Point(264, 97);
             this.TidalInputStep.Name = "TidalInputStep";
             this.TidalInputStep.Size = new System.Drawing.Size(63, 20);
             this.TidalInputStep.TabIndex = 209;
             this.TidalInputStep.Text = "1440";
-            // 
+            //
             // label82
-            // 
+            //
             this.label82.Location = new System.Drawing.Point(160, 90);
             this.label82.Name = "label82";
             this.label82.Size = new System.Drawing.Size(100, 32);
             this.label82.TabIndex = 210;
             this.label82.Text = "input data time step (mins)";
             this.label82.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // TidalYmin
-            // 
+            //
             this.TidalYmin.Location = new System.Drawing.Point(93, 39);
             this.TidalYmin.Name = "TidalYmin";
             this.TidalYmin.Size = new System.Drawing.Size(32, 20);
             this.TidalYmin.TabIndex = 208;
             this.TidalYmin.Text = "0";
-            // 
+            //
             // TidalYmax
-            // 
+            //
             this.TidalYmax.Location = new System.Drawing.Point(93, 87);
             this.TidalYmax.Name = "TidalYmax";
             this.TidalYmax.Size = new System.Drawing.Size(32, 20);
             this.TidalYmax.TabIndex = 207;
             this.TidalYmax.Text = "0";
-            // 
+            //
             // TidalXmax
-            // 
+            //
             this.TidalXmax.Location = new System.Drawing.Point(128, 62);
             this.TidalXmax.Name = "TidalXmax";
             this.TidalXmax.Size = new System.Drawing.Size(31, 20);
             this.TidalXmax.TabIndex = 206;
             this.TidalXmax.Text = "0";
-            // 
+            //
             // TidalXmin
-            // 
+            //
             this.TidalXmin.Location = new System.Drawing.Point(54, 62);
             this.TidalXmin.Name = "TidalXmin";
             this.TidalXmin.Size = new System.Drawing.Size(31, 20);
             this.TidalXmin.TabIndex = 205;
             this.TidalXmin.Text = "0";
-            // 
+            //
             // label80
-            // 
+            //
             this.label80.Location = new System.Drawing.Point(100, 21);
             this.label80.Name = "label80";
             this.label80.Size = new System.Drawing.Size(15, 15);
             this.label80.TabIndex = 204;
             this.label80.Text = "Y";
-            // 
+            //
             // label81
-            // 
+            //
             this.label81.Location = new System.Drawing.Point(32, 65);
             this.label81.Name = "label81";
             this.label81.Size = new System.Drawing.Size(16, 15);
             this.label81.TabIndex = 203;
             this.label81.Text = "X";
-            // 
+            //
             // tabPage2
-            // 
+            //
             this.tabPage2.Controls.Add(this.groupBox8);
             this.tabPage2.Controls.Add(this.veg_lat_box);
             this.tabPage2.Controls.Add(this.label51);
@@ -4235,9 +4286,9 @@ namespace caesar1
             this.tabPage2.TabIndex = 7;
             this.tabPage2.Text = "Vegetation";
             this.tabPage2.UseVisualStyleBackColor = true;
-            // 
+            //
             // groupBox8
-            // 
+            //
             this.groupBox8.Controls.Add(this.radioButton2);
             this.groupBox8.Controls.Add(this.radioButton1);
             this.groupBox8.Location = new System.Drawing.Point(284, 32);
@@ -4246,9 +4297,9 @@ namespace caesar1
             this.groupBox8.TabIndex = 178;
             this.groupBox8.TabStop = false;
             this.groupBox8.Text = "Vegetation model";
-            // 
+            //
             // radioButton2
-            // 
+            //
             this.radioButton2.AutoSize = true;
             this.radioButton2.Location = new System.Drawing.Point(17, 43);
             this.radioButton2.Name = "radioButton2";
@@ -4256,9 +4307,9 @@ namespace caesar1
             this.radioButton2.TabIndex = 177;
             this.radioButton2.Text = "new (>=1.9f)";
             this.radioButton2.UseVisualStyleBackColor = true;
-            // 
+            //
             // radioButton1
-            // 
+            //
             this.radioButton1.AutoSize = true;
             this.radioButton1.Checked = true;
             this.radioButton1.Location = new System.Drawing.Point(17, 20);
@@ -4268,60 +4319,60 @@ namespace caesar1
             this.radioButton1.TabStop = true;
             this.radioButton1.Text = "old (<1.9d)";
             this.radioButton1.UseVisualStyleBackColor = true;
-            // 
+            //
             // veg_lat_box
-            // 
+            //
             this.veg_lat_box.Location = new System.Drawing.Point(157, 117);
             this.veg_lat_box.Name = "veg_lat_box";
             this.veg_lat_box.Size = new System.Drawing.Size(40, 20);
             this.veg_lat_box.TabIndex = 175;
             this.veg_lat_box.Text = "0.1";
-            // 
+            //
             // label51
-            // 
+            //
             this.label51.Location = new System.Drawing.Point(29, 103);
             this.label51.Name = "label51";
             this.label51.Size = new System.Drawing.Size(120, 47);
             this.label51.TabIndex = 174;
             this.label51.Text = "Proportion of erosion that can occur when veg is fully grown (0-1)";
             this.label51.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // grasstextbox
-            // 
+            //
             this.grasstextbox.Location = new System.Drawing.Point(157, 68);
             this.grasstextbox.Name = "grasstextbox";
             this.grasstextbox.Size = new System.Drawing.Size(40, 20);
             this.grasstextbox.TabIndex = 172;
             this.grasstextbox.Text = "5";
-            // 
+            //
             // label40
-            // 
+            //
             this.label40.Location = new System.Drawing.Point(29, 68);
             this.label40.Name = "label40";
             this.label40.Size = new System.Drawing.Size(120, 24);
             this.label40.TabIndex = 173;
             this.label40.Text = "Grass maturity (yrs)";
             this.label40.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // label36
-            // 
+            //
             this.label36.Location = new System.Drawing.Point(37, 28);
             this.label36.Name = "label36";
             this.label36.Size = new System.Drawing.Size(112, 24);
             this.label36.TabIndex = 108;
             this.label36.Text = "vegetation crit shear";
             this.label36.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // vegTauCritBox
-            // 
+            //
             this.vegTauCritBox.Location = new System.Drawing.Point(157, 32);
             this.vegTauCritBox.Name = "vegTauCritBox";
             this.vegTauCritBox.Size = new System.Drawing.Size(71, 20);
             this.vegTauCritBox.TabIndex = 92;
             this.vegTauCritBox.Text = "180.0";
-            // 
+            //
             // tabPage4
-            // 
+            //
             this.tabPage4.Controls.Add(this.angle_thresholdbox);
             this.tabPage4.Controls.Add(this.soilerosionBox);
             this.tabPage4.Controls.Add(this.landslidesBox);
@@ -4352,17 +4403,17 @@ namespace caesar1
             this.tabPage4.TabIndex = 9;
             this.tabPage4.Text = "Slope Processes";
             this.tabPage4.UseVisualStyleBackColor = true;
-            // 
+            //
             // angle_thresholdbox
-            // 
+            //
             this.angle_thresholdbox.Location = new System.Drawing.Point(1170, 124);
             this.angle_thresholdbox.Name = "angle_thresholdbox";
             this.angle_thresholdbox.Size = new System.Drawing.Size(132, 20);
             this.angle_thresholdbox.TabIndex = 188;
             this.angle_thresholdbox.Text = "null";
-            // 
+            //
             // soilerosionBox
-            // 
+            //
             this.soilerosionBox.Location = new System.Drawing.Point(223, 163);
             this.soilerosionBox.Name = "soilerosionBox";
             this.soilerosionBox.Size = new System.Drawing.Size(147, 34);
@@ -4370,103 +4421,103 @@ namespace caesar1
             this.soilerosionBox.Text = "Soil erosion varies according to j_mean";
             this.toolTip1.SetToolTip(this.soilerosionBox, "CAESAR can run in both catchment and reach mode, but if you have catchment mode c" +
         "hecked, you should input a rainfall data file");
-            // 
+            //
             // landslidesBox
-            // 
+            //
             this.landslidesBox.Location = new System.Drawing.Point(223, 69);
             this.landslidesBox.Name = "landslidesBox";
             this.landslidesBox.Size = new System.Drawing.Size(196, 34);
             this.landslidesBox.TabIndex = 186;
             this.landslidesBox.Text = "Dynamic Slope fail angle -  varies according to j_mean";
-            // 
+            //
             // label75
-            // 
+            //
             this.label75.Location = new System.Drawing.Point(648, 174);
             this.label75.Name = "label75";
             this.label75.Size = new System.Drawing.Size(96, 24);
             this.label75.TabIndex = 185;
             this.label75.Text = "n1";
             this.label75.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // label74
-            // 
+            //
             this.label74.Location = new System.Drawing.Point(648, 151);
             this.label74.Name = "label74";
             this.label74.Size = new System.Drawing.Size(96, 24);
             this.label74.TabIndex = 184;
             this.label74.Text = "m3";
             this.label74.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // label73
-            // 
+            //
             this.label73.Location = new System.Drawing.Point(648, 73);
             this.label73.Name = "label73";
             this.label73.Size = new System.Drawing.Size(96, 24);
             this.label73.TabIndex = 183;
             this.label73.Text = "Beta1";
             this.label73.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // label72
-            // 
+            //
             this.label72.Location = new System.Drawing.Point(648, 125);
             this.label72.Name = "label72";
             this.label72.Size = new System.Drawing.Size(96, 24);
             this.label72.TabIndex = 182;
             this.label72.Text = "m1";
             this.label72.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // label71
-            // 
+            //
             this.label71.Location = new System.Drawing.Point(648, 99);
             this.label71.Name = "label71";
             this.label71.Size = new System.Drawing.Size(96, 24);
             this.label71.TabIndex = 181;
             this.label71.Text = "Beta3";
             this.label71.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // m3Box
-            // 
+            //
             this.m3Box.Location = new System.Drawing.Point(750, 151);
             this.m3Box.Name = "m3Box";
             this.m3Box.Size = new System.Drawing.Size(49, 20);
             this.m3Box.TabIndex = 180;
             this.m3Box.Text = "0.79";
-            // 
+            //
             // n1Box
-            // 
+            //
             this.n1Box.Location = new System.Drawing.Point(750, 177);
             this.n1Box.Name = "n1Box";
             this.n1Box.Size = new System.Drawing.Size(49, 20);
             this.n1Box.TabIndex = 179;
             this.n1Box.Text = "0.69";
             this.n1Box.TextChanged += new System.EventHandler(this.n1Box_TextChanged);
-            // 
+            //
             // m1Box
-            // 
+            //
             this.m1Box.Location = new System.Drawing.Point(750, 125);
             this.m1Box.Name = "m1Box";
             this.m1Box.Size = new System.Drawing.Size(49, 20);
             this.m1Box.TabIndex = 178;
             this.m1Box.Text = "1.7";
-            // 
+            //
             // Beta3Box
-            // 
+            //
             this.Beta3Box.Location = new System.Drawing.Point(750, 99);
             this.Beta3Box.Name = "Beta3Box";
             this.Beta3Box.Size = new System.Drawing.Size(49, 20);
             this.Beta3Box.TabIndex = 177;
             this.Beta3Box.Text = "0.000186";
-            // 
+            //
             // Beta1Box
-            // 
+            //
             this.Beta1Box.Location = new System.Drawing.Point(750, 73);
             this.Beta1Box.Name = "Beta1Box";
             this.Beta1Box.Size = new System.Drawing.Size(49, 20);
             this.Beta1Box.TabIndex = 176;
             this.Beta1Box.Text = "1067";
-            // 
+            //
             // SiberiaBox
-            // 
+            //
             this.SiberiaBox.Location = new System.Drawing.Point(692, 36);
             this.SiberiaBox.Name = "SiberiaBox";
             this.SiberiaBox.Size = new System.Drawing.Size(147, 34);
@@ -4474,87 +4525,87 @@ namespace caesar1
             this.SiberiaBox.Text = "SIBERIA sub model?";
             this.toolTip1.SetToolTip(this.SiberiaBox, "CAESAR can run in both catchment and reach mode, but if you have catchment mode c" +
         "hecked, you should input a rainfall data file");
-            // 
+            //
             // label70
-            // 
+            //
             this.label70.AutoSize = true;
             this.label70.Location = new System.Drawing.Point(220, 132);
             this.label70.Name = "label70";
             this.label70.Size = new System.Drawing.Size(246, 13);
             this.label70.TabIndex = 168;
             this.label70.Text = "simply slope * slope length, so replicates wash term";
-            // 
+            //
             // label69
-            // 
+            //
             this.label69.AutoSize = true;
             this.label69.Location = new System.Drawing.Point(220, 116);
             this.label69.Name = "label69";
             this.label69.Size = new System.Drawing.Size(357, 13);
             this.label69.TabIndex = 167;
             this.label69.Text = "Slope * Soil erosion rate * (drainage area ^ 0.5) * Time(years) / DX(cellsize)";
-            // 
+            //
             // label68
-            // 
+            //
             this.label68.AutoSize = true;
             this.label68.Location = new System.Drawing.Point(220, 42);
             this.label68.Name = "label68";
             this.label68.Size = new System.Drawing.Size(220, 13);
             this.label68.TabIndex = 166;
             this.label68.Text = "Slope * Creeprate * Time(years) / DX(cellsize)";
-            // 
+            //
             // label67
-            // 
+            //
             this.label67.Location = new System.Drawing.Point(51, 109);
             this.label67.Name = "label67";
             this.label67.Size = new System.Drawing.Size(96, 24);
             this.label67.TabIndex = 165;
             this.label67.Text = "Soil erosion rate";
             this.label67.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // soil_ratebox
-            // 
+            //
             this.soil_ratebox.Location = new System.Drawing.Point(155, 113);
             this.soil_ratebox.Name = "soil_ratebox";
             this.soil_ratebox.Size = new System.Drawing.Size(49, 20);
             this.soil_ratebox.TabIndex = 164;
             this.soil_ratebox.Text = "0.0";
-            // 
+            //
             // slopebox
-            // 
+            //
             this.slopebox.Location = new System.Drawing.Point(155, 75);
             this.slopebox.Name = "slopebox";
             this.slopebox.Size = new System.Drawing.Size(40, 20);
             this.slopebox.TabIndex = 162;
             this.slopebox.Text = "45";
-            // 
+            //
             // creepratebox
-            // 
+            //
             this.creepratebox.Location = new System.Drawing.Point(155, 39);
             this.creepratebox.Name = "creepratebox";
             this.creepratebox.Size = new System.Drawing.Size(49, 20);
             this.creepratebox.TabIndex = 160;
             this.creepratebox.Text = "0.0025";
-            // 
+            //
             // label34
-            // 
+            //
             this.label34.Location = new System.Drawing.Point(21, 75);
             this.label34.Name = "label34";
             this.label34.Size = new System.Drawing.Size(128, 24);
             this.label34.TabIndex = 163;
             this.label34.Text = "slope failure threshold";
             this.label34.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // label8
-            // 
+            //
             this.label8.Location = new System.Drawing.Point(51, 39);
             this.label8.Name = "label8";
             this.label8.Size = new System.Drawing.Size(96, 24);
             this.label8.TabIndex = 161;
             this.label8.Text = "Creep rate";
             this.label8.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // tabPage5
-            // 
+            //
             this.tabPage5.Controls.Add(this.label91);
             this.tabPage5.Controls.Add(this.textBox10);
             this.tabPage5.Controls.Add(this.fraction_dune);
@@ -4583,77 +4634,77 @@ namespace caesar1
             this.tabPage5.Text = "Dune model";
             this.tabPage5.UseVisualStyleBackColor = true;
             this.tabPage5.Click += new System.EventHandler(this.tabPage5_Click);
-            // 
+            //
             // label91
-            // 
+            //
             this.label91.AutoSize = true;
             this.label91.Location = new System.Drawing.Point(115, 153);
             this.label91.Name = "label91";
             this.label91.Size = new System.Drawing.Size(100, 13);
             this.label91.TabIndex = 19;
             this.label91.Text = "Dune landslip angle";
-            // 
+            //
             // textBox10
-            // 
+            //
             this.textBox10.Location = new System.Drawing.Point(26, 150);
             this.textBox10.Name = "textBox10";
             this.textBox10.Size = new System.Drawing.Size(75, 20);
             this.textBox10.TabIndex = 18;
             this.textBox10.Text = "30";
-            // 
+            //
             // fraction_dune
-            // 
+            //
             this.fraction_dune.Location = new System.Drawing.Point(512, 113);
             this.fraction_dune.Name = "fraction_dune";
             this.fraction_dune.Size = new System.Drawing.Size(75, 20);
             this.fraction_dune.TabIndex = 17;
             this.fraction_dune.Text = "1";
-            // 
+            //
             // label57
-            // 
+            //
             this.label57.AutoSize = true;
             this.label57.Location = new System.Drawing.Point(600, 79);
             this.label57.Name = "label57";
             this.label57.Size = new System.Drawing.Size(91, 13);
             this.label57.TabIndex = 16;
             this.label57.Text = "Grid size of dunes";
-            // 
+            //
             // dune_grid_size_box
-            // 
+            //
             this.dune_grid_size_box.Location = new System.Drawing.Point(512, 76);
             this.dune_grid_size_box.Name = "dune_grid_size_box";
             this.dune_grid_size_box.Size = new System.Drawing.Size(75, 20);
             this.dune_grid_size_box.TabIndex = 15;
             this.dune_grid_size_box.Text = "2";
-            // 
+            //
             // label56
-            // 
+            //
             this.label56.AutoSize = true;
             this.label56.Location = new System.Drawing.Point(600, 44);
             this.label56.Name = "label56";
             this.label56.Size = new System.Drawing.Size(169, 13);
             this.label56.TabIndex = 14;
             this.label56.Text = "time step (min) between dune calls";
-            // 
+            //
             // dune_time_box
-            // 
+            //
             this.dune_time_box.Location = new System.Drawing.Point(512, 41);
             this.dune_time_box.Name = "dune_time_box";
             this.dune_time_box.Size = new System.Drawing.Size(75, 20);
             this.dune_time_box.TabIndex = 13;
             this.dune_time_box.Text = "144";
-            // 
+            //
             // label89
-            // 
+            //
             this.label89.AutoSize = true;
             this.label89.Location = new System.Drawing.Point(117, 257);
             this.label89.Name = "label89";
             this.label89.Size = new System.Drawing.Size(270, 13);
             this.label89.TabIndex = 12;
             this.label89.Text = "Downstream offset (travel distance automatically added)";
-            // 
+            //
             // label88
-            // 
+            //
             this.label88.AutoSize = true;
             this.label88.Location = new System.Drawing.Point(115, 222);
             this.label88.Name = "label88";
@@ -4661,94 +4712,94 @@ namespace caesar1
             this.label88.TabIndex = 11;
             this.label88.Text = "Deposition probability (%)";
             this.label88.Click += new System.EventHandler(this.label88_Click);
-            // 
+            //
             // label87
-            // 
+            //
             this.label87.AutoSize = true;
             this.label87.Location = new System.Drawing.Point(115, 186);
             this.label87.Name = "label87";
             this.label87.Size = new System.Drawing.Size(381, 13);
             this.label87.TabIndex = 10;
             this.label87.Text = "Shadow check distance (cells) - number of cells Upstream it checks for shadow";
-            // 
+            //
             // label86
-            // 
+            //
             this.label86.AutoSize = true;
             this.label86.Location = new System.Drawing.Point(115, 118);
             this.label86.Name = "label86";
             this.label86.Size = new System.Drawing.Size(105, 13);
             this.label86.TabIndex = 9;
             this.label86.Text = "Shadow angle (deg) ";
-            // 
+            //
             // label85
-            // 
+            //
             this.label85.AutoSize = true;
             this.label85.Location = new System.Drawing.Point(117, 83);
             this.label85.Name = "label85";
             this.label85.Size = new System.Drawing.Size(138, 13);
             this.label85.TabIndex = 8;
             this.label85.Text = "Maximum slab thickness (m)";
-            // 
+            //
             // label84
-            // 
+            //
             this.label84.AutoSize = true;
             this.label84.Location = new System.Drawing.Point(115, 47);
             this.label84.Name = "label84";
             this.label84.Size = new System.Drawing.Size(185, 13);
             this.label84.TabIndex = 7;
             this.label84.Text = "how many slabs added per col per iter";
-            // 
+            //
             // slab_depth_box
-            // 
+            //
             this.slab_depth_box.Location = new System.Drawing.Point(26, 80);
             this.slab_depth_box.Name = "slab_depth_box";
             this.slab_depth_box.Size = new System.Drawing.Size(75, 20);
             this.slab_depth_box.TabIndex = 6;
             this.slab_depth_box.Text = "0.5";
             this.slab_depth_box.TextChanged += new System.EventHandler(this.textBox12_TextChanged);
-            // 
+            //
             // shadow_angle_box
-            // 
+            //
             this.shadow_angle_box.Location = new System.Drawing.Point(26, 115);
             this.shadow_angle_box.Name = "shadow_angle_box";
             this.shadow_angle_box.Size = new System.Drawing.Size(75, 20);
             this.shadow_angle_box.TabIndex = 5;
             this.shadow_angle_box.Text = "15";
-            // 
+            //
             // upstream_check_box
-            // 
+            //
             this.upstream_check_box.Location = new System.Drawing.Point(26, 183);
             this.upstream_check_box.Name = "upstream_check_box";
             this.upstream_check_box.Size = new System.Drawing.Size(75, 20);
             this.upstream_check_box.TabIndex = 4;
             this.upstream_check_box.Text = "40";
-            // 
+            //
             // depo_prob_box
-            // 
+            //
             this.depo_prob_box.Location = new System.Drawing.Point(27, 219);
             this.depo_prob_box.Name = "depo_prob_box";
             this.depo_prob_box.Size = new System.Drawing.Size(75, 20);
             this.depo_prob_box.TabIndex = 3;
             this.depo_prob_box.Text = "50";
-            // 
+            //
             // offset_box
-            // 
+            //
             this.offset_box.Location = new System.Drawing.Point(26, 254);
             this.offset_box.Name = "offset_box";
             this.offset_box.Size = new System.Drawing.Size(75, 20);
             this.offset_box.TabIndex = 2;
             this.offset_box.Text = "1";
-            // 
+            //
             // init_depth_box
-            // 
+            //
             this.init_depth_box.Location = new System.Drawing.Point(27, 44);
             this.init_depth_box.Name = "init_depth_box";
             this.init_depth_box.Size = new System.Drawing.Size(75, 20);
             this.init_depth_box.TabIndex = 1;
             this.init_depth_box.Text = "4";
-            // 
+            //
             // DuneBox
-            // 
+            //
             this.DuneBox.AutoSize = true;
             this.DuneBox.Location = new System.Drawing.Point(26, 18);
             this.DuneBox.Name = "DuneBox";
@@ -4756,9 +4807,9 @@ namespace caesar1
             this.DuneBox.TabIndex = 0;
             this.DuneBox.Text = "Run with Dunes?";
             this.DuneBox.UseVisualStyleBackColor = true;
-            // 
+            //
             // tabPage1
-            // 
+            //
             this.tabPage1.Controls.Add(this.textBox19);
             this.tabPage1.Controls.Add(this.label104);
             this.tabPage1.Controls.Add(this.SpatVarManningsCheckbox);
@@ -4788,18 +4839,18 @@ namespace caesar1
             this.tabPage1.TabIndex = 11;
             this.tabPage1.Text = "Flow Model";
             this.tabPage1.UseVisualStyleBackColor = true;
-            // 
+            //
             // textBox19
-            // 
+            //
             this.textBox19.Location = new System.Drawing.Point(331, 341);
             this.textBox19.Name = "textBox19";
             this.textBox19.Size = new System.Drawing.Size(118, 20);
             this.textBox19.TabIndex = 235;
             this.textBox19.Text = "null";
             this.textBox19.Visible = false;
-            // 
+            //
             // label104
-            // 
+            //
             this.label104.AutoSize = true;
             this.label104.Location = new System.Drawing.Point(247, 344);
             this.label104.Name = "label104";
@@ -4807,9 +4858,9 @@ namespace caesar1
             this.label104.TabIndex = 234;
             this.label104.Text = "Mannings n file";
             this.label104.Visible = false;
-            // 
+            //
             // SpatVarManningsCheckbox
-            // 
+            //
             this.SpatVarManningsCheckbox.AutoSize = true;
             this.SpatVarManningsCheckbox.Location = new System.Drawing.Point(293, 318);
             this.SpatVarManningsCheckbox.Name = "SpatVarManningsCheckbox";
@@ -4818,85 +4869,85 @@ namespace caesar1
             this.SpatVarManningsCheckbox.Text = "Spatially variable mannings n";
             this.SpatVarManningsCheckbox.UseVisualStyleBackColor = true;
             this.SpatVarManningsCheckbox.CheckedChanged += new System.EventHandler(this.SpatVarManningsCheckbox_CheckedChanged);
-            // 
+            //
             // MinQmaxvalue
-            // 
+            //
             this.MinQmaxvalue.Location = new System.Drawing.Point(302, 106);
             this.MinQmaxvalue.Name = "MinQmaxvalue";
             this.MinQmaxvalue.Size = new System.Drawing.Size(49, 20);
             this.MinQmaxvalue.TabIndex = 216;
             this.MinQmaxvalue.Text = "1000.0";
-            // 
+            //
             // textBox9
-            // 
+            //
             this.textBox9.Location = new System.Drawing.Point(229, 315);
             this.textBox9.Name = "textBox9";
             this.textBox9.Size = new System.Drawing.Size(38, 20);
             this.textBox9.TabIndex = 215;
             this.textBox9.Text = "0.04";
-            // 
+            //
             // label77
-            // 
+            //
             this.label77.Location = new System.Drawing.Point(95, 311);
             this.label77.Name = "label77";
             this.label77.Size = new System.Drawing.Size(128, 24);
             this.label77.TabIndex = 214;
             this.label77.Text = "Mannings n";
             this.label77.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // textBox8
-            // 
+            //
             this.textBox8.Location = new System.Drawing.Point(229, 291);
             this.textBox8.Name = "textBox8";
             this.textBox8.Size = new System.Drawing.Size(38, 20);
             this.textBox8.TabIndex = 213;
             this.textBox8.Text = "0.8";
-            // 
+            //
             // label66
-            // 
+            //
             this.label66.Location = new System.Drawing.Point(95, 287);
             this.label66.Name = "label66";
             this.label66.Size = new System.Drawing.Size(128, 24);
             this.label66.TabIndex = 212;
             this.label66.Text = "froude # flow limit";
             this.label66.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // textBox4
-            // 
+            //
             this.textBox4.Location = new System.Drawing.Point(229, 267);
             this.textBox4.Name = "textBox4";
             this.textBox4.Size = new System.Drawing.Size(38, 20);
             this.textBox4.TabIndex = 211;
             this.textBox4.Text = "0.00001";
-            // 
+            //
             // label64
-            // 
+            //
             this.label64.Location = new System.Drawing.Point(95, 263);
             this.label64.Name = "label64";
             this.label64.Size = new System.Drawing.Size(128, 24);
             this.label64.TabIndex = 210;
             this.label64.Text = "hflow threshold";
             this.label64.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // courantbox
-            // 
+            //
             this.courantbox.Location = new System.Drawing.Point(229, 241);
             this.courantbox.Name = "courantbox";
             this.courantbox.Size = new System.Drawing.Size(38, 20);
             this.courantbox.TabIndex = 209;
             this.courantbox.Text = "0.7";
-            // 
+            //
             // label38
-            // 
+            //
             this.label38.Location = new System.Drawing.Point(95, 237);
             this.label38.Name = "label38";
             this.label38.Size = new System.Drawing.Size(128, 24);
             this.label38.TabIndex = 208;
             this.label38.Text = "Courant Number";
             this.label38.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // label53
-            // 
+            //
             this.label53.Location = new System.Drawing.Point(101, 130);
             this.label53.Name = "label53";
             this.label53.Size = new System.Drawing.Size(120, 43);
@@ -4905,67 +4956,67 @@ namespace caesar1
             this.label53.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             this.toolTip1.SetToolTip(this.label53, "MinQ is a threshold value, above which CAEASR treats flow as surface flow, it sho" +
         "uld be scaled to the grid size. Try 0.01 for 10m grids and 0.25 for 50m..");
-            // 
+            //
             // Q2box
-            // 
+            //
             this.Q2box.Location = new System.Drawing.Point(229, 137);
             this.Q2box.Name = "Q2box";
             this.Q2box.Size = new System.Drawing.Size(49, 20);
             this.Q2box.TabIndex = 204;
             this.Q2box.Text = "0.01";
-            // 
+            //
             // label3
-            // 
+            //
             this.label3.Location = new System.Drawing.Point(82, 212);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(139, 24);
             this.label3.TabIndex = 203;
             this.label3.Text = "Evaporation rate (m/day)";
             this.label3.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // k_evapBox
-            // 
+            //
             this.k_evapBox.Location = new System.Drawing.Point(229, 215);
             this.k_evapBox.Name = "k_evapBox";
             this.k_evapBox.Size = new System.Drawing.Size(80, 20);
             this.k_evapBox.TabIndex = 202;
             this.k_evapBox.Text = "0.0";
-            // 
+            //
             // textBox2
-            // 
+            //
             this.textBox2.Location = new System.Drawing.Point(229, 182);
             this.textBox2.Name = "textBox2";
             this.textBox2.Size = new System.Drawing.Size(40, 20);
             this.textBox2.TabIndex = 200;
             this.textBox2.Text = "0.005";
-            // 
+            //
             // label46
-            // 
+            //
             this.label46.Location = new System.Drawing.Point(93, 179);
             this.label46.Name = "label46";
             this.label46.Size = new System.Drawing.Size(128, 24);
             this.label46.TabIndex = 201;
             this.label46.Text = "Slope for edge cells";
             this.label46.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // minqbox
-            // 
+            //
             this.minqbox.Location = new System.Drawing.Point(229, 106);
             this.minqbox.Name = "minqbox";
             this.minqbox.Size = new System.Drawing.Size(49, 20);
             this.minqbox.TabIndex = 197;
             this.minqbox.Text = "0.01";
-            // 
+            //
             // initscansbox
-            // 
+            //
             this.initscansbox.Location = new System.Drawing.Point(227, 68);
             this.initscansbox.Name = "initscansbox";
             this.initscansbox.Size = new System.Drawing.Size(40, 20);
             this.initscansbox.TabIndex = 196;
             this.initscansbox.Text = "1";
-            // 
+            //
             // label9
-            // 
+            //
             this.label9.Location = new System.Drawing.Point(101, 106);
             this.label9.Name = "label9";
             this.label9.Size = new System.Drawing.Size(120, 24);
@@ -4974,18 +5025,18 @@ namespace caesar1
             this.label9.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             this.toolTip1.SetToolTip(this.label9, "MinQ is a threshold value, above which CAEASR treats flow as surface flow, it sho" +
         "uld be scaled to the grid size. Try 0.01 for 10m grids and 0.25 for 50m..");
-            // 
+            //
             // label5
-            // 
+            //
             this.label5.Location = new System.Drawing.Point(29, 65);
             this.label5.Name = "label5";
             this.label5.Size = new System.Drawing.Size(182, 26);
             this.label5.TabIndex = 198;
             this.label5.Text = "input/output difference allowed";
             this.label5.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            // 
+            //
             // tabPage3
-            // 
+            //
             this.tabPage3.Controls.Add(this.label101);
             this.tabPage3.Controls.Add(this.label100);
             this.tabPage3.Controls.Add(this.label99);
@@ -5013,9 +5064,9 @@ namespace caesar1
             this.tabPage3.TabIndex = 12;
             this.tabPage3.Text = "Soil Development";
             this.tabPage3.UseVisualStyleBackColor = true;
-            // 
+            //
             // label101
-            // 
+            //
             this.label101.AutoSize = true;
             this.label101.Enabled = false;
             this.label101.Location = new System.Drawing.Point(414, 153);
@@ -5023,9 +5074,9 @@ namespace caesar1
             this.label101.Size = new System.Drawing.Size(19, 13);
             this.label101.TabIndex = 19;
             this.label101.Text = "c4";
-            // 
+            //
             // label100
-            // 
+            //
             this.label100.AutoSize = true;
             this.label100.Enabled = false;
             this.label100.Location = new System.Drawing.Point(414, 124);
@@ -5033,9 +5084,9 @@ namespace caesar1
             this.label100.Size = new System.Drawing.Size(19, 13);
             this.label100.TabIndex = 18;
             this.label100.Text = "c3";
-            // 
+            //
             // label99
-            // 
+            //
             this.label99.AutoSize = true;
             this.label99.Enabled = false;
             this.label99.Location = new System.Drawing.Point(415, 94);
@@ -5043,121 +5094,121 @@ namespace caesar1
             this.label99.Size = new System.Drawing.Size(19, 13);
             this.label99.TabIndex = 17;
             this.label99.Text = "k2";
-            // 
+            //
             // textBox18
-            // 
+            //
             this.textBox18.Enabled = false;
             this.textBox18.Location = new System.Drawing.Point(336, 150);
             this.textBox18.Name = "textBox18";
             this.textBox18.Size = new System.Drawing.Size(57, 20);
             this.textBox18.TabIndex = 16;
             this.textBox18.Text = "1";
-            // 
+            //
             // textBox17
-            // 
+            //
             this.textBox17.Enabled = false;
             this.textBox17.Location = new System.Drawing.Point(336, 121);
             this.textBox17.Name = "textBox17";
             this.textBox17.Size = new System.Drawing.Size(57, 20);
             this.textBox17.TabIndex = 15;
             this.textBox17.Text = "-2.5";
-            // 
+            //
             // textBox16
-            // 
+            //
             this.textBox16.Enabled = false;
             this.textBox16.Location = new System.Drawing.Point(337, 91);
             this.textBox16.Name = "textBox16";
             this.textBox16.Size = new System.Drawing.Size(57, 20);
             this.textBox16.TabIndex = 14;
             this.textBox16.Text = "70";
-            // 
+            //
             // label98
-            // 
+            //
             this.label98.AutoSize = true;
             this.label98.Location = new System.Drawing.Point(99, 240);
             this.label98.Name = "label98";
             this.label98.Size = new System.Drawing.Size(19, 13);
             this.label98.TabIndex = 13;
             this.label98.Text = "c2";
-            // 
+            //
             // label97
-            // 
+            //
             this.label97.AutoSize = true;
             this.label97.Location = new System.Drawing.Point(100, 207);
             this.label97.Name = "label97";
             this.label97.Size = new System.Drawing.Size(19, 13);
             this.label97.TabIndex = 12;
             this.label97.Text = "c1";
-            // 
+            //
             // label96
-            // 
+            //
             this.label96.AutoSize = true;
             this.label96.Location = new System.Drawing.Point(101, 173);
             this.label96.Name = "label96";
             this.label96.Size = new System.Drawing.Size(19, 13);
             this.label96.TabIndex = 11;
             this.label96.Text = "k1";
-            // 
+            //
             // textBox15
-            // 
+            //
             this.textBox15.Location = new System.Drawing.Point(32, 238);
             this.textBox15.Name = "textBox15";
             this.textBox15.Size = new System.Drawing.Size(50, 20);
             this.textBox15.TabIndex = 10;
             this.textBox15.Text = "5";
-            // 
+            //
             // textBox14
-            // 
+            //
             this.textBox14.Location = new System.Drawing.Point(33, 205);
             this.textBox14.Name = "textBox14";
             this.textBox14.Size = new System.Drawing.Size(50, 20);
             this.textBox14.TabIndex = 9;
             this.textBox14.Text = "-0.5";
-            // 
+            //
             // textBox13
-            // 
+            //
             this.textBox13.Location = new System.Drawing.Point(32, 173);
             this.textBox13.Name = "textBox13";
             this.textBox13.Size = new System.Drawing.Size(50, 20);
             this.textBox13.TabIndex = 8;
             this.textBox13.Text = "0.0001";
-            // 
+            //
             // label95
-            // 
+            //
             this.label95.AutoSize = true;
             this.label95.Location = new System.Drawing.Point(98, 121);
             this.label95.Name = "label95";
             this.label95.Size = new System.Drawing.Size(19, 13);
             this.label95.TabIndex = 7;
             this.label95.Text = "b1";
-            // 
+            //
             // label94
-            // 
+            //
             this.label94.AutoSize = true;
             this.label94.Location = new System.Drawing.Point(97, 94);
             this.label94.Name = "label94";
             this.label94.Size = new System.Drawing.Size(20, 13);
             this.label94.TabIndex = 6;
             this.label94.Text = "P1";
-            // 
+            //
             // textBox12
-            // 
+            //
             this.textBox12.Location = new System.Drawing.Point(34, 120);
             this.textBox12.Name = "textBox12";
             this.textBox12.Size = new System.Drawing.Size(50, 20);
             this.textBox12.TabIndex = 5;
             this.textBox12.Text = "2";
-            // 
+            //
             // textBox11
-            // 
+            //
             this.textBox11.Location = new System.Drawing.Point(34, 91);
             this.textBox11.Name = "textBox11";
             this.textBox11.Size = new System.Drawing.Size(51, 20);
             this.textBox11.TabIndex = 4;
             this.textBox11.Text = "0.000053";
-            // 
+            //
             // checkBox6
-            // 
+            //
             this.checkBox6.AutoSize = true;
             this.checkBox6.Enabled = false;
             this.checkBox6.Location = new System.Drawing.Point(336, 61);
@@ -5166,9 +5217,9 @@ namespace caesar1
             this.checkBox6.TabIndex = 3;
             this.checkBox6.Text = "Chemical Weathering";
             this.checkBox6.UseVisualStyleBackColor = true;
-            // 
+            //
             // checkBox5
-            // 
+            //
             this.checkBox5.AutoSize = true;
             this.checkBox5.Location = new System.Drawing.Point(35, 150);
             this.checkBox5.Name = "checkBox5";
@@ -5176,9 +5227,9 @@ namespace caesar1
             this.checkBox5.TabIndex = 2;
             this.checkBox5.Text = "Physical Weathering";
             this.checkBox5.UseVisualStyleBackColor = true;
-            // 
+            //
             // checkBox4
-            // 
+            //
             this.checkBox4.AutoSize = true;
             this.checkBox4.Location = new System.Drawing.Point(33, 63);
             this.checkBox4.Name = "checkBox4";
@@ -5186,9 +5237,9 @@ namespace caesar1
             this.checkBox4.TabIndex = 1;
             this.checkBox4.Text = "Bedrock lowering";
             this.checkBox4.UseVisualStyleBackColor = true;
-            // 
+            //
             // soildevbox
-            // 
+            //
             this.soildevbox.AutoSize = true;
             this.soildevbox.Location = new System.Drawing.Point(32, 16);
             this.soildevbox.Name = "soildevbox";
@@ -5196,9 +5247,9 @@ namespace caesar1
             this.soildevbox.TabIndex = 0;
             this.soildevbox.Text = "Soil Development Model?";
             this.soildevbox.UseVisualStyleBackColor = true;
-            // 
+            //
             // label107
-            // 
+            //
             this.label107.AutoSize = true;
             this.label107.Enabled = false;
             this.label107.Location = new System.Drawing.Point(180, 15);
@@ -5206,9 +5257,9 @@ namespace caesar1
             this.label107.Size = new System.Drawing.Size(14, 13);
             this.label107.TabIndex = 6;
             this.label107.Text = "B";
-            // 
+            //
             // label106
-            // 
+            //
             this.label106.AutoSize = true;
             this.label106.Enabled = false;
             this.label106.Location = new System.Drawing.Point(126, 15);
@@ -5216,9 +5267,9 @@ namespace caesar1
             this.label106.Size = new System.Drawing.Size(15, 13);
             this.label106.TabIndex = 4;
             this.label106.Text = "G";
-            // 
+            //
             // label110
-            // 
+            //
             this.label110.AutoSize = true;
             this.label110.Enabled = false;
             this.label110.Location = new System.Drawing.Point(4, 13);
@@ -5229,9 +5280,9 @@ namespace caesar1
             this.label110.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.toolTip1.SetToolTip(this.label110, "Select tracer layers to use in RGB image. Rain is layer 1; Stage is layer 2; Hydr" +
         "o inputs are layers 3+.");
-            // 
+            //
             // label109
-            // 
+            //
             this.label109.AutoSize = true;
             this.label109.Enabled = false;
             this.label109.Location = new System.Drawing.Point(72, 15);
@@ -5239,9 +5290,9 @@ namespace caesar1
             this.label109.Size = new System.Drawing.Size(15, 13);
             this.label109.TabIndex = 2;
             this.label109.Text = "R";
-            // 
+            //
             // label108
-            // 
+            //
             this.label108.AutoSize = true;
             this.label108.Enabled = false;
             this.label108.Location = new System.Drawing.Point(494, 13);
@@ -5249,9 +5300,9 @@ namespace caesar1
             this.label108.Size = new System.Drawing.Size(50, 13);
             this.label108.TabIndex = 155;
             this.label108.Text = "Enhance";
-            // 
+            //
             // Panel1
-            // 
+            //
             this.Panel1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.Panel1.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
             this.Panel1.Controls.Add(this.tempdata2);
@@ -5266,25 +5317,25 @@ namespace caesar1
             this.Panel1.Size = new System.Drawing.Size(822, 49);
             this.Panel1.TabIndex = 145;
             this.Panel1.Visible = false;
-            // 
+            //
             // tempdata2
-            // 
+            //
             this.tempdata2.Location = new System.Drawing.Point(548, 7);
             this.tempdata2.Name = "tempdata2";
             this.tempdata2.Size = new System.Drawing.Size(39, 20);
             this.tempdata2.TabIndex = 145;
             this.tempdata2.Text = "358";
-            // 
+            //
             // tempdata1
-            // 
+            //
             this.tempdata1.Location = new System.Drawing.Point(503, 7);
             this.tempdata1.Name = "tempdata1";
             this.tempdata1.Size = new System.Drawing.Size(39, 20);
             this.tempdata1.TabIndex = 98;
             this.tempdata1.Text = "358";
-            // 
+            //
             // graphicToGoogleEarthButton
-            // 
+            //
             this.graphicToGoogleEarthButton.Location = new System.Drawing.Point(693, 8);
             this.graphicToGoogleEarthButton.Name = "graphicToGoogleEarthButton";
             this.graphicToGoogleEarthButton.Size = new System.Drawing.Size(119, 28);
@@ -5292,18 +5343,18 @@ namespace caesar1
             this.graphicToGoogleEarthButton.Text = "graphic to google earth";
             this.graphicToGoogleEarthButton.UseVisualStyleBackColor = true;
             this.graphicToGoogleEarthButton.Click += new System.EventHandler(this.graphicToGoogleEarthButton_Click);
-            // 
+            //
             // button4
-            // 
+            //
             this.button4.Location = new System.Drawing.Point(8, 4);
             this.button4.Name = "button4";
             this.button4.Size = new System.Drawing.Size(112, 28);
             this.button4.TabIndex = 144;
             this.button4.Text = "update graphics";
             this.button4.Click += new System.EventHandler(this.button4_Click_1);
-            // 
+            //
             // button3
-            // 
+            //
             this.button3.Font = new System.Drawing.Font("Monotype Corsiva", 8.25F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.button3.Location = new System.Drawing.Point(604, 5);
             this.button3.Name = "button3";
@@ -5311,25 +5362,192 @@ namespace caesar1
             this.button3.TabIndex = 99;
             this.button3.Text = "Grass now!";
             this.button3.Click += new System.EventHandler(this.button3_Click);
-            // 
+            //
             // recirculatebox
-            // 
+            //
             this.recirculatebox.Location = new System.Drawing.Point(221, 6);
             this.recirculatebox.Name = "recirculatebox";
             this.recirculatebox.Size = new System.Drawing.Size(128, 24);
             this.recirculatebox.TabIndex = 89;
             this.recirculatebox.Text = "recirculate sediment";
-            // 
+            //
             // flowonlybox
-            // 
+            //
             this.flowonlybox.Location = new System.Drawing.Point(370, 5);
             this.flowonlybox.Name = "flowonlybox";
             this.flowonlybox.Size = new System.Drawing.Size(104, 24);
             this.flowonlybox.TabIndex = 97;
             this.flowonlybox.Text = "flow only?";
-            // 
+            //
+            // OilTab // OIL_V1
+            //
+            this.OilTab.Controls.Add(this.OilTab_checkBox);
+            this.OilTab.Controls.Add(this.OilTab_groupBox_controls);
+            this.OilTab.Location = new System.Drawing.Point(4, 22);
+            this.OilTab.Name = "OilTab";
+            this.OilTab.TabIndex = 5;
+            this.OilTab.Text = "Oil spill";
+            this.OilTab.UseVisualStyleBackColor = true;
+            this.OilTab.Click += new System.EventHandler(this.OilTab_Click);
+            //
+            // OilTab_checkBox
+            //
+            this.OilTab_checkBox.AutoSize = true;
+            this.OilTab_checkBox.Location = new System.Drawing.Point(20, 24);
+            this.OilTab_checkBox.Name = "OilTab_checkBox";
+            this.OilTab_checkBox.Size = new System.Drawing.Size(123, 17);
+            this.OilTab_checkBox.TabIndex = 226;
+            this.OilTab_checkBox.Text = "Oil spill simulation";
+            this.toolTip1.SetToolTip(this.OilTab_checkBox, "Activate oil spill simulation (model runs slower)");
+            this.OilTab_checkBox.UseVisualStyleBackColor = true;
+            this.OilTab_checkBox.CheckedChanged += new System.EventHandler(this.OilTab_checkBox_CheckedChanged);
+            //
+            // OilTab_groupBox_controls
+            //
+            this.OilTab_groupBox_controls.Controls.Add(this.OilYmin);
+            this.OilTab_groupBox_controls.Controls.Add(this.OilYmax);
+            this.OilTab_groupBox_controls.Controls.Add(this.OilXmin);
+            this.OilTab_groupBox_controls.Controls.Add(this.OilXmax);
+            this.OilTab_groupBox_controls.Controls.Add(this.OilYlabel);
+            this.OilTab_groupBox_controls.Controls.Add(this.OilXlabel);
+            this.OilTab_groupBox_controls.Controls.Add(this.OilTextlabel);
+            this.OilTab_groupBox_controls.Controls.Add(this.OilTimeMin);
+            this.OilTab_groupBox_controls.Controls.Add(this.OilTimeMinlabel);
+            this.OilTab_groupBox_controls.Controls.Add(this.OilDepthStart);
+            this.OilTab_groupBox_controls.Controls.Add(this.OilDepthStartlabel);
+            this.OilTab_groupBox_controls.Controls.Add(this.OilVolume);
+            this.OilTab_groupBox_controls.Controls.Add(this.OilVolumelabel);
+            this.OilTab_groupBox_controls.Controls.Add(this.OilSpillDuration);
+            this.OilTab_groupBox_controls.Controls.Add(this.OilSpillDurationlabel);
+            this.OilTab_groupBox_controls.Location = new System.Drawing.Point(32, 60);
+            this.OilTab_groupBox_controls.Name = "OilTab_groupBox_controls";
+            this.OilTab_groupBox_controls.Size = new System.Drawing.Size(320, 300);
+            this.OilTab_groupBox_controls.TabIndex = 1000;
+            this.OilTab_groupBox_controls.TabStop = false;
+            this.OilTab_groupBox_controls.Text = "Oil spill location and timing";
+            //
+            // OilYmin
+            //
+            this.OilYmin.Location = new System.Drawing.Point(213, 39);
+            this.OilYmin.Name = "OilYmin";
+            this.OilYmin.Size = new System.Drawing.Size(32, 20);
+            this.OilYmin.TabIndex = 1001;
+            this.OilYmin.Text = "0";
+            //
+            // OilYmax
+            //
+            this.OilYmax.Location = new System.Drawing.Point(213, 87);
+            this.OilYmax.Name = "OilYmax";
+            this.OilYmax.Size = new System.Drawing.Size(32, 20);
+            this.OilYmax.TabIndex = 1002;
+            this.OilYmax.Text = "0";
+            //
+            // OilXmax
+            //
+            this.OilXmax.Location = new System.Drawing.Point(248, 62);
+            this.OilXmax.Name = "OilXmax";
+            this.OilXmax.Size = new System.Drawing.Size(31, 20);
+            this.OilXmax.TabIndex = 1003;
+            this.OilXmax.Text = "0";
+            //
+            // OilXmin
+            //
+            this.OilXmin.Location = new System.Drawing.Point(174, 62);
+            this.OilXmin.Name = "OilXmin";
+            this.OilXmin.Size = new System.Drawing.Size(31, 20);
+            this.OilXmin.TabIndex = 1004;
+            this.OilXmin.Text = "0";
+            //
+            // OilYlabel
+            //
+            this.OilYlabel.Location = new System.Drawing.Point(220, 21);
+            this.OilYlabel.Name = "OilYlabel";
+            this.OilYlabel.Size = new System.Drawing.Size(15, 15);
+            this.OilYlabel.TabIndex = 1005;
+            this.OilYlabel.Text = "Y";
+            //
+            // OilXlabel
+            //
+            this.OilXlabel.Location = new System.Drawing.Point(152, 65);
+            this.OilXlabel.Name = "OilXlabel";
+            this.OilXlabel.Size = new System.Drawing.Size(16, 15);
+            this.OilXlabel.TabIndex = 1006;
+            this.OilXlabel.Text = "X";
+            //
+            // OilTextlabel
+            //
+            this.OilTextlabel.Location = new System.Drawing.Point(32, 50);
+            this.OilTextlabel.Name = "OilTextlabel";
+            this.OilTextlabel.Size = new System.Drawing.Size(130, 50);
+            this.OilTextlabel.TabIndex = 1007;
+            this.OilTextlabel.Text = "Location of spill:";
+            //
+            // OilTimeMin
+            //
+            this.OilTimeMin.Location = new System.Drawing.Point(213, 150);
+            this.OilTimeMin.Name = "OilTimeMin";
+            this.OilTimeMin.Size = new System.Drawing.Size(31, 20);
+            this.OilTimeMin.TabIndex = 1008;
+            this.OilTimeMin.Text = "0";
+            //
+            // OilTimeMinlabel
+            //
+            this.OilTimeMinlabel.Location = new System.Drawing.Point(32, 150);
+            this.OilTimeMinlabel.Name = "OilTimeMinlabel";
+            this.OilTimeMinlabel.Size = new System.Drawing.Size(130, 30);
+            this.OilTimeMinlabel.TabIndex = 1009;
+            this.OilTimeMinlabel.Text = "Earliest start time (s):";
+            //
+            // OilDepthStart
+            //
+            this.OilDepthStart.Location = new System.Drawing.Point(213, 180);
+            this.OilDepthStart.Name = "OilDepthStart";
+            this.OilDepthStart.Size = new System.Drawing.Size(31, 20);
+            this.OilDepthStart.TabIndex = 1010;
+            this.OilDepthStart.Text = "1.5";
+            //
+            // OilDepthStartlabel
+            //
+            this.OilDepthStartlabel.Location = new System.Drawing.Point(32, 180);
+            this.OilDepthStartlabel.Name = "OilTimeMinlabel";
+            this.OilDepthStartlabel.Size = new System.Drawing.Size(130, 30);
+            this.OilDepthStartlabel.TabIndex = 1011;
+            this.OilDepthStartlabel.Text = "Start at critical depth (m):";
+            //
+            // OilVolume
+            //
+            this.OilVolume.Location = new System.Drawing.Point(213, 210);
+            this.OilVolume.Name = "OilVolume";
+            this.OilVolume.Size = new System.Drawing.Size(31, 20);
+            this.OilVolume.TabIndex = 1012;
+            this.OilVolume.Text = "0";
+            //
+            // OilVolumelabel
+            //
+            this.OilVolumelabel.Location = new System.Drawing.Point(32, 210);
+            this.OilVolumelabel.Name = "OilVolumelabel";
+            this.OilVolumelabel.Size = new System.Drawing.Size(130, 30);
+            this.OilVolumelabel.TabIndex = 1013;
+            this.OilVolumelabel.Text = "Volume of oil spill (m3):";
+            //
+            // OilSpillDuration
+            //
+            this.OilSpillDuration.Location = new System.Drawing.Point(213, 240);
+            this.OilSpillDuration.Name = "OilSpillDuration";
+            this.OilSpillDuration.Size = new System.Drawing.Size(31, 20);
+            this.OilSpillDuration.TabIndex = 1012;
+            this.OilSpillDuration.Text = "0";
+            //
+            // OilSpillDurationlabel
+            //
+            this.OilSpillDurationlabel.Location = new System.Drawing.Point(32, 240);
+            this.OilSpillDurationlabel.Name = "OilSpillDurationlabel";
+            this.OilSpillDurationlabel.Size = new System.Drawing.Size(130, 30);
+            this.OilSpillDurationlabel.TabIndex = 1013;
+            this.OilSpillDurationlabel.Text = "Duration of oil spill (s):";
+            //
             // statusBar1
-            // 
+            //
             this.statusBar1.Location = new System.Drawing.Point(0, 578);
             this.statusBar1.Name = "statusBar1";
             this.statusBar1.Panels.AddRange(new System.Windows.Forms.StatusBarPanel[] {
@@ -5344,44 +5562,44 @@ namespace caesar1
             this.statusBar1.SizingGrip = false;
             this.statusBar1.TabIndex = 144;
             this.statusBar1.Text = "statusBar1";
-            // 
+            //
             // InfoStatusPanel
-            // 
+            //
             this.InfoStatusPanel.Name = "InfoStatusPanel";
             this.InfoStatusPanel.Text = "info";
             this.InfoStatusPanel.Width = 200;
-            // 
+            //
             // IterationStatusPanel
-            // 
+            //
             this.IterationStatusPanel.Name = "IterationStatusPanel";
             this.IterationStatusPanel.Text = "iterations";
             this.IterationStatusPanel.Width = 120;
-            // 
+            //
             // TimeStatusPanel
-            // 
+            //
             this.TimeStatusPanel.Name = "TimeStatusPanel";
             this.TimeStatusPanel.Text = "time";
             this.TimeStatusPanel.Width = 120;
-            // 
+            //
             // QwStatusPanel
-            // 
+            //
             this.QwStatusPanel.Name = "QwStatusPanel";
             this.QwStatusPanel.Text = "Qw";
             this.QwStatusPanel.Width = 120;
-            // 
+            //
             // QsStatusPanel
-            // 
+            //
             this.QsStatusPanel.Name = "QsStatusPanel";
             this.QsStatusPanel.Text = "Qs";
             this.QsStatusPanel.Width = 120;
-            // 
+            //
             // tempStatusPanel
-            // 
+            //
             this.tempStatusPanel.Name = "tempStatusPanel";
             this.tempStatusPanel.Text = "tempdata";
-            // 
+            //
             // start_button
-            // 
+            //
             this.start_button.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.start_button.Enabled = false;
             this.start_button.Location = new System.Drawing.Point(114, 531);
@@ -5390,9 +5608,9 @@ namespace caesar1
             this.start_button.TabIndex = 146;
             this.start_button.Text = "Start!";
             this.start_button.Click += new System.EventHandler(this.main_loop);
-            // 
+            //
             // button1
-            // 
+            //
             this.button1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.button1.Enabled = false;
             this.button1.Location = new System.Drawing.Point(207, 531);
@@ -5401,9 +5619,9 @@ namespace caesar1
             this.button1.TabIndex = 147;
             this.button1.Text = "Quit and save";
             this.button1.Click += new System.EventHandler(this.button1_Click);
-            // 
+            //
             // checkBox2
-            // 
+            //
             checkBox2.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             checkBox2.AutoSize = true;
             checkBox2.Location = new System.Drawing.Point(407, 560);
@@ -5413,9 +5631,9 @@ namespace caesar1
             checkBox2.Text = "point info window";
             checkBox2.UseVisualStyleBackColor = true;
             checkBox2.CheckedChanged += new System.EventHandler(this.checkBox2_CheckedChanged);
-            // 
+            //
             // checkBox1
-            // 
+            //
             this.checkBox1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.checkBox1.AutoSize = true;
             this.checkBox1.Checked = true;
@@ -5427,27 +5645,27 @@ namespace caesar1
             this.checkBox1.Text = "view tabs?";
             this.checkBox1.UseVisualStyleBackColor = true;
             this.checkBox1.CheckedChanged += new System.EventHandler(this.checkBox1_CheckedChanged_1);
-            // 
+            //
             // trackBar1
-            // 
+            //
             this.trackBar1.AutoSize = false;
             this.trackBar1.Location = new System.Drawing.Point(216, 9);
             this.trackBar1.Name = "trackBar1";
             this.trackBar1.Size = new System.Drawing.Size(104, 20);
             this.trackBar1.TabIndex = 149;
             this.trackBar1.Scroll += new System.EventHandler(this.trackBar1_Scroll);
-            // 
+            //
             // label61
-            // 
+            //
             this.label61.AutoSize = true;
             this.label61.Location = new System.Drawing.Point(6, 14);
             this.label61.Name = "label61";
             this.label61.Size = new System.Drawing.Size(44, 13);
             this.label61.TabIndex = 150;
             this.label61.Text = "Graphic";
-            // 
+            //
             // groupBox2
-            // 
+            //
             this.groupBox2.Controls.Add(this.label62);
             this.groupBox2.Controls.Add(this.comboBox1);
             this.groupBox2.Controls.Add(this.trackBar1);
@@ -5458,18 +5676,18 @@ namespace caesar1
             this.groupBox2.TabIndex = 151;
             this.groupBox2.TabStop = false;
             this.groupBox2.Visible = false;
-            // 
+            //
             // label62
-            // 
+            //
             this.label62.AutoSize = true;
             this.label62.Location = new System.Drawing.Point(170, 14);
             this.label62.Name = "label62";
             this.label62.Size = new System.Drawing.Size(46, 13);
             this.label62.TabIndex = 152;
             this.label62.Text = "Contrast";
-            // 
+            //
             // comboBox1
-            // 
+            //
             this.comboBox1.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBox1.FormattingEnabled = true;
             this.comboBox1.Location = new System.Drawing.Point(54, 10);
@@ -5477,9 +5695,9 @@ namespace caesar1
             this.comboBox1.Size = new System.Drawing.Size(104, 21);
             this.comboBox1.TabIndex = 151;
             this.comboBox1.SelectedValueChanged += new System.EventHandler(this.comboBox1_SelectedValueChanged);
-            // 
+            //
             // groupBox3
-            // 
+            //
             this.groupBox3.Controls.Add(this.label63);
             this.groupBox3.Controls.Add(this.trackBar2);
             this.groupBox3.Location = new System.Drawing.Point(346, -3);
@@ -5488,18 +5706,18 @@ namespace caesar1
             this.groupBox3.TabIndex = 152;
             this.groupBox3.TabStop = false;
             this.groupBox3.Visible = false;
-            // 
+            //
             // label63
-            // 
+            //
             this.label63.AutoSize = true;
             this.label63.Location = new System.Drawing.Point(6, 13);
             this.label63.Name = "label63";
             this.label63.Size = new System.Drawing.Size(34, 13);
             this.label63.TabIndex = 154;
             this.label63.Text = "Zoom";
-            // 
+            //
             // trackBar2
-            // 
+            //
             this.trackBar2.AutoSize = false;
             this.trackBar2.Location = new System.Drawing.Point(42, 9);
             this.trackBar2.Minimum = 1;
@@ -5508,13 +5726,13 @@ namespace caesar1
             this.trackBar2.TabIndex = 153;
             this.trackBar2.Value = 5;
             this.trackBar2.Scroll += new System.EventHandler(this.trackBar2_Scroll);
-            // 
+            //
             // backgroundWorker1
-            // 
+            //
             this.backgroundWorker1.DoWork += new System.ComponentModel.DoWorkEventHandler(this.backgroundWorker1_DoWork);
-            // 
+            //
             // zoomPanImageBox1
-            // 
+            //
             this.zoomPanImageBox1.Image = null;
             this.zoomPanImageBox1.Location = new System.Drawing.Point(7, 37);
             this.zoomPanImageBox1.Name = "zoomPanImageBox1";
@@ -5522,9 +5740,9 @@ namespace caesar1
             this.zoomPanImageBox1.TabIndex = 148;
             this.zoomPanImageBox1.Visible = false;
             this.zoomPanImageBox1.Load += new System.EventHandler(this.zoomPanImageBox1_Load);
-            // 
+            //
             // groupBox9
-            // 
+            //
             this.groupBox9.Controls.Add(this.label108);
             this.groupBox9.Controls.Add(this.trackBar3);
             this.groupBox9.Controls.Add(this.checkBox12);
@@ -5542,9 +5760,9 @@ namespace caesar1
             this.groupBox9.Size = new System.Drawing.Size(550, 35);
             this.groupBox9.TabIndex = 154;
             this.groupBox9.TabStop = false;
-            // 
+            //
             // trackBar3
-            // 
+            //
             this.trackBar3.AutoSize = false;
             this.trackBar3.Enabled = false;
             this.trackBar3.Location = new System.Drawing.Point(390, 9);
@@ -5554,9 +5772,9 @@ namespace caesar1
             this.trackBar3.TabIndex = 154;
             this.trackBar3.Value = 5;
             this.trackBar3.Scroll += new System.EventHandler(this.trackBar3_Scroll);
-            // 
+            //
             // checkBox12
-            // 
+            //
             this.checkBox12.AutoSize = true;
             this.checkBox12.Enabled = false;
             this.checkBox12.Location = new System.Drawing.Point(246, 14);
@@ -5566,9 +5784,9 @@ namespace caesar1
             this.checkBox12.Text = "Rain zones";
             this.checkBox12.UseVisualStyleBackColor = true;
             this.checkBox12.CheckedChanged += new System.EventHandler(this.checkBox12_CheckedChanged);
-            // 
+            //
             // checkBoxSoluteVis
-            // 
+            //
             this.checkBoxSoluteVis.AutoSize = true;
             this.checkBoxSoluteVis.Enabled = false;
             this.checkBoxSoluteVis.Location = new System.Drawing.Point(326, 14);
@@ -5578,9 +5796,9 @@ namespace caesar1
             this.checkBoxSoluteVis.Text = "Solutes";
             this.checkBoxSoluteVis.UseVisualStyleBackColor = true;
             this.checkBoxSoluteVis.CheckedChanged += new System.EventHandler(this.checkBoxSoluteVis_CheckedChanged);
-            // 
+            //
             // comboBox4
-            // 
+            //
             this.comboBox4.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBox4.DropDownWidth = 140;
             this.comboBox4.Enabled = false;
@@ -5591,9 +5809,9 @@ namespace caesar1
             this.comboBox4.Sorted = true;
             this.comboBox4.TabIndex = 5;
             this.comboBox4.SelectedValueChanged += new System.EventHandler(this.comboBox4_SelectedValueChanged);
-            // 
+            //
             // comboBox3
-            // 
+            //
             this.comboBox3.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBox3.DropDownWidth = 140;
             this.comboBox3.Enabled = false;
@@ -5604,9 +5822,9 @@ namespace caesar1
             this.comboBox3.Sorted = true;
             this.comboBox3.TabIndex = 3;
             this.comboBox3.SelectedValueChanged += new System.EventHandler(this.comboBox3_SelectedValueChanged);
-            // 
+            //
             // comboBox2
-            // 
+            //
             this.comboBox2.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBox2.DropDownWidth = 140;
             this.comboBox2.Enabled = false;
@@ -5617,9 +5835,9 @@ namespace caesar1
             this.comboBox2.Sorted = true;
             this.comboBox2.TabIndex = 1;
             this.comboBox2.SelectedValueChanged += new System.EventHandler(this.comboBox2_SelectedValueChanged);
-            // 
+            //
             // Form1
-            // 
+            //
             this.AutoScaleBaseSize = new System.Drawing.Size(5, 13);
             this.AutoScroll = true;
             this.ClientSize = new System.Drawing.Size(1149, 600);
@@ -5681,6 +5899,10 @@ namespace caesar1
             this.tabPage3.PerformLayout();
             this.Panel1.ResumeLayout(false);
             this.Panel1.PerformLayout();
+            this.OilTab.ResumeLayout(false); // OIL_V1
+            this.OilTab_groupBox_controls.ResumeLayout(false);
+            this.OilTab_groupBox_controls.PerformLayout();
+
             ((System.ComponentModel.ISupportInitialize)(this.InfoStatusPanel)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.IterationStatusPanel)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.TimeStatusPanel)).EndInit();
@@ -5735,7 +5957,7 @@ namespace caesar1
 
             //			clearforms();                  // MJ 14/01/05   this is done when load button is clicked
             start_button.Enabled = false;  // MJ 17/01/05
-            button1.Enabled = true;        // MJ 17/01/05 
+            button1.Enabled = true;        // MJ 17/01/05
             comboBox1.Items.Add("water depth");
             popComboBox1();
 
@@ -5759,7 +5981,7 @@ namespace caesar1
             get_catchment_input_points();
 
             this.InfoStatusPanel.Text = "Starting main loop";        // MJ 14/01/05
-                                                                     //JMW 
+                                                                     //JMW
 
             this.InfoStatusPanel.Text = "Running";        // MJ 14/01/05
 
@@ -5882,7 +6104,7 @@ namespace caesar1
                 }
 
 
-                ////			This whole section below deals with the water inputs. A separate part for point inputs and 
+                ////			This whole section below deals with the water inputs. A separate part for point inputs and
                 ////		    a different bit for gradual inputs from the whole of the catchment. (reach or catchment)
                 // first zero counter to tally up water inputs
                 waterinput = 0;
@@ -5899,6 +6121,7 @@ namespace caesar1
                 // save water tracer states
                 if (isTraceWater == true) save_tracer_states();
 
+
                 // route water and update flow depths
 
                 qroute();
@@ -5907,6 +6130,18 @@ namespace caesar1
                 // update water tracers
                 if (isTraceWater == true) update_tracer_states();
 
+                // update oil state
+                if (isOilSimulation == true)
+                {
+                    // check triggering of event
+                    if (cycle > oil_startt) // need to add check for depth trigger at input location
+                    {
+                        oil_eventtriggered = true;
+                    }
+
+                    if (oil_eventtriggered == true) update_oil_states();
+
+                }
 
                 // check scan area every 5 iters.. maybe re-visit for reach mode if it causes too much backing up of sed. see code commented below nex if..
                 if (Math.IEEERemainder(counter, 5) == 0)
@@ -5978,8 +6213,8 @@ namespace caesar1
                 }
                 waterOut = temptot;
 
-                // then carry out soil creep. 
-                //- also growing grass... 
+                // then carry out soil creep.
+                //- also growing grass...
                 // and dunes...
                 // slide_3 is looking at landslides only in the 'scanned' area
                 // slide_4 is to do with dunes
@@ -6009,7 +6244,7 @@ namespace caesar1
                     }
 
                     //
-                    // now calling soil erosion function  - also checks if soil erosion rate is > 0 
+                    // now calling soil erosion function  - also checks if soil erosion rate is > 0
                     // to prevent it calling it if not required.
                     // then soil erosion time
                     //
@@ -6057,7 +6292,7 @@ namespace caesar1
                         if (this.mine_input_textBox.Text != "null") add_minewaste();
 
                     }
-                    
+
                 }
 
                 // Gez
@@ -6125,7 +6360,7 @@ namespace caesar1
                         // MDW_Apr24: reset other tracers to zero here: avoiding issues of drying cells causing tracersum > 1
                         for (int src = 0; src < nSources; src++)
                         {
-                            if(src != 1 ) watertracer[x, y, src] = 0.0;
+                            if (src != 1) watertracer[x, y, src] = 0.0;
                         }
 
                         if (isTraceRainZonation == true && zoneInd != -1) watertracerRainZone[x, y, zoneInd] = 1.0;
@@ -6137,14 +6372,14 @@ namespace caesar1
                         // update this layer water proportion - i.e. increase
                         watertracer[x, y, 1] = (h_from_this_source + water_add_amt) / water_depth[x, y];
 
-                        // update other layers water proportions - i.e. reduce 
+                        // update other layers water proportions - i.e. reduce
                         // MDW_V2 updated as sources now zero-indexed; stage has moved from 2 to 0, rain stays in 1, others are 2+
                         for (int src = 0; src < nSources; src++)
                         {
-                            if(src != 1) // skip rainfall source layer
+                            if (src != 1) // skip rainfall source layer
                             {
                                 watertracer[x, y, src] = (watertracer[x, y, src] * prev_depth) / water_depth[x, y];
-                            }                            
+                            }
                         }
 
                         // MDW_DEBUG
@@ -6278,7 +6513,7 @@ namespace caesar1
 
                     double adding_factor = 1;
                     // tot up total to be added - and if its greater than number of cells and erode_limit
-                    // then reduce what can be added via a factor. 
+                    // then reduce what can be added via a factor.
                     double added_tot = 0;
 
                     if (water_depth[x, y] > water_depth_erosion_threshold)
@@ -6316,7 +6551,7 @@ namespace caesar1
                 int tempn;
                 double adding_factor = 1;
                 // tot up total to be added - and if its greater than number of cells and erode_limit
-                // then reduce what can be added via a factor. 
+                // then reduce what can be added via a factor.
                 double added_tot = 0;
 
                 for (tempn = 5; tempn <= G_MAX + 3; tempn++)
@@ -6399,7 +6634,7 @@ namespace caesar1
                         // MDW_Apr24: reset other tracers to zero here: to avoid possibility of drying cells causing tracersum > 1 (e.g. checkerboard errors?)
                         for (int src = 0; src < nSources; src++)
                         {
-                            if(src != thissrc) watertracer[x, y, src] = 0.0;
+                            if (src != thissrc) watertracer[x, y, src] = 0.0;
                         }
 
                     }
@@ -6435,22 +6670,22 @@ namespace caesar1
                     }
 
                     // MDW_V2 add solutes from input files
-                    if((isTraceSolutes == true) && (water_depth[x, y] > 0.0))
+                    if ((isTraceSolutes == true) && (water_depth[x, y] > 0.0))
                     {
-                        for(int solute = 0; solute < nSolutes; solute++)
+                        for (int solute = 0; solute < nSolutes; solute++)
                         {
                             // get solute concentration to be added from file
                             interpolated_input1 = inputfile[n, (int)(cycle / input_time_step), solute + 14]; // solutes are in the 15th column onwards (zero based index)
                             interpolated_input2 = inputfile[n, (int)(cycle / input_time_step) + 1, solute + 14];
                             input = interpolated_input1 + ((interpolated_input2 - interpolated_input1) * (1 - proportion_between_time1and2));
 
-                            if (input > 0) 
+                            if (input > 0)
                             {
                                 // update solute concentration in cell, as a depth-weighted average of existing and new solute concentrations
                                 solutetracer[x, y, solute] =
                                     ((dhdt * input) + // depth in cell which is new * solute added
                                     (prev_depth * solutetracer_prev[x, y, solute]))   // depth in cell which is old * solute existing
-                                    / water_depth[x, y];  
+                                    / water_depth[x, y];
                             }
                         }
 
@@ -6504,14 +6739,14 @@ namespace caesar1
                                 watertracer[x, y, 0] = 1.0; // stage input is assigned to the second layer
 
                                 // MDW_Apr24: reset other tracers to zero here: edge cells could be zero depth as tide is flows out
-                                for (int src = 1; src < nSources; src++) 
+                                for (int src = 1; src < nSources; src++)
                                 {
                                     watertracer[x, y, src] = 0.0;
                                 }
                             }
                             else if (watertracer[x, y, 0] < 1.0) // if all water is already from this source, no need to update
                             {
-                                h_from_this_source = watertracer[x, y, 0] * prev_depth; // amount of water 
+                                h_from_this_source = watertracer[x, y, 0] * prev_depth; // amount of water
 
                                 // update this layer water proportion - i.e. increase
                                 watertracer[x, y, 0] = (h_from_this_source + dhdt) / water_depth[x, y];
@@ -6521,7 +6756,7 @@ namespace caesar1
                                 {
                                     //if (src != 2) // skip this source layer // check not needed now
                                     //{
-                                        watertracer[x, y, src] = (watertracer[x, y, src] * prev_depth) / water_depth[x, y];
+                                    watertracer[x, y, src] = (watertracer[x, y, src] * prev_depth) / water_depth[x, y];
                                     //}
                                 }
 
@@ -6537,7 +6772,7 @@ namespace caesar1
                                             ", counter = " + Convert.ToString(counter) + ", cycle = " + Convert.ToString(cycle));
                                     }
                                 } */
-                            } 
+                            }
 
                             // MDW_V2 adjust solute concentrations given stage/ tidal input
                             if ((isTraceSolutes == true) && (water_depth[x, y] > 0.0))
@@ -6547,7 +6782,7 @@ namespace caesar1
                                     if (solutetracer[x, y, solute] > 0 && dhdt > 0) // if nothing is in the cell, and there's no input, skip
                                     {
                                         // update solute concentration in cell: dilution with additional stage input
-                                        solutetracer[x, y, solute] = prev_depth * solutetracer[x, y, solute] / water_depth[x, y]; 
+                                        solutetracer[x, y, solute] = prev_depth * solutetracer[x, y, solute] / water_depth[x, y];
                                     }
                                 }
                             }
@@ -6680,7 +6915,7 @@ namespace caesar1
                 }
             }
             // could be the below line causing problems..?
-            //if (totalinputpoints == 0) totalinputpoints = 1; 
+            //if (totalinputpoints == 0) totalinputpoints = 1;
         }
 
         void evaporate(double time)
@@ -6742,7 +6977,7 @@ namespace caesar1
             if (menuItem33.Checked == true) save_data(16, 0); // save velocity	<JOE 20050605>
             if (menuItem34.Checked == true) save_data(17, 0); // save soil_saturation	<JOE 20050605>
             if (menuItem6.Checked == true) save_data(18, 0); // save water tracers - MDW 17-03-2016
-            if (menuItem15.Checked == true) save_data(19, 0); // save rain zone tracers - MDW 13-04-2016   
+            if (menuItem15.Checked == true) save_data(19, 0); // save rain zone tracers - MDW 13-04-2016
             if (menuItem16.Checked == true) save_data(6, 0); // save tracer file
             if (menuItemSoluteTracer.Checked == true) save_data(20, 0); // save solute tracers - MDW_V2
             slide_5();
@@ -6759,7 +6994,7 @@ namespace caesar1
             if (menuItem33.Checked == true) save_data(16, Math.Abs(cycle)); // save velocity			<JOE 20050605>
             if (menuItem34.Checked == true) save_data(17, Math.Abs(cycle)); // save soil saturation	<JOE 20050605
             if (menuItem6.Checked == true) save_data(18, Math.Abs(cycle)); // save water tracers - MDW 17-03-2016
-            if (menuItem15.Checked == true) save_data(19, Math.Abs(cycle)); // save rain zone tracers - MDW 13-04-2016	 
+            if (menuItem15.Checked == true) save_data(19, Math.Abs(cycle)); // save rain zone tracers - MDW 13-04-2016
             if (menuItem16.Checked == true) save_data(6, Math.Abs(cycle)); // save tracer file
             if (menuItemSoluteTracer.Checked == true) save_data(20, Math.Abs(cycle)); // save solute tracers - MDW_V2
 
@@ -6871,7 +7106,7 @@ namespace caesar1
 
                 //create pngw file for image - for quick loading of graphics in GIS (MDW 18-04-16)
                 StreamWriter pngw = File.AppendText(Path.Combine(googleAnimationDir, "mysavedimage" + imageCount2 + ".pngw")); // MDW_V2 updated to new folder
-                //StreamWriter pngw = File.AppendText("animation\\mysavedimage" + imageCount2 + ".pngw"); 
+                //StreamWriter pngw = File.AppendText("animation\\mysavedimage" + imageCount2 + ".pngw");
                 System.Drawing.SizeF xy = m_objDrawingSurface.PhysicalDimension;
                 string pngwtext = "";
                 pngwtext = pngwtext + Convert.ToString(Math.Abs(llfinalLongi - urfinalLongi) / xy.Width) + "\n";
@@ -6904,7 +7139,7 @@ namespace caesar1
             Qw_newvol += temptotal * ((cycle - previous) * 60);  // 60 secs per min
             for (int nn = 1; nn <= rfnum; nn++) Jw_newvol += (j_mean[nn] * DX * DX * nActualGridCells[nn]) * ((cycle - previous) * 60);
 
-            //Catch all time steps that pass one or more hour marks 
+            //Catch all time steps that pass one or more hour marks
             if ((new_cycle < old_cycle) || (cycle - previous >= output_file_save_interval))
             {
                 while ((tx > previous) && (cycle >= tx))
@@ -7490,7 +7725,7 @@ namespace caesar1
 
                     //int inc = 1;
                     StreamReader gr = File.OpenText(FILE_NAME);
-                    while ((input = gr.ReadLine()) != null && inc1 < max_file_length-1) // MDW_Apr24: added to prevent overrun if longer file used
+                    while ((input = gr.ReadLine()) != null && inc1 < max_file_length - 1) // MDW_Apr24: added to prevent overrun if longer file used
                     {
                         string[] lineArray;
                         lineArray = input.Split(delimiterChars);
@@ -7545,7 +7780,7 @@ namespace caesar1
                     int max_file_length = (int)(maxcycle * (60 / mfiletimestep)) + 10;
 
                     StreamReader gr = File.OpenText(FILE_NAME);
-                    while ((input = gr.ReadLine()) != null && inc < max_file_length-1) // MDW_Apr24: added to prevent overrun if longer input file used
+                    while ((input = gr.ReadLine()) != null && inc < max_file_length - 1) // MDW_Apr24: added to prevent overrun if longer input file used
                     {
                         string[] lineArray;
                         lineArray = input.Split(delimiterChars);
@@ -7583,7 +7818,7 @@ namespace caesar1
                         int max_file_length = (int)((maxcycle * 60) / stage_input_time_step) + 10;
 
                         StreamReader gr = File.OpenText(FILE_NAME);
-                        while ((input = gr.ReadLine()) != null && inc < max_file_length-1) // MDW_Apr24: Added to prevent overflow if a longer file is used
+                        while ((input = gr.ReadLine()) != null && inc < max_file_length - 1) // MDW_Apr24: Added to prevent overflow if a longer file is used
                         {
                             stage_inputfile[inc] = double.Parse(input);
                             inc++;
@@ -8198,7 +8433,7 @@ namespace caesar1
                             //{
                             //    Array.Resize(ref sourceIDs, nChecked + extraSourceFiles.Length);
                             //}
-                            //sourceIDs[nChecked + i] = inputfilenames.IndexOf(FILE_NAME) + 1; 
+                            //sourceIDs[nChecked + i] = inputfilenames.IndexOf(FILE_NAME) + 1;
 
                         }
 
@@ -8259,14 +8494,14 @@ namespace caesar1
             //        wc.DownloadFile(path, @"img.png");
             //    }
             //}
-            //catch 
+            //catch
             //{
             //    MessageBox.Show("Time out trying to download background image: Check web connection");
             //}
 
 
             // MessageBox.Show(Convert.ToString(input_type_flag));
-            this.InfoStatusPanel.Text = "Loaded: type = " + input_type_flag.ToString();        // MJ 02/02/05			
+            this.InfoStatusPanel.Text = "Loaded: type = " + input_type_flag.ToString();        // MJ 02/02/05
 
         }
 
@@ -8283,7 +8518,7 @@ namespace caesar1
             try
             {
                 StreamReader gr = File.OpenText(FILE_NAME);
-                while ((input = gr.ReadLine()) != null && tempx < max_file_length-1) // MDW_Apr24: prevent overrun if a longer file than required is used
+                while ((input = gr.ReadLine()) != null && tempx < max_file_length - 1) // MDW_Apr24: prevent overrun if a longer file than required is used
                 {
                     if (input.Length == 0) { continue; } // skip empty lines
                     if (input[0].CompareTo(commentline) == 0) { continue; } // skip commented lines
@@ -8294,9 +8529,9 @@ namespace caesar1
 
                     if (isTraceSolutes == true) // expand grid as needed to add solutes
                     {
-                        if(lineArray.Length > inputfilewidth) // MDW_Apr24: corrected check so that it only triggers once per additional solute
+                        if (lineArray.Length > inputfilewidth) // MDW_Apr24: corrected check so that it only triggers once per additional solute
                         {
-                            inputfile = Resize3DdoubleArray(inputfile, 
+                            inputfile = Resize3DdoubleArray(inputfile,
                                                             new int[] { number_of_points, max_file_length,
                                                             lineArray.Length });
                             inputfilewidth = inputfile.GetLength(2);
@@ -8348,31 +8583,31 @@ namespace caesar1
 
 
 
-            if (typeflag == 1 && tempcycle == 0) FILENAME = "waterdepth.txt";
-            if (typeflag == 2 && tempcycle == 0) FILENAME = "elevdiff.txt";
-            if (typeflag == 3 && tempcycle == 0) FILENAME = "elev.txt";
+            if (typeflag == 1 && tempcycle == 0) FILENAME = "waterdepth.asc";
+            if (typeflag == 2 && tempcycle == 0) FILENAME = "elevdiff.asc";
+            if (typeflag == 3 && tempcycle == 0) FILENAME = "elev.asc";
             if (typeflag == 4 && tempcycle == 0) FILENAME = "grain.txt";
-            if (typeflag == 15 && tempcycle == 0) FILENAME = "d50top.txt";
-            if (typeflag == 16 && tempcycle == 0) FILENAME = "velocity.txt";			// <JOE 20050605>
+            if (typeflag == 15 && tempcycle == 0) FILENAME = "d50top.asc";
+            if (typeflag == 16 && tempcycle == 0) FILENAME = "velocity.asc";			// <JOE 20050605>
             if (typeflag == 17 && tempcycle == 0) FILENAME = "velocity_vectors.txt";    // <JOE 20050605>
             if (typeflag == 18 && tempcycle == 0) FILENAME = "watersource"; // MDW 17-03-2016
             if (typeflag == 19 && tempcycle == 0) FILENAME = "watersource_rainzone"; // MDW 13-04-2016 // MDW_V2
             if (typeflag == 20 && tempcycle == 0) FILENAME = "watersource_solute"; // MDW_V2
-            if (typeflag == 6 && tempcycle == 0) FILENAME = "tracer.txt";
-            
+            if (typeflag == 6 && tempcycle == 0) FILENAME = "tracer.asc";
 
-            if (typeflag == 1 && tempcycle > 0) FILENAME = "waterdepth" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".txt";
-            if (typeflag == 2 && tempcycle > 0) FILENAME = "elevdiff" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".txt";
-            if (typeflag == 3 && tempcycle > 0) FILENAME = "elev.dat" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".txt";
+
+            if (typeflag == 1 && tempcycle > 0) FILENAME = "waterdepth" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc";
+            if (typeflag == 2 && tempcycle > 0) FILENAME = "elevdiff" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc";
+            if (typeflag == 3 && tempcycle > 0) FILENAME = "elev.dat" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc";
             if (typeflag == 4 && tempcycle > 0) FILENAME = "grain.dat" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".txt";
 
-            if (typeflag == 15 && tempcycle > 0) FILENAME = "d50top" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".txt";
-            if (typeflag == 16 && tempcycle > 0) FILENAME = "velocity" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".txt";
+            if (typeflag == 15 && tempcycle > 0) FILENAME = "d50top" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc";
+            if (typeflag == 16 && tempcycle > 0) FILENAME = "velocity" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc";
             if (typeflag == 17 && tempcycle > 0) FILENAME = "velocity_vectors" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".txt";
             if (typeflag == 18 && tempcycle > 0) FILENAME = "watersource" + Convert.ToString(Convert.ToInt64(tempcycle)); // MDW
             if (typeflag == 19 && tempcycle > 0) FILENAME = "watersource" + Convert.ToString(Convert.ToInt64(tempcycle)) + "_rainzone"; //MDW_V2
             if (typeflag == 20 && tempcycle > 0) FILENAME = "watersource" + Convert.ToString(Convert.ToInt64(tempcycle)) + "_solute"; //MDW_V2
-            if (typeflag == 6 && tempcycle > 0) FILENAME = "tracer" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".txt";
+            if (typeflag == 6 && tempcycle > 0) FILENAME = "tracer" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc";
 
 
             // MDW_V2 add folder to filename string here
@@ -8764,7 +8999,7 @@ namespace caesar1
 
             if (overrideheaderBox.Checked == true)
             {
-                // input xmax, ymax and DX from text boxes  
+                // input xmax, ymax and DX from text boxes
                 xmax = int.Parse(xtextbox.Text);
                 ymax = int.Parse(ytextbox.Text);
                 DX = double.Parse(dxbox.Text);             // now in read_header()  MJ 24/05/05
@@ -8810,8 +9045,8 @@ namespace caesar1
             tracers = int.Parse(tracer_num.Text);
 
             // MDW_V2 - variables needed for loading extra source file
-            String input, fExtra; 
-            char[] delimiterChars = { ' ', ',', '\t' }; 
+            String input, fExtra;
+            char[] delimiterChars = { ' ', ',', '\t' };
             char commentline = '#';
             int inc = 0, nExtra = 0, xExtra = 0, yExtra = 0;
 
@@ -8837,7 +9072,7 @@ namespace caesar1
             d8 = double.Parse(g8box.Text);
             d9 = double.Parse(g9box.Text);
 
-            // particle size distribution 2 
+            // particle size distribution 2
             d1_ = double.Parse(g1_box.Text);
             d2_ = double.Parse(g2_box.Text);
             d3_ = double.Parse(g3_box.Text);
@@ -8920,7 +9155,7 @@ namespace caesar1
             bedrock_erosion_rate = double.Parse(bedrock_erosion_rate_box.Text);
             bedrock_erosion_threshold = double.Parse(bedrock_erosion_threshold_box.Text);
 
-            inpoints = new int[10, 2]; 
+            inpoints = new int[10, 2];
             inputpointsarray = new bool[xmax + 2, ymax + 2];
 
             // then intiailise the main arrays
@@ -8998,7 +9233,7 @@ namespace caesar1
                 {
                     MessageBox.Show("Unable to find the extra input source file, " + FILE_NAME + ". Extra sources disabled: model will continue with other data loaded.");
                     this.inboxExtra.Checked = false;
-                } 
+                }
                 else
                 {
                     try
@@ -9145,7 +9380,7 @@ namespace caesar1
 
             Vsusptot = new double[xmax + 2, ymax + 2, tracers + 1];
 
-            // JOE arrays 
+            // JOE arrays
             slopeAnalysis = new double[xmax + 2, ymax + 2];     // <JOE 20051605>
             aspect = new double[xmax + 2, ymax + 2];                // <JOE 20051605>
             hillshade = new double[xmax + 2, ymax + 2];         // <JOE 20051605>
@@ -9248,6 +9483,10 @@ namespace caesar1
             // mine input stuff tc 5/23
             mine_inputs = new double[500, 5]; // number, (x, y, vol, tracer fraction, GS fraction)
 
+
+
+
+
         }
 
         private static double[,,] Resize3DdoubleArray(double[,,] arr, int[] newSizes)
@@ -9268,7 +9507,7 @@ namespace caesar1
                     for (var z = 0; z < zMin; z++)
                         newArray[x, y, z] = arr[x, y, z];
             return newArray;
-         }
+        }
         private static int[,] Resize2DintArray(int[,] arr, int[] newSizes)
         {
             // MDW_V2: resizes a 2D integer array. Allows unknown numbers of sources etc.
@@ -9680,7 +9919,7 @@ namespace caesar1
 
 
         //    // just to save it when there is no grain file
-        //    if (index[x,y] != -9999)temp_d50=d50(index[x,y]); 
+        //    if (index[x,y] != -9999)temp_d50=d50(index[x,y]);
 
 
 
@@ -9698,7 +9937,7 @@ namespace caesar1
         //    //            + Math.Pow(g,0.5)/kappa*Math.Log(temp_depth/veg[x,y,3]));
         //    //    }
         //    //    else
-        //    //    {                 
+        //    //    {
         //    //        Cr = (Math.Pow(1/(1/(Cb*Cb) + veg[x,y,2]*temp_depth/(2*g)),0.5));
         //    //    }
         //    //}
@@ -9748,7 +9987,7 @@ namespace caesar1
                     if (water_depth[x, y] < water_depth_erosion_threshold)
                     {
                         // if not then it
-                        // now adds to the amount of veg there.. 
+                        // now adds to the amount of veg there..
                         veg[x, y, 1] += amount3;
                         if (veg[x, y, 1] > 1) veg[x, y, 1] = 1;
                     }
@@ -9799,7 +10038,7 @@ namespace caesar1
 
                     }
 
-                    // but if it is under sediment, has died back to nearly 0 (0.05) then it resets the elevation 
+                    // but if it is under sediment, has died back to nearly 0 (0.05) then it resets the elevation
                     // to the surface elev.
                     if (veg[x, y, 0] < elev[x, y] && veg[x, y, 1] < 0.05)
                     {
@@ -10279,7 +10518,7 @@ namespace caesar1
             xkey = new Double[(xmax + 2) * (ymax + 2)];
             ykey = new Double[(xmax + 2) * (ymax + 2)];
 
-            // then createst temp array based on elevs then also one for x values. 
+            // then createst temp array based on elevs then also one for x values.
             int inc = 1;
             for (y = 1; y <= ymax; y++)
             {
@@ -10410,7 +10649,7 @@ namespace caesar1
                         cross_scan[x, inc] = y;
                         inc++;
                     }
-                    //discharge[x,y]=0;			
+                    //discharge[x,y]=0;
                 }
             }
 
@@ -10536,7 +10775,7 @@ namespace caesar1
                     deg = 90 + (Math.Atan(ybalance / xbalance) * (180 / 3.142));
                 }
 
-                // for 6 - 9 
+                // for 6 - 9
                 if (xbalance < 0 && ybalance > 0)
                 {
                     deg = 180 + (Math.Atan(Math.Abs(xbalance) / Math.Abs(ybalance)) * (180 / 3.142));
@@ -10589,6 +10828,7 @@ namespace caesar1
                           {
                               double hflow = Math.Max(elev[x, y] + water_depth[x, y], elev[x - 1, y] + water_depth[x - 1, y]) -
                                               Math.Max(elev[x - 1, y], elev[x, y]);
+                              if (hflow > DX / 2) hflow = DX / 2; // contreversial line...
 
                               if (hflow > hflow_threshold)
                               {
@@ -10641,6 +10881,7 @@ namespace caesar1
                           {
                               double hflow = Math.Max(elev[x, y] + water_depth[x, y], elev[x, y - 1] + water_depth[x, y - 1]) -
                                               Math.Max(elev[x, y], elev[x, y - 1]);
+                              if (hflow > DX / 2) hflow = DX / 2;
 
                               if (hflow > hflow_threshold)
                               {
@@ -10748,7 +10989,7 @@ namespace caesar1
         void save_tracer_states() // MDW 13/03/16
                                   // MDW_V2 updated to zero index
         {
-            // Save previous states of water and source propotions, after the addition of inputs 
+            // Save previous states of water and source propotions, after the addition of inputs
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax + 1, options, delegate (int y)
             {
@@ -10788,16 +11029,16 @@ namespace caesar1
         {
             ///////////////////////////////////////////////////////////////////
             // Update water proportions for water source tracing - MDW 13/03/16
-            // Note - we only need to deal with inflows for each cell as it is 
+            // Note - we only need to deal with inflows for each cell as it is
             // assumed that the water in a cell is mixed, so the propotion from
             // each source in outflow will be the same as in the cell itself.
             //
             // 1. Get depth after outflows only - check not to get -ve depths
             // 2. Get dhdt added by each inflow and scale for each water source
-            // 3. In main cell, work out the sum of depth from each source: 
+            // 3. In main cell, work out the sum of depth from each source:
             //    : the proportion of remaining water from each source, plus
             //    : the sum of dhdt from each source
-            // 4. Update the proportions from each source: divide by the new depth                    
+            // 4. Update the proportions from each source: divide by the new depth
 
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax + 1, options, delegate (int y)
@@ -10895,11 +11136,11 @@ namespace caesar1
                             }
                         }
                         // update solute tracers - MDW_V2
-                        if (isTraceSolutes == true) 
+                        if (isTraceSolutes == true)
                         {
                             // MDW_Apr24: Reworked algorithm due to very large values accumulating, caused by division by very small depths.
 
-                            // work out the total inflow from neighbouring cells for all sources. Ignoring outflow. This is needed 
+                            // work out the total inflow from neighbouring cells for all sources. Ignoring outflow. This is needed
                             // for depth-averaging the solute amounts
                             dhdt_sumIn = 0.0;
                             if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumIn += dhdt_x[x + 1, y]; }  // Flow from right: +ve = inflow
@@ -10939,7 +11180,7 @@ namespace caesar1
                                 {
                                     if (depth_after_outflows < 0 || water_depth_prev[x, y] == 0)  // cell empty, so solute amount = solutes from inflow
                                     {
-                                        solutetracer[x, y, src] = dhdt_sumInSrcSolutes[src]; 
+                                        solutetracer[x, y, src] = dhdt_sumInSrcSolutes[src];
                                     }
                                     else
                                     {
@@ -10971,7 +11212,34 @@ namespace caesar1
 
         }
 
+        void initialise_oil_simulation() // OIL_V1
+        {
 
+            // error checking using Int32.TryParse would be better
+            oil_fromy = Convert.ToInt32(OilYmin.Text);
+            oil_toy = Convert.ToInt32(OilYmax.Text);
+            oil_fromx = Convert.ToInt32(OilXmin.Text);
+            oil_tox = Convert.ToInt32(OilXmax.Text);
+            oil_startt = Convert.ToDouble(OilTimeMin.Text) / 60; // convert to minutes, same unit as time counter
+            oil_starth = Convert.ToDouble(OilDepthStart.Text);
+            oil_totalv = Convert.ToDouble(OilVolume.Text);
+            oil_spillt = Convert.ToDouble(OilSpillDuration.Text);
+            oildepth = new double[xmax, ymax];
+
+        }
+        void update_oil_states() // OIL_V1
+        {
+
+            MessageBox.Show("update_oil_states() triggered"); // for debug/ testing
+
+            // add oil to input location
+
+            // update oil fluxes
+
+
+
+
+        }
 
         void scan_area()
         {
@@ -11020,7 +11288,7 @@ namespace caesar1
                         cross_scan[x, inc] = y;
                         inc++;
                     }
-                    //discharge[x,y]=0;			
+                    //discharge[x,y]=0;
                 }
 
             });
@@ -11363,7 +11631,7 @@ namespace caesar1
 
 
                             // now adding in the downsrtream offset if needed done by ensuring prob is 100
-                            if (counter1 < downstream_offset) prob = 100; // break; 
+                            if (counter1 < downstream_offset) prob = 100; // break;
 
                             // change comments on below lines if you want water to stop sand movement or not
                             //if (water_depth[Math.Abs(x/dune_mult),Math.Abs((y)/dune_mult)] >= water_depth_erosion_threshold) prob = 0;
@@ -11647,7 +11915,7 @@ namespace caesar1
                 fractionalSector = sectorPos - sectorNumber;
 
                 // Calculate values for the three axes
-                // of the color. 
+                // of the color.
                 pFactor = val * (1 - sat);
                 qFactor = val * (1 - (sat * fractionalSector));
                 tFactor = val * (1 - (sat * (1 - fractionalSector)));
@@ -11729,7 +11997,7 @@ namespace caesar1
 
 
 
-                calc_hillshade();       // Call up routine 
+                calc_hillshade();       // Call up routine
 
                 // First, find max, min and range of DEM and Hillshade
                 for (x = 1; x <= xmax; x++)
@@ -11776,7 +12044,7 @@ namespace caesar1
                             objGraphics.FillRectangle(brush2, (x - 1) * t, (y - 1) * t, t, t);
 
 
-                            // DEM	
+                            // DEM
                             zDEM = (elev[x, y]);
                             // Sets hue based on desired color range (in decimal degrees; max 360)
                             double hueMin = 30.0;
@@ -11807,10 +12075,10 @@ namespace caesar1
                             objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
 
                         }   // Close of Entire Grid Mask
-                    }       // Close of Column Loop 
+                    }       // Close of Column Loop
                 }           // Close of Row Loop
 
-            }               // Close of DEM check box (menuitem34) 
+            }               // Close of DEM check box (menuitem34)
 
 
             // Find Ranges for those in Active Area
@@ -11839,7 +12107,7 @@ namespace caesar1
             {
                 for (y = 1; y <= ymax; y++)
                 {
-                    if (1 > 0) // Index masks out so only 'active cells' shown	was if(index[x,y]>-9999)		
+                    if (1 > 0) // Index masks out so only 'active cells' shown	was if(index[x,y]>-9999)
                     {
                         // Water Depth
                         if (menuItem3.Checked == true && water_depth[x, y] > water_depth_erosion_threshold)//MIN_Q)//||discharge[x,y]>0)
@@ -12410,7 +12678,7 @@ namespace caesar1
                             double ci = gravity * (temp_mannings * temp_mannings) * Math.Pow(water_depth[x, y], -0.33);
                             //tauvel = 1000 * ci * vel * vel;
                             if (slopetot > 0) slopetot = 0;
-                            //tauvel = 1000 * ci * vel * vel * (1 + (1 * (slopetot))); 
+                            //tauvel = 1000 * ci * vel * vel * (1 + (1 * (slopetot)));
                             tau = 1000 * ci * vel * vel * (1 + (1 * (slopetot / vel)));
                             Tau[x, y] = tau;
                         }
@@ -12454,8 +12722,8 @@ namespace caesar1
                             temp_dist = new Double[11]; // array that holds amount to be removed from cell in each grainsize
                             tracer_proportions = new double[11, tracers + 1];
 
-                            // additional tracer code. 
-                            for (int n = 1; n <= G_MAX - 1; n++) // now work out the proportion of the different tracer fractions for each grainsize in the donor cell. 
+                            // additional tracer code.
+                            for (int n = 1; n <= G_MAX - 1; n++) // now work out the proportion of the different tracer fractions for each grainsize in the donor cell.
                             {
                                 double temptot = 0;
                                 for (int T = 0; T <= tracers; T++) temptot += grain[index[x, y], n, T];
@@ -12521,7 +12789,7 @@ namespace caesar1
                                 // Einstein sed tpt eqtn
                                 if (einstein == 1)
                                 {
-                                    // maybe should divide by DX as well.. 
+                                    // maybe should divide by DX as well..
                                     temp_dist[n] = mult_factor * time_factor * (40 * Math.Pow((1 / (((2650 - 1000) * Di) / (tau / gravity))), 3))
                                         / Math.Sqrt(1000 / ((2650 - 1000) * gravity * (Di * Di * Di))) / DX;
                                 }
@@ -12787,7 +13055,7 @@ namespace caesar1
 
                                 // this next part is unusual. You have to stop susp sed deposition on the input cells, otherwies
                                 // it drops sediment out, but cannot entrain as ss levels in input are too high leading to
-                                // little mountains of sediment. This means a new array in order to check whether a cell is an 
+                                // little mountains of sediment. This means a new array in order to check whether a cell is an
                                 // input point or not..
                                 if (!inputpointsarray[x, y])
                                 {
@@ -12843,6 +13111,7 @@ namespace caesar1
                                     if ((elev[x - 1, y] - amt) < bedrock[x - 1, y] || x - 1 == 1) amt = 0;
                                     if (amt > ERODEFACTOR * 0.1) amt = ERODEFACTOR * 0.1;
                                     //if (amt > erodetot2 / 2) amt = erodetot2 / 2;
+                                    if (amt < 0) amt = 0;
                                     temp_elev[x, y] += amt;
                                     temp_elev[x - 1, y] -= amt;
                                     slide_GS(x - 1, y, amt, x, y);
@@ -12861,6 +13130,7 @@ namespace caesar1
                                     if ((elev[x + 1, y] - amt) < bedrock[x + 1, y] || x + 1 == xmax) amt = 0;
                                     if (amt > ERODEFACTOR * 0.1) amt = ERODEFACTOR * 0.1;
                                     //if (amt > erodetot2 /2) amt = erodetot2 /2;
+                                    if (amt < 0) amt = 0;
                                     temp_elev[x, y] += amt;
                                     temp_elev[x + 1, y] -= amt;
                                     slide_GS(x + 1, y, amt, x, y);
@@ -12898,6 +13168,7 @@ namespace caesar1
                                     if ((elev[x, y - 1] - amt) < bedrock[x, y - 1] || y - 1 == 1) amt = 0;
                                     if (amt > ERODEFACTOR * 0.1) amt = ERODEFACTOR * 0.1;
                                     //if (amt > erodetot2 / 2) amt = erodetot2 / 2;
+                                    if (amt < 0) amt = 0;
                                     temp_elev[x, y] += amt;
                                     temp_elev[x, y - 1] -= amt;
                                     slide_GS(x, y - 1, amt, x, y);
@@ -12916,6 +13187,7 @@ namespace caesar1
                                     if ((elev[x, y + 1] - amt) < bedrock[x, y + 1] || y + 1 == ymax) amt = 0;
                                     if (amt > ERODEFACTOR * 0.1) amt = ERODEFACTOR * 0.1;
                                     //if (amt > erodetot2 / 2) amt = erodetot2 / 2;
+                                    if (amt < 0) amt = 0;
                                     temp_elev[x, y] += amt;
                                     temp_elev[x, y + 1] -= amt;
                                     slide_GS(x, y + 1, amt, x, y);
@@ -13024,7 +13296,7 @@ namespace caesar1
             }
 
             /// now update files for outputing sediment and re-circulating...
-            /// 
+            ///
 
             sediQ = 0;
             for (int n = 1; n <= G_MAX; n++)
@@ -13106,7 +13378,9 @@ namespace caesar1
                     if (((elev[x, y] - elev[x + 1, y + 1]) / 1.41) > wet_factor && elev[x + 1, y + 1] > -9999)
                     {
                         diff = ((elev[x, y] - elev[x + 1, y + 1]) / 1.41) - wet_factor;
+                        if (diff > ERODEFACTOR) diff = ERODEFACTOR;
                         if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                        if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x + 1, y + 1] += diff;
                         slide_GS(x, y, diff, x + 1, y + 1);
@@ -13114,7 +13388,9 @@ namespace caesar1
                     if ((elev[x, y] - elev[x, y + 1]) > wet_factor && elev[x, y + 1] > -9999)
                     {
                         diff = (elev[x, y] - elev[x, y + 1]) - wet_factor;
+                        if (diff > ERODEFACTOR) diff = ERODEFACTOR;
                         if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                        if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x, y + 1] += diff;
                         slide_GS(x, y, diff, x, y + 1);
@@ -13122,7 +13398,9 @@ namespace caesar1
                     if (((elev[x, y] - elev[x - 1, y + 1]) / 1.41) > wet_factor && elev[x - 1, y + 1] > -9999)
                     {
                         diff = ((elev[x, y] - elev[x - 1, y + 1]) / 1.41) - wet_factor;
+                        if (diff > ERODEFACTOR) diff = ERODEFACTOR;
                         if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                        if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x - 1, y + 1] += diff;
                         slide_GS(x, y, diff, x - 1, y + 1);
@@ -13130,7 +13408,9 @@ namespace caesar1
                     if ((elev[x, y] - elev[x - 1, y]) > wet_factor && elev[x - 1, y] > -9999)
                     {
                         diff = (elev[x, y] - elev[x - 1, y]) - wet_factor;
+                        if (diff > ERODEFACTOR) diff = ERODEFACTOR;
                         if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                        if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x - 1, y] += diff;
                         slide_GS(x, y, diff, x - 1, y);
@@ -13139,7 +13419,9 @@ namespace caesar1
                     if (((elev[x, y] - elev[x - 1, y - 1]) / 1.41) > wet_factor && elev[x - 1, y - 1] > -9999)
                     {
                         diff = ((elev[x, y] - elev[x - 1, y - 1]) / 1.41) - wet_factor;
+                        if (diff > ERODEFACTOR) diff = ERODEFACTOR;
                         if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                        if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x - 1, y - 1] += diff;
                         slide_GS(x, y, diff, x - 1, y - 1);
@@ -13147,7 +13429,9 @@ namespace caesar1
                     if ((elev[x, y] - elev[x, y - 1]) > wet_factor && elev[x, y - 1] > -9999)
                     {
                         diff = (elev[x, y] - elev[x, y - 1]) - wet_factor;
+                        if (diff > ERODEFACTOR) diff = ERODEFACTOR;
                         if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                        if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x, y - 1] += diff;
                         slide_GS(x, y, diff, x, y - 1);
@@ -13155,7 +13439,9 @@ namespace caesar1
                     if (((elev[x, y] - elev[x + 1, y - 1]) / 1.41) > wet_factor && elev[x + 1, y - 1] > -9999)
                     {
                         diff = ((elev[x, y] - elev[x + 1, y - 1]) / 1.41) - wet_factor;
+                        if (diff > ERODEFACTOR) diff = ERODEFACTOR;
                         if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                        if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x + 1, y - 1] += diff;
                         slide_GS(x, y, diff, x + 1, y - 1);
@@ -13164,7 +13450,9 @@ namespace caesar1
                     if ((elev[x, y] - elev[x + 1, y]) > wet_factor && elev[x + 1, y] > -9999)
                     {
                         diff = (elev[x, y] - elev[x + 1, y]) - wet_factor;
+                        if (diff > ERODEFACTOR) diff = ERODEFACTOR;
                         if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                        if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x + 1, y] += diff;
                         slide_GS(x, y, diff, x + 1, y);
@@ -13194,7 +13482,7 @@ namespace caesar1
         {
             this.label106.Visible = true;
             this.label107.Visible = true;
-            this.label122.Visible = true; 
+            this.label122.Visible = true;
             this.label123.Visible = true;
             this.label124.Visible = true;
             this.tracer_num.Visible = true;
@@ -13235,87 +13523,103 @@ namespace caesar1
 
                         wet_factor = factor;
                         //if(water_depth[x,y]>0.01)wet_factor=factor/2;
-                        if (elev[x, y] <= (bedrock[x, y] + active)) wet_factor = 10 * DX;
-
-                        /** chexk landslides in channel slowly */
-
-                        if (((elev[x, y] - elev[x + 1, y + 1]) / 1.41) > wet_factor && elev[x + 1, y + 1] > -9999)
+                        if (elev[x, y] >= (bedrock[x, y] + active))
                         {
-                            diff = ((elev[x, y] - elev[x + 1, y + 1]) / 1.41) - wet_factor;
-                            if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                            if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                            elev[x, y] -= diff;
-                            elev[x + 1, y + 1] += diff;
-                            total += diff;
-                        }
-                        if ((elev[x, y] - elev[x, y + 1]) > wet_factor && elev[x, y + 1] > -9999)
-                        {
-                            diff = (elev[x, y] - elev[x, y + 1]) - wet_factor;
-                            if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                            if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                            elev[x, y] -= diff;
-                            elev[x, y + 1] += diff;
-                            total += diff;
-                        }
-                        if (((elev[x, y] - elev[x - 1, y + 1]) / 1.41) > wet_factor && elev[x - 1, y + 1] > -9999)
-                        {
-                            diff = ((elev[x, y] - elev[x - 1, y + 1]) / 1.41) - wet_factor;
-                            if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                            if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                            elev[x, y] -= diff;
-                            elev[x - 1, y + 1] += diff;
-                            total += diff;
-                        }
-                        if ((elev[x, y] - elev[x - 1, y]) > wet_factor && elev[x - 1, y] > -9999)
-                        {
-                            diff = (elev[x, y] - elev[x - 1, y]) - wet_factor;
-                            if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                            if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                            elev[x, y] -= diff;
-                            elev[x - 1, y] += diff;
-                            total += diff;
-                        }
-
-                        if (((elev[x, y] - elev[x - 1, y - 1]) / 1.41) > wet_factor && elev[x - 1, y - 1] > -9999)
-                        {
-                            diff = ((elev[x, y] - elev[x - 1, y - 1]) / 1.41) - wet_factor;
-                            if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                            if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                            elev[x, y] -= diff;
-                            elev[x - 1, y - 1] += diff;
-                            total += diff;
-                        }
-                        if ((elev[x, y] - elev[x, y - 1]) > wet_factor && elev[x, y - 1] > -9999)
-                        {
-                            diff = (elev[x, y] - elev[x, y - 1]) - wet_factor;
-                            if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                            if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                            elev[x, y] -= diff;
-                            elev[x, y - 1] += diff;
-                            total += diff;
-                        }
-                        if (((elev[x, y] - elev[x + 1, y - 1]) / 1.41) > wet_factor && elev[x + 1, y - 1] > -9999)
-                        {
-                            diff = ((elev[x, y] - elev[x + 1, y - 1]) / 1.41) - wet_factor;
-                            if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                            if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                            elev[x, y] -= diff;
-                            elev[x + 1, y - 1] += diff;
-                            total += diff;
-                        }
 
 
+                            if (((elev[x, y] - elev[x + 1, y + 1]) / 1.41) > wet_factor && elev[x + 1, y + 1] > -9999)
+                            {
+                                diff = ((elev[x, y] - elev[x + 1, y + 1]) / 1.41) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x + 1, y + 1] += diff;
+                                slide_GS(x, y, diff, x + 1, y + 1);
+                                total += diff;
+                            }
+                            if ((elev[x, y] - elev[x, y + 1]) > wet_factor && elev[x, y + 1] > -9999)
+                            {
+                                diff = (elev[x, y] - elev[x, y + 1]) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x, y + 1] += diff;
+                                slide_GS(x, y, diff, x, y + 1);
+                                total += diff;
+                            }
+                            if (((elev[x, y] - elev[x - 1, y + 1]) / 1.41) > wet_factor && elev[x - 1, y + 1] > -9999)
+                            {
+                                diff = ((elev[x, y] - elev[x - 1, y + 1]) / 1.41) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x - 1, y + 1] += diff;
+                                slide_GS(x, y, diff, x - 1, y + 1);
+                                total += diff;
+                            }
+                            if ((elev[x, y] - elev[x - 1, y]) > wet_factor && elev[x - 1, y] > -9999)
+                            {
+                                diff = (elev[x, y] - elev[x - 1, y]) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x - 1, y] += diff;
+                                slide_GS(x, y, diff, x - 1, y);
+                                total += diff;
+                            }
 
-                        if ((elev[x, y] - elev[x + 1, y]) > wet_factor && elev[x + 1, y] > -9999)
-                        {
-                            diff = (elev[x, y] - elev[x + 1, y]) - wet_factor;
-                            if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                            if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                            elev[x, y] -= diff;
-                            elev[x + 1, y] += diff;
-                            total += diff;
+                            if (((elev[x, y] - elev[x - 1, y - 1]) / 1.41) > wet_factor && elev[x - 1, y - 1] > -9999)
+                            {
+                                diff = ((elev[x, y] - elev[x - 1, y - 1]) / 1.41) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x - 1, y - 1] += diff;
+                                slide_GS(x, y, diff, x - 1, y - 1);
+                                total += diff;
+                            }
+                            if ((elev[x, y] - elev[x, y - 1]) > wet_factor && elev[x, y - 1] > -9999)
+                            {
+                                diff = (elev[x, y] - elev[x, y - 1]) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x, y - 1] += diff;
+                                slide_GS(x, y, diff, x, y - 1);
+                                total += diff;
+                            }
+                            if (((elev[x, y] - elev[x + 1, y - 1]) / 1.41) > wet_factor && elev[x + 1, y - 1] > -9999)
+                            {
+                                diff = ((elev[x, y] - elev[x + 1, y - 1]) / 1.41) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x + 1, y - 1] += diff;
+                                slide_GS(x, y, diff, x + 1, y - 1);
+                                total += diff;
+                            }
+
+
+
+                            if ((elev[x, y] - elev[x + 1, y]) > wet_factor && elev[x + 1, y] > -9999)
+                            {
+                                diff = (elev[x, y] - elev[x + 1, y]) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x + 1, y] += diff;
+                                slide_GS(x, y, diff, x + 1, y);
+                                total += diff;
+                            }
                         }
-
                     }
                 }
             } while (total > 0 && inc < 200);
@@ -13451,7 +13755,7 @@ namespace caesar1
                     for (n = 1; n <= G_MAX - 1; n++)
                     {
                         // here is where you may need to add more from different tracer areas
-                        //for (int T = 0; T <= tracers; T++) grain[index[x2, y2], n, T] += (amount - total) * dprop[n]; 
+                        //for (int T = 0; T <= tracers; T++) grain[index[x2, y2], n, T] += (amount - total) * dprop[n];
                         // maybe like below
                         int TT = tracer_area[x, y];// TT= tracer area.... //int TT = tracer number of area of donor cells[x, y];
 
@@ -13752,7 +14056,7 @@ namespace caesar1
                         int water = 0;
                         int edge_cell_counter = 1;
 
-                        // sum up dry cells and edge cells - 
+                        // sum up dry cells and edge cells -
                         // now manhattan neighbors
                         for (int dir = 1; dir <= 7; dir += 2)
                         {
@@ -13766,7 +14070,7 @@ namespace caesar1
                         }
 
                         if (edge_cell_counter > 3) drycells += edge_cell_counter - 2;
-                        //						
+                        //
                         water = wetcells - drycells;
                         upscale_edge[x, y] = water;
                     }
@@ -13794,7 +14098,7 @@ namespace caesar1
                   });
               });
 
-            //then apply a smoothing filter over the top of this. here its done X number of times - 
+            //then apply a smoothing filter over the top of this. here its done X number of times -
 
             double smoothing_times = double.Parse(avge_smoothbox.Text);
             double downstream_shift = double.Parse(downstreamshiftbox.Text);
@@ -14016,7 +14320,7 @@ namespace caesar1
                         edge[x, y] = 0 - edge[x, y];
                         edge[x, y] = 1 / ((2.131 * Math.Pow(edge[x, y], -1.0794)) * DX);
                         //if (edge[x, y] > (1 / (DX * 3))) edge[x, y] = 1 / (DX * 3);
-                        //edge[x, y] = 1 / edge[x, y]; 
+                        //edge[x, y] = 1 / edge[x, y];
 
                     }
                     if (water_depth[x, y] > water_depth_erosion_threshold && edge[x, y] == -9999) edge[x, y] = 0;
@@ -14129,7 +14433,7 @@ namespace caesar1
             //{
             //    req = (HttpWebRequest) WebRequest.Create("http://www.coulthard.org.uk/");
             //    res = (HttpWebResponse) req.GetResponse();
-            //} 
+            //}
             //catch(Exception ex)
             //{
             //    /// do nothing.
@@ -14148,7 +14452,7 @@ namespace caesar1
 
 
             ///// first load up xml file from command line:
-            ///// 
+            /////
             string temp_xml_name = " ";
 
             int i = 0;
@@ -14165,7 +14469,7 @@ namespace caesar1
 
 
             ///// then load up .xml file
-            ///// 
+            /////
 
             //XmlTextReader xreader;
             //String dum;
@@ -14702,8 +15006,8 @@ namespace caesar1
             //    zero_values();
             //    load_data();
 
-            //    // nActualGridSize 
-            //    // moved from initialse() to here MJ 29/03/05 
+            //    // nActualGridSize
+            //    // moved from initialse() to here MJ 29/03/05
             //    int x, y;
             //    nActualGridCells = 0;
             //    for (x = 1; x <= xmax; x++)
@@ -14719,7 +15023,7 @@ namespace caesar1
             //    zoomPanImageBox1.Visible = true;// MJ 14/01/05
             //    Panel1.Visible = true;						// MJ 14/01/05
             //    button2.Enabled = false;					// MJ 17/01/05
-            //    start_button.Enabled = true;				// MJ 17/01/05  
+            //    start_button.Enabled = true;				// MJ 17/01/05
             //    groupBox2.Visible = true;
             //    groupBox3.Visible = true;
             //}
@@ -14730,7 +15034,7 @@ namespace caesar1
 
             ////
             //// end of batch mode section
-            //// 
+            ////
             ////
         }
 
@@ -14754,8 +15058,8 @@ namespace caesar1
             if (menuItem33.Checked == true) save_data(16, 0); // save velocity	<JOE 20050605>
             if (menuItem34.Checked == true) save_data(17, 0); // save soil_saturation	<JOE 20050605>
             if (menuItem6.Checked == true) save_data(18, 0); // save water tracers - MDW 17-03-2016
-            if (menuItem15.Checked == true) save_data(19, 0); // save rain zone tracers - MDW 13-04-2016	  
-            if (menuItem16.Checked == true) save_data(6, 0);  // save tracer file <Jun 20200527> 
+            if (menuItem15.Checked == true) save_data(19, 0); // save rain zone tracers - MDW 13-04-2016
+            if (menuItem16.Checked == true) save_data(6, 0);  // save tracer file <Jun 20200527>
             if (menuItemSoluteTracer.Checked == true) save_data(20, 0);  // save solute tracers - MDW_V2
 
             this.Close();
@@ -14792,7 +15096,7 @@ namespace caesar1
                                                    //end
 
 
-                    //nSources = number_of_points + 2; 
+                    //nSources = number_of_points + 2;
                     if (sourceIDs.Length == 0) { nSources = sourceIndexAddition; } // MDW_V2 logic added as sourceIDs is now initialised at length zero
                     else { nSources = sourceIDs.Length + sourceIndexAddition; } //sourceIDs.Max(); } // sources 1 and 2 are rainfall and stage inputs. The rest are hydrograph inputs.
 
@@ -14830,29 +15134,29 @@ namespace caesar1
                         string comboText = "";
                         if (z == 0) // tide source
                         {
-                            if(checkBox3.Checked == true) 
+                            if (checkBox3.Checked == true)
                             {
-                                comboText = Convert.ToString(z+1) + " : Stage";
-                            } 
-                            else 
-                            { 
-                                comboText = Convert.ToString(z+1) + " : Stage [not active]"; 
+                                comboText = Convert.ToString(z + 1) + " : Stage";
+                            }
+                            else
+                            {
+                                comboText = Convert.ToString(z + 1) + " : Stage [not active]";
                             }
                         }
                         else if (z == 1) // rain source
                         {
                             if (catchment_mode_box.Checked == true)
                             {
-                                comboText = Convert.ToString(z+1) + " : Rain";
+                                comboText = Convert.ToString(z + 1) + " : Rain";
                             }
                             else
                             {
-                                comboText = Convert.ToString(z+1) + " : Rain [not active]";
+                                comboText = Convert.ToString(z + 1) + " : Rain [not active]";
                             }
                         }
                         else if (z >= 2) // hydro sources
                         {
-                            comboText = Convert.ToString(z+1) + " : " + inputfilenames[z - sourceIndexAddition];
+                            comboText = Convert.ToString(z + 1) + " : " + inputfilenames[z - sourceIndexAddition];
                         }
                         comboBox2.Items.Add(comboText);
                         comboBox3.Items.Add(comboText);
@@ -14866,13 +15170,15 @@ namespace caesar1
                     if (nSources >= 5) { comboBox4.SelectedIndex = 5; trace_rgb[2] = 5; }
                     else { comboBox4.SelectedIndex = 0; trace_rgb[2] = 0; }
 
-                    
+
 
                 }
 
+                // OIL_V1
+                if (isOilSimulation == true) initialise_oil_simulation();
 
-                // nActualGridSize 
-                // moved from initialse() to here MJ 29/03/05 
+                // nActualGridSize
+                // moved from initialse() to here MJ 29/03/05
                 int x, y;
                 //nActualGridCells = 0;
                 for (int ii = 1; ii <= rfnum; ii++) nActualGridCells[ii] = 0;
@@ -14893,7 +15199,7 @@ namespace caesar1
                 zoomPanImageBox1.Visible = true;// MJ 14/01/05
                 Panel1.Visible = true;						// MJ 14/01/05
                 button2.Enabled = false;					// MJ 17/01/05
-                start_button.Enabled = true;				// MJ 17/01/05  
+                start_button.Enabled = true;				// MJ 17/01/05
                 groupBox2.Visible = true;
                 groupBox3.Visible = true;
             }
@@ -14956,13 +15262,13 @@ namespace caesar1
             }
         }
         private void textBoxOutDir_TextChanged(object sender, System.EventArgs e) // MDW_V2
-        {            
+        {
             //outDirCheck();
         }
         private void checkboxOutDirDateTime_CheckChanged(object sender, System.EventArgs e) // MDW_V2
         {
             outdirDateTime = checkboxOutDirDateTime.Checked;
-        }        
+        }
         private void outDirCheck()
         {
             try
@@ -14970,9 +15276,10 @@ namespace caesar1
                 outdir = textBoxOutDir.Text;
                 outdirDateTime = checkboxOutDirDateTime.Checked;
 
-                if (string.IsNullOrEmpty(outdir) == true && outdirDateTime == false) {
+                if (string.IsNullOrEmpty(outdir) == true && outdirDateTime == false)
+                {
                     outdir = "";
-                    return; 
+                    return;
                 }
 
                 if (string.IsNullOrEmpty(outdir) == false && Directory.Exists(outdir) == false)
@@ -14980,7 +15287,7 @@ namespace caesar1
                     Directory.CreateDirectory(outdir);
                 }
 
-                if(outdirDateTime == true)
+                if (outdirDateTime == true)
                 {
                     DateTime currentDateTime = DateTime.Now;
                     string formattedDateTime = currentDateTime.ToString("yyyy-MM-ddTHH-mm-ss");
@@ -15851,7 +16158,7 @@ namespace caesar1
                         radioButton1.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("oldveg"));
                         radioButton2.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("newveg"));
 
-                        // add ons from MDW 
+                        // add ons from MDW
                         //spatialmanningsBox.Text = xreader.ReadElementString("manningfile");
                         //checkBox9.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("SpatialFriction"));
                         checkBox10.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("TraceWater"));
@@ -15861,7 +16168,17 @@ namespace caesar1
 
                         textBoxOutDir.Text = xreader.ReadElementString("OutputDirectory"); // MDW_V2
                         checkboxOutDirDateTime.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("OutDirDateTime")); // MDW_V2
-                        
+
+                        // OIL_V1
+                        OilTab_checkBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("OilSimulation"));
+                        OilYmin.Text = xreader.ReadElementString("OilYmin");
+                        OilYmax.Text = xreader.ReadElementString("OilYmax");
+                        OilXmin.Text = xreader.ReadElementString("OilXmin");
+                        OilXmax.Text = xreader.ReadElementString("OilXmax");
+                        OilTimeMin.Text = xreader.ReadElementString("OilTimeMin");
+                        OilDepthStart.Text = xreader.ReadElementString("OilDepthStart");
+                        OilVolume.Text = xreader.ReadElementString("OilVolume");
+                        OilSpillDuration.Text = xreader.ReadElementString("OilSpillDuration");
 
                         //MDW
                         xreader.ReadStartElement("SaveOptions");
@@ -15940,8 +16257,8 @@ namespace caesar1
 
                 //Create a new XmlTextWriter.
                 xwriter = new XmlTextWriter(cfgname, System.Text.Encoding.UTF8);
-                //Write the beginning of the document including the 
-                //document declaration. Standalone is true. 
+                //Write the beginning of the document including the
+                //document declaration. Standalone is true.
                 //Use indentation for readability.
                 xwriter.Formatting = Formatting.Indented;
                 xwriter.Indentation = 4;
@@ -15949,8 +16266,8 @@ namespace caesar1
 
                 xwriter.WriteStartDocument(true);
 
-                //Write the beginning of the "data" element. This is 
-                //the opening tag to our data 
+                //Write the beginning of the "data" element. This is
+                //the opening tag to our data
                 xwriter.WriteStartElement("Parms");
                 xwriter.WriteStartElement("General-Parms");
                 xwriter.WriteElementString("headeroverride", XmlConvert.ToString(overrideheaderBox.Checked));
@@ -16402,8 +16719,19 @@ namespace caesar1
                 xwriter.WriteElementString("TraceRainZonationMapfile", textBox20.Text); // MDW_V2 bug fix - corrected reference
                 xwriter.WriteElementString("TraceSolutes", XmlConvert.ToString(checkBoxSoluteTracer.Checked));
 
-                xwriter.WriteElementString("OutputDirectory", textBoxOutDir.Text); // MDW_V2 
+                xwriter.WriteElementString("OutputDirectory", textBoxOutDir.Text); // MDW_V2
                 xwriter.WriteElementString("OutDirDateTime", XmlConvert.ToString(checkboxOutDirDateTime.Checked)); // MDW_V2
+
+                // OIL_V1
+                xwriter.WriteElementString("OilSimulation", XmlConvert.ToString(OilTab_checkBox.Checked));
+                xwriter.WriteElementString("OilYmin", OilYmin.Text);
+                xwriter.WriteElementString("OilYmax", OilYmax.Text);
+                xwriter.WriteElementString("OilXmin", OilXmin.Text);
+                xwriter.WriteElementString("OilXmax", OilXmax.Text);
+                xwriter.WriteElementString("OilTimeMin", OilTimeMin.Text);
+                xwriter.WriteElementString("OilDepthStart", OilDepthStart.Text);
+                xwriter.WriteElementString("OilVolume", OilVolume.Text);
+                xwriter.WriteElementString("OilSpillDuration", OilSpillDuration.Text);
 
                 //MDW
                 xwriter.WriteStartElement("SaveOptions");
@@ -16708,6 +17036,11 @@ namespace caesar1
         {
 
         }
+        private void OilTab_Click(object sender, EventArgs e) // OIL_V1
+        {
+
+        }
+
         private void button6_Click(object sender, EventArgs e)
         {
             int x, y;
@@ -16870,7 +17203,7 @@ namespace caesar1
             }
         }
 
-        private void checkBox12_CheckedChanged(object sender, EventArgs e) 
+        private void checkBox12_CheckedChanged(object sender, EventArgs e)
         {
             tracergb_initialising = true;
 
@@ -16895,7 +17228,7 @@ namespace caesar1
                 // Add rain zones to the lists
                 for (int z = 0; z < nRainZones; z++) // MDW_V2 updated index and string below
                 {
-                    comboBox2.Items.Add(Convert.ToString(z + 1) + " : rain zone " + Convert.ToString(rainZones[z])); 
+                    comboBox2.Items.Add(Convert.ToString(z + 1) + " : rain zone " + Convert.ToString(rainZones[z]));
                     comboBox3.Items.Add(Convert.ToString(z + 1) + " : rain zone " + Convert.ToString(rainZones[z]));
                     comboBox4.Items.Add(Convert.ToString(z + 1) + " : rain zone " + Convert.ToString(rainZones[z]));
                 }
@@ -17067,6 +17400,28 @@ namespace caesar1
             drawwater(mygraphics);
 
         }
+
+        private void OilTab_checkBox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (OilTab_checkBox.Checked == true)
+            {
+                isOilSimulation = true;
+                //checkBox11.Enabled = true; //MDW_V2 changed from visible, so it shows greyed out by default
+                //textBox20.Enabled = true;  //
+                //checkBoxSoluteTracer.Enabled = true; //MDW_V2
+                //labelSoluteNumber.Enabled = true;
+            }
+            else
+            {
+                isOilSimulation = false;
+                //checkBox11.Enabled = false; //MDW_V2 changed from visible, so it shows greyed out by default
+                //textBox20.Enabled = false;  //
+                //checkBoxSoluteTracer.Enabled = false; //MDW_V2
+                //labelSoluteNumber.Enabled = false;
+            }
+        }
+
+
 
         private void menuItem10_Click(object sender, EventArgs e)
         {
@@ -17282,7 +17637,7 @@ namespace caesar1
 
     }
 
-    
+
 
 }
 
