@@ -345,7 +345,7 @@ namespace caesar1
         public int oil_fromx, oil_tox, oil_fromy, oil_toy, oil_n_cells;
         public static bool isOilSimulation, oil_eventtriggered = false;
         public double oil_startt, oil_starth, oil_spillt, ro_oil, ro_water, oil_density, oil_T, cinematic_v, oil_D, oil_ratev, oil_totalv, oil_depth_init, oil_input;
-        public static double[,] oil_Mx, oil_My, oil_M, oil_depth_x, oil_depth_y, oil_depth_update, oil_depth, oil_V;
+        public static double[,] oil_Mx, oil_My, oil_M, dh_oil_x, dh_oil_y, oil_depth_update, oil_depth, oil_V;
 
         // TC mining
         int minesitenumber = 0;
@@ -6165,6 +6165,7 @@ namespace caesar1
 
                         oil_spill_input();
                         oilroute();
+                        oil_update();
                     }
 
 
@@ -11157,7 +11158,7 @@ namespace caesar1
                     int x = down_scan[y, inc];
                     inc++;
 
-                    //routing oil in x direction
+                    //routing oil in x direction------------- need to define before oil_V?
                     if ((oil_depth[x, y] > 0.0 || oil_depth[x - 1, y] > 0.0) && elev[x - 1, y] > -9999)
                     {
 
@@ -11190,2133 +11191,2101 @@ namespace caesar1
             Parallel.For(1, ymax + 1, options, delegate (int y)
             {
                 int inc = 1;
-                double tempmaxdepth = 0;
+
                 while (down_scan[y, inc] > 0)
                 {
                     int x = down_scan[y, inc];
                     inc++;
 
-                    if ()
+                    if (isOilSimulation == true)
+                    {
+                        dh_oil_x[x + 1, y] = (oil_Mx[x + 1, y] / (ro_oil * DX * DX));
+                        dh_oil_x[x, y] = (oil_Mx[x, y] / (ro_oil * DX * DX));
+                        dh_oil_y[x, y + 1] = (oil_My[x, y + 1] / (ro_oil * DX * DX));
+                        dh_oil_y[x, y] = (oil_My[x, y] / (ro_oil * DX * DX));
+                    }
+
+                    //update oil depth
+
+                    oil_depth[x, y] += (dh_oil_x[x + 1, y] - dh_oil_x[x, y] + dh_oil_y[x, y + 1] - dh_oil_y[x, y]);
+
+                    //update volume
+
+                    oil_V[x, y] += oil_depth[x, y] / ro_oil; // is this needed here or before?
+
 
                 }
-
-
-
-
-                oil_My[x, y + 1] = ((oil_My[x, y] * oil_V[x, y] / local_time_factor) + (qy[x, y + 1] * oil_My[x + 1, y] - qy[x, y] * oil_My[x, y]) +
-                                      ((oil_My[x, y + 1] - oil_My[x, y]) - (oil_My[x, y + 2] - oil_My[x, y + 1]) * oil_D * oil_V[x, y] / (DX * DX)) - (Ev * oil_My[x, y + 1] * qy[x, y + 1]) -
-                                  (Math.Pow(27 * Math.PI / 2 * Math.Pow(oil_V[x + 1, y], 3) * ((ro_water - oil_density) / ro_water) * gravity * local_time_factor / cinematic_v, 0.25) *
-                                      oil_My[x + 1, y] * DX / local_time_factor) * local_time_factor / oil_V[x + 1, y]);
-
-
-
-                //}
-                //update oil depth
-                //oil_M[x, y] = (oil_Mx[x + 1, y] - oil_Mx[x, y] + oil_My[x, y + 1] - oil_My[x, y]);
-                // to declare in public static double
-                // I don't think that oil_depth_x and oil_depth_y are needed - just update oil_depth directly. Or perhaps these are really dVdt arrays?
-
-
-                oil_depth_x[x + 1, y] = (oil_Mx[x + 1, y] / (ro_oil * DX * DX));
-                oil_depth_x[x, y] = (oil_Mx[x, y] / (ro_oil * DX * DX));
-                oil_depth_y[x, y + 1] = (oil_My[x, y + 1] / (ro_oil * DX * DX));
-                oil_depth_y[x, y] = (oil_My[x, y] / (ro_oil * DX * DX));
-
-                oil_depth[x, y] = (oil_depth_x[x + 1, y] - oil_depth_x[x, y] + oil_depth_y[x, y + 1] - oil_depth_y[x, y]);
-
-
-
-                /*
-                    //double oil_depth_out;
-                    oil_depth_out = 0.0;
-
-                    if (oil_depth_x[x + 1, y] < 0.0) { oil_depth_out += oil_depth_x[x + 1, y]; }  // mass from right: -ve = outflow
-                    if (oil_depth_x[x, y] > 0.0) { oil_depth_out -= oil_depth_x[x, y]; }      // mass from left:  +ve = outflow
-                    if (oil_depth_y[x, y + 1] < 0.0) { oil_depth_out += oil_depth_y[x, y + 1]; }  // mass from up:    -ve = outflow
-                    if (oil_depth_y[x, y] > 0.0) { oil_depth_out -= oil_depth_y[x, y]; }      // mass from down:  +ve = outflow
-
-                    oil_depth_update[x, y] += oil_depth[x, y] + oil_depth_out;
-                */
-
-            }
-
-                    //Update volume
-                    oil_V[x, y] = 0.0; // reset oil Volume?
-            oil_V[x, y] += oil_depth[x, y] * DX * DX; // Update oil volume
-
+            });
         }
 
-
-    });
-            
-        }
-
-void update_tracer_states()
-{
-    ///////////////////////////////////////////////////////////////////
-    // Update water proportions for water source tracing - MDW 13/03/16
-    // Note - we only need to deal with inflows for each cell as it is
-    // assumed that the water in a cell is mixed, so the propotion from
-    // each source in outflow will be the same as in the cell itself.
-    //
-    // 1. Get depth after outflows only - check not to get -ve depths
-    // 2. Get dhdt added by each inflow and scale for each water source
-    // 3. In main cell, work out the sum of depth from each source:
-    //    : the proportion of remaining water from each source, plus
-    //    : the sum of dhdt from each source
-    // 4. Update the proportions from each source: divide by the new depth
-
-    var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
-    Parallel.For(1, ymax + 1, options, delegate (int y)
-    {
-
-        int inc = 1;
-        while (down_scan[y, inc] > 0)
+        void update_tracer_states()
         {
-            int x = down_scan[y, inc];
-            inc++;
+            ///////////////////////////////////////////////////////////////////
+            // Update water proportions for water source tracing - MDW 13/03/16
+            // Note - we only need to deal with inflows for each cell as it is
+            // assumed that the water in a cell is mixed, so the propotion from
+            // each source in outflow will be the same as in the cell itself.
+            //
+            // 1. Get depth after outflows only - check not to get -ve depths
+            // 2. Get dhdt added by each inflow and scale for each water source
+            // 3. In main cell, work out the sum of depth from each source:
+            //    : the proportion of remaining water from each source, plus
+            //    : the sum of dhdt from each source
+            // 4. Update the proportions from each source: divide by the new depth
 
-            if (water_depth[x, y] > 0.0) // assess all cells which contain water
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+            Parallel.For(1, ymax + 1, options, delegate (int y)
             {
-                double dhdt_sumOut, dhdt_sumIn, depth_after_outflows, raindepth_after_outflows, raindepth;
-                double[] dhdt_sumInSrc;
-                dhdt_sumInSrc = new Double[nSources + 1];
-                double[] dhdt_sumInSrcRainZone = new Double[nRainZones + 1];
-                double[] dhdt_sumInSrcSolutes = new Double[nSolutes];
-                //double solute_after_outflows;
 
-                // work out total outflows for this cell - source not important here
-                dhdt_sumOut = 0.0;
-                if (dhdt_x[x + 1, y] < 0.0) { dhdt_sumOut += dhdt_x[x + 1, y]; }  // Flow from right: -ve = outflow
-                if (dhdt_x[x, y] > 0.0) { dhdt_sumOut -= dhdt_x[x, y]; }      // Flow from left:  +ve = outflow
-                if (dhdt_y[x, y + 1] < 0.0) { dhdt_sumOut += dhdt_y[x, y + 1]; }  // Flow from up:    -ve = outflow
-                if (dhdt_y[x, y] > 0.0) { dhdt_sumOut -= dhdt_y[x, y]; }      // Flow from down:  +ve = outflow
-                                                                              // n.b. sum of outflows will be negative
-
-                // get depth of cell from previous iteration after outflows
-                depth_after_outflows = water_depth_prev[x, y] + dhdt_sumOut;
-
-                for (int src = 0; src < nSources; src++) // MDW_V2 updated to zero index
+                int inc = 1;
+                while (down_scan[y, inc] > 0)
                 {
-                    dhdt_sumInSrc[src] = 0.0;
+                    int x = down_scan[y, inc];
+                    inc++;
 
-                    // work out the total inflow from neighbouring cells for this source of water - ignore outflows
-                    if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumInSrc[src] += dhdt_x[x + 1, y] * watertracer_prev[x + 1, y, src]; }  // Flow from right: +ve = inflow
-                    if (dhdt_x[x, y] < 0.0) { dhdt_sumInSrc[src] -= dhdt_x[x, y] * watertracer_prev[x - 1, y, src]; }  // Flow from left:  -ve = inflow
-                    if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumInSrc[src] += dhdt_y[x, y + 1] * watertracer_prev[x, y + 1, src]; }  // Flow from up:    +ve = inflow
-                    if (dhdt_y[x, y] < 0.0) { dhdt_sumInSrc[src] -= dhdt_y[x, y] * watertracer_prev[x, y - 1, src]; }  // Flow from down:  -ve = inflow
-
-                    // update sources at this location
-                    if ((dhdt_sumInSrc[src] == 0.0) & (watertracer_prev[x, y, src] == 0.0)) // if there is no contribution or existing water from this source
+                    if (water_depth[x, y] > 0.0) // assess all cells which contain water
                     {
-                        watertracer[x, y, src] = 0.0;
-                    }
-                    else // if there are inflows or existing water from this source, update proportions
-                    {
-                        if (depth_after_outflows < 0) // just in case
-                        {
-                            watertracer[x, y, src] = dhdt_sumInSrc[src] / (water_depth[x, y] - depth_after_outflows); // proportions are assigned based only on incoming water
-                        }
-                        else
-                        {
-                            // ([depth of water from this source still in cell] + [depth of water from this source flowing in]) / [total depth now in cell]
-                            watertracer[x, y, src] = ((depth_after_outflows * watertracer_prev[x, y, src]) + dhdt_sumInSrc[src]) / water_depth[x, y];
-                        }
-                    }
+                        double dhdt_sumOut, dhdt_sumIn, depth_after_outflows, raindepth_after_outflows, raindepth;
+                        double[] dhdt_sumInSrc;
+                        dhdt_sumInSrc = new Double[nSources + 1];
+                        double[] dhdt_sumInSrcRainZone = new Double[nRainZones + 1];
+                        double[] dhdt_sumInSrcSolutes = new Double[nSolutes];
+                        //double solute_after_outflows;
 
+                        // work out total outflows for this cell - source not important here
+                        dhdt_sumOut = 0.0;
+                        if (dhdt_x[x + 1, y] < 0.0) { dhdt_sumOut += dhdt_x[x + 1, y]; }  // Flow from right: -ve = outflow
+                        if (dhdt_x[x, y] > 0.0) { dhdt_sumOut -= dhdt_x[x, y]; }      // Flow from left:  +ve = outflow
+                        if (dhdt_y[x, y + 1] < 0.0) { dhdt_sumOut += dhdt_y[x, y + 1]; }  // Flow from up:    -ve = outflow
+                        if (dhdt_y[x, y] > 0.0) { dhdt_sumOut -= dhdt_y[x, y]; }      // Flow from down:  +ve = outflow
+                                                                                      // n.b. sum of outflows will be negative
+
+                        // get depth of cell from previous iteration after outflows
+                        depth_after_outflows = water_depth_prev[x, y] + dhdt_sumOut;
+
+                        for (int src = 0; src < nSources; src++) // MDW_V2 updated to zero index
+                        {
+                            dhdt_sumInSrc[src] = 0.0;
+
+                            // work out the total inflow from neighbouring cells for this source of water - ignore outflows
+                            if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumInSrc[src] += dhdt_x[x + 1, y] * watertracer_prev[x + 1, y, src]; }  // Flow from right: +ve = inflow
+                            if (dhdt_x[x, y] < 0.0) { dhdt_sumInSrc[src] -= dhdt_x[x, y] * watertracer_prev[x - 1, y, src]; }  // Flow from left:  -ve = inflow
+                            if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumInSrc[src] += dhdt_y[x, y + 1] * watertracer_prev[x, y + 1, src]; }  // Flow from up:    +ve = inflow
+                            if (dhdt_y[x, y] < 0.0) { dhdt_sumInSrc[src] -= dhdt_y[x, y] * watertracer_prev[x, y - 1, src]; }  // Flow from down:  -ve = inflow
+
+                            // update sources at this location
+                            if ((dhdt_sumInSrc[src] == 0.0) & (watertracer_prev[x, y, src] == 0.0)) // if there is no contribution or existing water from this source
+                            {
+                                watertracer[x, y, src] = 0.0;
+                            }
+                            else // if there are inflows or existing water from this source, update proportions
+                            {
+                                if (depth_after_outflows < 0) // just in case
+                                {
+                                    watertracer[x, y, src] = dhdt_sumInSrc[src] / (water_depth[x, y] - depth_after_outflows); // proportions are assigned based only on incoming water
+                                }
+                                else
+                                {
+                                    // ([depth of water from this source still in cell] + [depth of water from this source flowing in]) / [total depth now in cell]
+                                    watertracer[x, y, src] = ((depth_after_outflows * watertracer_prev[x, y, src]) + dhdt_sumInSrc[src]) / water_depth[x, y];
+                                }
+                            }
+
+                        }
+                        // deal with rain zones - MDW 01/04/16
+                        if (isTraceRainZonation == true && watertracer[x, y, 1] > 0.0)
+                        {
+                            for (int src = 0; src < nRainZones; src++) // MDW_V2 updated to zero index
+                            {
+                                dhdt_sumInSrcRainZone[src] = 0.0;
+
+                                // work out the total inflow from neighbouring cells for this source of water - ignore outflows
+                                if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumInSrcRainZone[src] += dhdt_x[x + 1, y] * watertracer_prev[x + 1, y, 1] * watertracerRainZone_prev[x + 1, y, src]; }  // Flow from right: +ve = inflow
+                                if (dhdt_x[x, y] < 0.0) { dhdt_sumInSrcRainZone[src] -= dhdt_x[x, y] * watertracer_prev[x - 1, y, 1] * watertracerRainZone_prev[x - 1, y, src]; }  // Flow from left:  -ve = inflow
+                                if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumInSrcRainZone[src] += dhdt_y[x, y + 1] * watertracer_prev[x, y + 1, 1] * watertracerRainZone_prev[x, y + 1, src]; }  // Flow from up:    +ve = inflow
+                                if (dhdt_y[x, y] < 0.0) { dhdt_sumInSrcRainZone[src] -= dhdt_y[x, y] * watertracer_prev[x, y - 1, 1] * watertracerRainZone_prev[x, y - 1, src]; }  // Flow from down:  -ve = inflow
+
+                                // update sources at this location
+                                if ((dhdt_sumInSrcRainZone[src] == 0.0) & (watertracerRainZone_prev[x, y, src] == 0.0)) // if there is no contribution or existing water from this source
+                                {
+                                    watertracerRainZone[x, y, src] = 0.0;
+                                }
+                                else // if there are inflows or existing water from this source, update proportions
+                                {
+                                    if (depth_after_outflows < 0) // just in case
+                                    {
+                                        watertracerRainZone[x, y, src] = dhdt_sumInSrcRainZone[src] / (water_depth[x, y] - depth_after_outflows); // proportions are assigned based only on incoming water
+                                    }
+                                    else
+                                    {
+                                        // ([rain depth from this zone still in cell] + [rain zone source flowing in])/ [total rain depth now in cell]
+                                        raindepth_after_outflows = depth_after_outflows * watertracer_prev[x, y, 1];
+                                        raindepth = water_depth[x, y] * watertracer[x, y, 1];
+                                        if (raindepth > 0.0) watertracerRainZone[x, y, src] = ((raindepth_after_outflows * watertracerRainZone_prev[x, y, src]) + dhdt_sumInSrcRainZone[src]) / raindepth;
+                                        else watertracerRainZone[x, y, src] = 0;
+                                    }
+                                }
+
+                            }
+                        }
+                        // update solute tracers - MDW_V2
+                        if (isTraceSolutes == true)
+                        {
+                            // MDW_Apr24: Reworked algorithm due to very large values accumulating, caused by division by very small depths.
+
+                            // work out the total inflow from neighbouring cells for all sources. Ignoring outflow. This is needed
+                            // for depth-averaging the solute amounts
+                            dhdt_sumIn = 0.0;
+                            if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumIn += dhdt_x[x + 1, y]; }  // Flow from right: +ve = inflow
+                            if (dhdt_x[x, y] < 0.0) { dhdt_sumIn -= dhdt_x[x, y]; }  // Flow from left:  -ve = inflow
+                            if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumIn += dhdt_y[x, y + 1]; }  // Flow from up:    +ve = inflow
+                            if (dhdt_y[x, y] < 0.0) { dhdt_sumIn -= dhdt_y[x, y]; }  // Flow from down:  -ve = inflow
+
+                            for (int src = 0; src < nSolutes; src++)
+                            {
+                                dhdt_sumInSrcSolutes[src] = 0.0;
+                                if (dhdt_sumIn > 0.0)
+                                {
+                                    // for each neighbouring cell, find the volume of this solute flowing from that cell: [total in that cell] * [dhdt from that cell]
+                                    // get depth weighted average of inputs from source cells = [total solute input]
+                                    dhdt_sumInSrcSolutes[src] = 0.0;
+
+                                    // work out the total solute*dhdt from neighbouring cells for this source of water - ignore outflows
+                                    if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumInSrcSolutes[src] += dhdt_x[x + 1, y] * solutetracer_prev[x + 1, y, src]; }  // Flow from right: +ve = inflow
+                                    if (dhdt_x[x, y] < 0.0) { dhdt_sumInSrcSolutes[src] -= dhdt_x[x, y] * solutetracer_prev[x - 1, y, src]; }  // Flow from left:  -ve = inflow
+                                    if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumInSrcSolutes[src] += dhdt_y[x, y + 1] * solutetracer_prev[x, y + 1, src]; }  // Flow from up:    +ve = inflow
+                                    if (dhdt_y[x, y] < 0.0) { dhdt_sumInSrcSolutes[src] -= dhdt_y[x, y] * solutetracer_prev[x, y - 1, src]; }  // Flow from down:  -ve = inflow
+
+                                    // MDW_Apr24: get weighted average of solutes flowing into this cell, ignore outflows [total_solute_input]:
+                                    dhdt_sumInSrcSolutes[src] = dhdt_sumInSrcSolutes[src] / dhdt_sumIn;
+                                }
+
+                                // update sources at this location
+                                if ((dhdt_sumInSrcSolutes[src] == 0.0) & (solutetracer_prev[x, y, src] == 0.0)) // if there is no contribution or existing solute from this source
+                                {
+                                    solutetracer[x, y, src] = 0.0;
+                                }
+                                else if ((dhdt_sumInSrcSolutes[src] == 0.0) & dhdt_sumOut < 0.0) // for no additions, solute concentration stays the same
+                                {
+                                    solutetracer[x, y, src] = solutetracer_prev[x, y, src];
+                                }
+                                else // if there are solute inflows or existing solute from this source, update amounts
+                                {
+                                    if (depth_after_outflows < 0 || water_depth_prev[x, y] == 0)  // cell empty, so solute amount = solutes from inflow
+                                    {
+                                        solutetracer[x, y, src] = dhdt_sumInSrcSolutes[src];
+                                    }
+                                    else
+                                    {
+                                        // updated solute amount is a depth weighted average of what was there and what is flowing in
+                                        solutetracer[x, y, src] = ((solutetracer_prev[x, y, src] * depth_after_outflows) +  // solute already there
+                                                                   (dhdt_sumInSrcSolutes[src] * dhdt_sumIn))                // solute flowing in
+                                                                   / water_depth[x, y];
+                                    }
+                                }
+                            }
+                        }
+
+                        // MDW_DEBUG
+                        // check for error
+                        /* double tracersum = 0.0;
+                        for (int src = 0; src <= nSources; src++)
+                        {
+                            tracersum += watertracer[x, y, src];
+                            if (tracersum > 1.0000001)
+                            {
+                                MessageBox.Show("Tracer exception caught: tracersum = " + Convert.ToString(tracersum) +
+                                    ", counter = " + Convert.ToString(counter) + ", cycle = " + Convert.ToString(cycle));
+                            }
+                        } */
+                    }
                 }
-                // deal with rain zones - MDW 01/04/16
-                if (isTraceRainZonation == true && watertracer[x, y, 1] > 0.0)
-                {
-                    for (int src = 0; src < nRainZones; src++) // MDW_V2 updated to zero index
-                    {
-                        dhdt_sumInSrcRainZone[src] = 0.0;
+            });
 
-                        // work out the total inflow from neighbouring cells for this source of water - ignore outflows
-                        if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumInSrcRainZone[src] += dhdt_x[x + 1, y] * watertracer_prev[x + 1, y, 1] * watertracerRainZone_prev[x + 1, y, src]; }  // Flow from right: +ve = inflow
-                        if (dhdt_x[x, y] < 0.0) { dhdt_sumInSrcRainZone[src] -= dhdt_x[x, y] * watertracer_prev[x - 1, y, 1] * watertracerRainZone_prev[x - 1, y, src]; }  // Flow from left:  -ve = inflow
-                        if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumInSrcRainZone[src] += dhdt_y[x, y + 1] * watertracer_prev[x, y + 1, 1] * watertracerRainZone_prev[x, y + 1, src]; }  // Flow from up:    +ve = inflow
-                        if (dhdt_y[x, y] < 0.0) { dhdt_sumInSrcRainZone[src] -= dhdt_y[x, y] * watertracer_prev[x, y - 1, 1] * watertracerRainZone_prev[x, y - 1, src]; }  // Flow from down:  -ve = inflow
 
-                        // update sources at this location
-                        if ((dhdt_sumInSrcRainZone[src] == 0.0) & (watertracerRainZone_prev[x, y, src] == 0.0)) // if there is no contribution or existing water from this source
-                        {
-                            watertracerRainZone[x, y, src] = 0.0;
-                        }
-                        else // if there are inflows or existing water from this source, update proportions
-                        {
-                            if (depth_after_outflows < 0) // just in case
-                            {
-                                watertracerRainZone[x, y, src] = dhdt_sumInSrcRainZone[src] / (water_depth[x, y] - depth_after_outflows); // proportions are assigned based only on incoming water
-                            }
-                            else
-                            {
-                                // ([rain depth from this zone still in cell] + [rain zone source flowing in])/ [total rain depth now in cell]
-                                raindepth_after_outflows = depth_after_outflows * watertracer_prev[x, y, 1];
-                                raindepth = water_depth[x, y] * watertracer[x, y, 1];
-                                if (raindepth > 0.0) watertracerRainZone[x, y, src] = ((raindepth_after_outflows * watertracerRainZone_prev[x, y, src]) + dhdt_sumInSrcRainZone[src]) / raindepth;
-                                else watertracerRainZone[x, y, src] = 0;
-                            }
-                        }
-
-                    }
-                }
-                // update solute tracers - MDW_V2
-                if (isTraceSolutes == true)
-                {
-                    // MDW_Apr24: Reworked algorithm due to very large values accumulating, caused by division by very small depths.
-
-                    // work out the total inflow from neighbouring cells for all sources. Ignoring outflow. This is needed
-                    // for depth-averaging the solute amounts
-                    dhdt_sumIn = 0.0;
-                    if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumIn += dhdt_x[x + 1, y]; }  // Flow from right: +ve = inflow
-                    if (dhdt_x[x, y] < 0.0) { dhdt_sumIn -= dhdt_x[x, y]; }  // Flow from left:  -ve = inflow
-                    if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumIn += dhdt_y[x, y + 1]; }  // Flow from up:    +ve = inflow
-                    if (dhdt_y[x, y] < 0.0) { dhdt_sumIn -= dhdt_y[x, y]; }  // Flow from down:  -ve = inflow
-
-                    for (int src = 0; src < nSolutes; src++)
-                    {
-                        dhdt_sumInSrcSolutes[src] = 0.0;
-                        if (dhdt_sumIn > 0.0)
-                        {
-                            // for each neighbouring cell, find the volume of this solute flowing from that cell: [total in that cell] * [dhdt from that cell]
-                            // get depth weighted average of inputs from source cells = [total solute input]
-                            dhdt_sumInSrcSolutes[src] = 0.0;
-
-                            // work out the total solute*dhdt from neighbouring cells for this source of water - ignore outflows
-                            if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumInSrcSolutes[src] += dhdt_x[x + 1, y] * solutetracer_prev[x + 1, y, src]; }  // Flow from right: +ve = inflow
-                            if (dhdt_x[x, y] < 0.0) { dhdt_sumInSrcSolutes[src] -= dhdt_x[x, y] * solutetracer_prev[x - 1, y, src]; }  // Flow from left:  -ve = inflow
-                            if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumInSrcSolutes[src] += dhdt_y[x, y + 1] * solutetracer_prev[x, y + 1, src]; }  // Flow from up:    +ve = inflow
-                            if (dhdt_y[x, y] < 0.0) { dhdt_sumInSrcSolutes[src] -= dhdt_y[x, y] * solutetracer_prev[x, y - 1, src]; }  // Flow from down:  -ve = inflow
-
-                            // MDW_Apr24: get weighted average of solutes flowing into this cell, ignore outflows [total_solute_input]:
-                            dhdt_sumInSrcSolutes[src] = dhdt_sumInSrcSolutes[src] / dhdt_sumIn;
-                        }
-
-                        // update sources at this location
-                        if ((dhdt_sumInSrcSolutes[src] == 0.0) & (solutetracer_prev[x, y, src] == 0.0)) // if there is no contribution or existing solute from this source
-                        {
-                            solutetracer[x, y, src] = 0.0;
-                        }
-                        else if ((dhdt_sumInSrcSolutes[src] == 0.0) & dhdt_sumOut < 0.0) // for no additions, solute concentration stays the same
-                        {
-                            solutetracer[x, y, src] = solutetracer_prev[x, y, src];
-                        }
-                        else // if there are solute inflows or existing solute from this source, update amounts
-                        {
-                            if (depth_after_outflows < 0 || water_depth_prev[x, y] == 0)  // cell empty, so solute amount = solutes from inflow
-                            {
-                                solutetracer[x, y, src] = dhdt_sumInSrcSolutes[src];
-                            }
-                            else
-                            {
-                                // updated solute amount is a depth weighted average of what was there and what is flowing in
-                                solutetracer[x, y, src] = ((solutetracer_prev[x, y, src] * depth_after_outflows) +  // solute already there
-                                                           (dhdt_sumInSrcSolutes[src] * dhdt_sumIn))                // solute flowing in
-                                                           / water_depth[x, y];
-                            }
-                        }
-                    }
-                }
-
-                // MDW_DEBUG
-                // check for error
-                /* double tracersum = 0.0;
-                for (int src = 0; src <= nSources; src++)
-                {
-                    tracersum += watertracer[x, y, src];
-                    if (tracersum > 1.0000001)
-                    {
-                        MessageBox.Show("Tracer exception caught: tracersum = " + Convert.ToString(tracersum) +
-                            ", counter = " + Convert.ToString(counter) + ", cycle = " + Convert.ToString(cycle));
-                    }
-                } */
-            }
         }
-    });
 
-
-}
-
-void initialise_oil_simulation() // OIL_V1
-{
-
-    /*
-    oil_density = Convert.ToDouble(OilDensity.Text);
-    ro_water = Convert.ToDouble(WaterDensity.Text);
-    oil_D = Convert.ToDouble(DiffusiveCoefficient.Text);
-    cinematic_v = Convert.ToDouble(OilViscosity.Text);
-    oil_T = Convert.ToDouble(OilTemperature.Text);
-    */
-
-    // Read in input cell coordinates, checking for valid values. Disable oil spill and skip rest if parse fails
-    if (!int.TryParse(OilYmin.Text, out oil_fromy) |
-        !int.TryParse(OilYmax.Text, out oil_toy) |
-        !int.TryParse(OilXmin.Text, out oil_fromx) |
-        !int.TryParse(OilXmax.Text, out oil_tox))
-    {
-        MessageBox.Show("Oil spill simulation: invalid values found in location of cell inputs. Disabling.");
-        isOilSimulation = false;
-        return;
-    }
-
-    // Check for out of bound input cells
-    if (Math.Min(oil_fromy, oil_toy) < 0 |
-        Math.Max(oil_fromy, oil_toy) > ymax |
-        Math.Min(oil_fromx, oil_tox) < 0 |
-        Math.Max(oil_fromx, oil_tox) > xmax)
-    {
-        MessageBox.Show("Oil spill simulation: input locations are out of bounds. Disabling.");
-        isOilSimulation = false;
-        return;
-    }
-
-    // Read in timings/ volumes, checking for valid values. Disable oil spill and skip rest if parse fails
-    if (!double.TryParse(OilTimeMin.Text, out oil_startt) |
-        !double.TryParse(OilDepthStart.Text, out oil_starth) |
-        !double.TryParse(OilVolume.Text, out oil_totalv) |
-        !double.TryParse(OilSpillDuration.Text, out oil_spillt))
-    {
-        MessageBox.Show("Oil spill simulation: invalid values found in start/ minimum depth/ volume/ duration inputs. Disabling.");
-        isOilSimulation = false;
-        return;
-    }
-    oil_startt /= 60; // convert to minutes, same unit as time counter
-
-    // Check volume, duration:  zero or negative leads to disabling oil simulation
-    if (oil_totalv <= 0 | oil_spillt <= 0)
-    {
-        MessageBox.Show("Oil spill simulation: volume and/or duration is zero or negative. Disabling.");
-        isOilSimulation = false;
-        return;
-    }
-
-    // Check start time: negative values is invalid
-    if (oil_startt < 0)
-    {
-        MessageBox.Show("Oil spill simulation: start time is negative. Disabling.");
-        isOilSimulation = false;
-        return;
-    }
-
-    // Check start time against length of simulation
-    if (oil_startt > (maxcycle * 60))
-    {
-        MessageBox.Show("Oil spill simulation: start time is set to after the end of the simulation, so the spill will never occur. Disabling.");
-        isOilSimulation = false;
-        return;
-    }
-
-    // Check depth threshold: minimum default value
-    if (oil_starth < 0.01)
-    {
-        MessageBox.Show("Oil spill simulation: depth threshold must be at least 0.01 m. Updating and continuing.");
-        oil_starth = 0.01;
-    }
-
-    // All ok at this point
-
-    // Initialise the constant spill rate
-    oil_ratev = oil_totalv / oil_spillt;
-
-    // initialise the input number of cells, taking account of a 1x1 input
-    oil_n_cells = Math.Max(Math.Max(oil_fromx, oil_tox) - Math.Min(oil_fromx, oil_tox), 1) *
-                  Math.Max(Math.Max(oil_fromy, oil_toy) - Math.Min(oil_fromy, oil_toy), 1);
-
-    // Initialise other parameters - to be added to interface
-    oil_density = 805; //then to be defined in the graphical interface input
-    ro_water = 1000;
-    oil_D = 0.0000002;
-    cinematic_v = 6;
-    oil_T = 20;
-
-    // Assign arrays
-    oil_M = new double[xmax, ymax];
-    oil_Mx = new double[xmax, ymax];
-    oil_My = new double[xmax, ymax];
-    oil_depth = new double[xmax, ymax];
-    oil_V = new double[xmax, ymax];
-
-    oil_depth_y = new double[xmax, ymax];
-    oil_depth_x = new double[xmax, ymax];
-    oil_depth_update = new double[xmax, ymax];
-
-
-
-
-}
-bool oil_check_depth_threshold()
-{
-    for (int x = Math.Min(oil_fromx, oil_tox); x <= Math.Max(oil_fromx, oil_tox); x++)
-    {
-        for (int y = Math.Min(oil_fromy, oil_toy); y <= Math.Max(oil_fromy, oil_toy); y++)
+        void initialise_oil_simulation() // OIL_V1
         {
-            if (water_depth[x, y] > oil_starth) return true;
+
+            /*
+            oil_density = Convert.ToDouble(OilDensity.Text);
+            ro_water = Convert.ToDouble(WaterDensity.Text);
+            oil_D = Convert.ToDouble(DiffusiveCoefficient.Text);
+            cinematic_v = Convert.ToDouble(OilViscosity.Text);
+            oil_T = Convert.ToDouble(OilTemperature.Text);
+            */
+
+            // Read in input cell coordinates, checking for valid values. Disable oil spill and skip rest if parse fails
+            if (!int.TryParse(OilYmin.Text, out oil_fromy) |
+                !int.TryParse(OilYmax.Text, out oil_toy) |
+                !int.TryParse(OilXmin.Text, out oil_fromx) |
+                !int.TryParse(OilXmax.Text, out oil_tox))
+            {
+                MessageBox.Show("Oil spill simulation: invalid values found in location of cell inputs. Disabling.");
+                isOilSimulation = false;
+                return;
+            }
+
+            // Check for out of bound input cells
+            if (Math.Min(oil_fromy, oil_toy) < 0 |
+                Math.Max(oil_fromy, oil_toy) > ymax |
+                Math.Min(oil_fromx, oil_tox) < 0 |
+                Math.Max(oil_fromx, oil_tox) > xmax)
+            {
+                MessageBox.Show("Oil spill simulation: input locations are out of bounds. Disabling.");
+                isOilSimulation = false;
+                return;
+            }
+
+            // Read in timings/ volumes, checking for valid values. Disable oil spill and skip rest if parse fails
+            if (!double.TryParse(OilTimeMin.Text, out oil_startt) |
+                !double.TryParse(OilDepthStart.Text, out oil_starth) |
+                !double.TryParse(OilVolume.Text, out oil_totalv) |
+                !double.TryParse(OilSpillDuration.Text, out oil_spillt))
+            {
+                MessageBox.Show("Oil spill simulation: invalid values found in start/ minimum depth/ volume/ duration inputs. Disabling.");
+                isOilSimulation = false;
+                return;
+            }
+            oil_startt /= 60; // convert to minutes, same unit as time counter
+
+            // Check volume, duration:  zero or negative leads to disabling oil simulation
+            if (oil_totalv <= 0 | oil_spillt <= 0)
+            {
+                MessageBox.Show("Oil spill simulation: volume and/or duration is zero or negative. Disabling.");
+                isOilSimulation = false;
+                return;
+            }
+
+            // Check start time: negative values is invalid
+            if (oil_startt < 0)
+            {
+                MessageBox.Show("Oil spill simulation: start time is negative. Disabling.");
+                isOilSimulation = false;
+                return;
+            }
+
+            // Check start time against length of simulation
+            if (oil_startt > (maxcycle * 60))
+            {
+                MessageBox.Show("Oil spill simulation: start time is set to after the end of the simulation, so the spill will never occur. Disabling.");
+                isOilSimulation = false;
+                return;
+            }
+
+            // Check depth threshold: minimum default value
+            if (oil_starth < 0.01)
+            {
+                MessageBox.Show("Oil spill simulation: depth threshold must be at least 0.01 m. Updating and continuing.");
+                oil_starth = 0.01;
+            }
+
+            // All ok at this point
+
+            // Initialise the constant spill rate
+            oil_ratev = oil_totalv / oil_spillt;
+
+            // initialise the input number of cells, taking account of a 1x1 input
+            oil_n_cells = Math.Max(Math.Max(oil_fromx, oil_tox) - Math.Min(oil_fromx, oil_tox), 1) *
+                          Math.Max(Math.Max(oil_fromy, oil_toy) - Math.Min(oil_fromy, oil_toy), 1);
+
+            // Initialise other parameters - to be added to interface
+            oil_density = 805; //then to be defined in the graphical interface input
+            ro_water = 1000;
+            oil_D = 0.0000002;
+            cinematic_v = 6;
+            oil_T = 20;
+
+            // Assign arrays
+            oil_M = new double[xmax, ymax];
+            oil_Mx = new double[xmax, ymax];
+            oil_My = new double[xmax, ymax];
+            oil_depth = new double[xmax, ymax];
+            oil_V = new double[xmax, ymax];
+
+            dh_oil_y = new double[xmax, ymax];
+            dh_oil_x = new double[xmax, ymax];
+            oil_depth_update = new double[xmax, ymax];
+
+
+
+
         }
-    }
-    return false;
-}
+        bool oil_check_depth_threshold()
+        {
+            for (int x = Math.Min(oil_fromx, oil_tox); x <= Math.Max(oil_fromx, oil_tox); x++)
+            {
+                for (int y = Math.Min(oil_fromy, oil_toy); y <= Math.Max(oil_fromy, oil_toy); y++)
+                {
+                    if (water_depth[x, y] > oil_starth) return true;
+                }
+            }
+            return false;
+        }
 
-void scan_area()
-{
-    double tempW = 0;// water_depth_erosion_threshold;
-    var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
-    Parallel.For(1, ymax + 1, options, delegate (int y)
-      {
-          int inc = 1;
-
-          for (int x = 1; x <= xmax; x++)
-          {
-              // zero scan bit..
-              down_scan[y, x] = 0;
-              // and work out scanned area.
-              if (water_depth[x, y] > tempW
-                    || water_depth[x - 1, y] > tempW
-                    //|| water_depth[x - 1, y - 1] > tempW
-                    //|| water_depth[x - 1, y + 1] > tempW
-                    //|| water_depth[x + 1, y - 1] > tempW
-                    //|| water_depth[x + 1, y + 1] > tempW
-                    || water_depth[x, y - 1] > tempW
-                    || water_depth[x + 1, y] > tempW
-                    || water_depth[x, y + 1] > tempW)
+        void scan_area()
+        {
+            double tempW = 0;// water_depth_erosion_threshold;
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+            Parallel.For(1, ymax + 1, options, delegate (int y)
               {
-                  down_scan[y, inc] = x;
-                  inc++;
-              }
-          }
-      });
+                  int inc = 1;
+
+                  for (int x = 1; x <= xmax; x++)
+                  {
+                      // zero scan bit..
+                      down_scan[y, x] = 0;
+                      // and work out scanned area.
+                      if (water_depth[x, y] > tempW
+                            || water_depth[x - 1, y] > tempW
+                            //|| water_depth[x - 1, y - 1] > tempW
+                            //|| water_depth[x - 1, y + 1] > tempW
+                            //|| water_depth[x + 1, y - 1] > tempW
+                            //|| water_depth[x + 1, y + 1] > tempW
+                            || water_depth[x, y - 1] > tempW
+                            || water_depth[x + 1, y] > tempW
+                            || water_depth[x, y + 1] > tempW)
+                      {
+                          down_scan[y, inc] = x;
+                          inc++;
+                      }
+                  }
+              });
 
 
 
-    Parallel.For(1, xmax + 1, options, delegate (int x)
-    {
-
-        int inc = 1;
-        for (int y = 1; y <= ymax; y++)
-        {
-            cross_scan[x, y] = 0;
-            if (water_depth[x, y] > tempW
-                || water_depth[x - 1, y] > tempW
-                || water_depth[x + 1, y] > tempW
-                || water_depth[x, y - 1] > tempW
-                || water_depth[x, y + 1] > tempW)
-            {
-                cross_scan[x, inc] = y;
-                inc++;
-            }
-            //discharge[x,y]=0;
-        }
-
-    });
-
-
-}
-
-private void zero_values()
-{
-    int x, y, z, n;
-
-    for (y = 0; y <= ymax; y++)
-    {
-        for (x = 0; x <= xmax; x++)
-        {
-            Vel[x, y] = 0;
-            area[x, y] = 0;
-            elev[x, y] = 0;
-            angle_threshold[x, y] = 0;
-            bedrock[x, y] = -9999;
-            init_elevs[x, y] = elev[x, y];
-            water_depth[x, y] = 0;
-            index[x, y] = -9999;
-            inputpointsarray[x, y] = false;
-            veg[x, y, 0] = 0;// elevation
-            veg[x, y, 1] = 0; // density
-            veg[x, y, 2] = 0; // jw density
-            veg[x, y, 3] = 0; // height
-
-            edge[x, y] = 0;
-            edge2[x, y] = 0;
-
-
-            sand[x, y] = 0;
-
-            qx[x, y] = 0;
-            qy[x, y] = 0;
-
-            for (int T = 0; T <= tracers; T++) qxs[x, y, T] = 0;
-            for (int T = 0; T <= tracers; T++) qys[x, y, T] = 0;
-
-
-            for (n = 0; n <= 8; n++) vel_dir[x, y, n] = 0;
-
-            for (int T = 0; T <= tracers; T++) Vsusptot[x, y, T] = 0;
-
-            rfarea[x, y] = 1;
-
-            tracer_area[x, y] = 0;
-
-            grain_area[x, y] = 0;
-
-            if (SpatVarManningsCheckbox.Checked == true) spat_var_mannings[x, y] = mannings;
-
-        }
-    }
-
-    for (x = 1; x < ((xmax * ymax) / LIMIT); x++)
-    {
-
-        for (y = 0; y <= G_MAX; y++)
-        {
-            for (int T = 0; T <= tracers; T++) grain[x, y, T] = 0;
-        }
-        for (z = 0; z <= 9; z++)
-        {
-            for (y = 0; y <= G_MAX - 2; y++)
+            Parallel.For(1, xmax + 1, options, delegate (int x)
             {
 
-                for (int T = 0; T <= tracers; T++) strata[x, z, y, T] = 0;
+                int inc = 1;
+                for (int y = 1; y <= ymax; y++)
+                {
+                    cross_scan[x, y] = 0;
+                    if (water_depth[x, y] > tempW
+                        || water_depth[x - 1, y] > tempW
+                        || water_depth[x + 1, y] > tempW
+                        || water_depth[x, y - 1] > tempW
+                        || water_depth[x, y + 1] > tempW)
+                    {
+                        cross_scan[x, inc] = y;
+                        inc++;
+                    }
+                    //discharge[x,y]=0;
+                }
+
+            });
+
+
+        }
+
+        private void zero_values()
+        {
+            int x, y, z, n;
+
+            for (y = 0; y <= ymax; y++)
+            {
+                for (x = 0; x <= xmax; x++)
+                {
+                    Vel[x, y] = 0;
+                    area[x, y] = 0;
+                    elev[x, y] = 0;
+                    angle_threshold[x, y] = 0;
+                    bedrock[x, y] = -9999;
+                    init_elevs[x, y] = elev[x, y];
+                    water_depth[x, y] = 0;
+                    index[x, y] = -9999;
+                    inputpointsarray[x, y] = false;
+                    veg[x, y, 0] = 0;// elevation
+                    veg[x, y, 1] = 0; // density
+                    veg[x, y, 2] = 0; // jw density
+                    veg[x, y, 3] = 0; // height
+
+                    edge[x, y] = 0;
+                    edge2[x, y] = 0;
+
+
+                    sand[x, y] = 0;
+
+                    qx[x, y] = 0;
+                    qy[x, y] = 0;
+
+                    for (int T = 0; T <= tracers; T++) qxs[x, y, T] = 0;
+                    for (int T = 0; T <= tracers; T++) qys[x, y, T] = 0;
+
+
+                    for (n = 0; n <= 8; n++) vel_dir[x, y, n] = 0;
+
+                    for (int T = 0; T <= tracers; T++) Vsusptot[x, y, T] = 0;
+
+                    rfarea[x, y] = 1;
+
+                    tracer_area[x, y] = 0;
+
+                    grain_area[x, y] = 0;
+
+                    if (SpatVarManningsCheckbox.Checked == true) spat_var_mannings[x, y] = mannings;
+
+                }
+            }
+
+            for (x = 1; x < ((xmax * ymax) / LIMIT); x++)
+            {
+
+                for (y = 0; y <= G_MAX; y++)
+                {
+                    for (int T = 0; T <= tracers; T++) grain[x, y, T] = 0;
+                }
+                for (z = 0; z <= 9; z++)
+                {
+                    for (y = 0; y <= G_MAX - 2; y++)
+                    {
+
+                        for (int T = 0; T <= tracers; T++) strata[x, z, y, T] = 0;
+                    }
+                }
+                catchment_input_x_coord[x] = 0;
+                catchment_input_y_coord[x] = 0;
+            }
+
+            for (x = 1; x <= rfnum; x++)
+            {
+                j[x] = 0.000000001;
+                jo[x] = 0.000000001;
+                j_mean[x] = 0;
+                old_j_mean[x] = 0;
+                new_j_mean[x] = 0;
+                M[x] = double.Parse(mvaluebox.Text);
             }
         }
-        catchment_input_x_coord[x] = 0;
-        catchment_input_y_coord[x] = 0;
-    }
 
-    for (x = 1; x <= rfnum; x++)
-    {
-        j[x] = 0.000000001;
-        jo[x] = 0.000000001;
-        j_mean[x] = 0;
-        old_j_mean[x] = 0;
-        new_j_mean[x] = 0;
-        M[x] = double.Parse(mvaluebox.Text);
-    }
-}
-
-private void initialize_grain_strata()
-{
-    int x, y, inc;
-    grain_array_tot = 0;
-    // initialize the grain and strata file if in tracer mode
-    if (checkBox_tracer.Checked)
-    {
-
-        for (y = 1; y <= ymax; y++)
+        private void initialize_grain_strata()
         {
+            int x, y, inc;
+            grain_array_tot = 0;
+            // initialize the grain and strata file if in tracer mode
+            if (checkBox_tracer.Checked)
+            {
+
+                for (y = 1; y <= ymax; y++)
+                {
+                    for (x = 1; x <= xmax; x++)
+                    {
+                        if (elev[x, y] > -9999)
+                        {
+                            grain_array_tot++;
+                            index[x, y] = grain_array_tot;
+
+                            grain[grain_array_tot, 0, tracer_area[x, y]] = 0;
+                            for (int i = 1; i <= G_MAX - 1; i++)
+                            {
+                                if (grain_area[x, y] == 0)
+                                { grain[grain_array_tot, i, tracer_area[x, y]] = active * dprop[i]; }
+                                else if (grain_area[x, y] == 1)
+                                { grain[grain_array_tot, i, tracer_area[x, y]] = active * dprop_[i]; }
+                            }
+                            grain[grain_array_tot, G_MAX, tracer_area[x, y]] = 0;
+
+                            for (int rr = 0; rr <= 9; rr++)
+                            {
+                                for (inc = 0; inc <= (G_MAX - 2); inc++)
+                                {
+                                    if (grain_area[x, y] == 0)
+                                    { strata[grain_array_tot, rr, inc, tracer_area[x, y]] = active * dprop[inc + 1]; }
+                                    else if (grain_area[x, y] == 1)
+                                    { strata[grain_array_tot, rr, inc, tracer_area[x, y]] = active * dprop_[inc + 1]; }
+                                }
+                            }
+
+                        }
+                    }
+                }
+            }
+
+        }
+
+        void dune1(double time) // does dune things from top to bottom
+        {
+            int dune_recirculate = 0;
+            int x, y, n, prob, counter1 = 1, ytemp, ytemp2, x2, y2;
+            int t, checkup = int.Parse(upstream_check_box.Text);
+            int flag = 1;
+
+            double maxslabdepth = double.Parse(slab_depth_box.Text);
+            int dep_probability = int.Parse(depo_prob_box.Text);
+            int downstream_offset = int.Parse(offset_box.Text);
+            double number_slabs_per_col = double.Parse(init_depth_box.Text);
+            double angle = double.Parse(shadow_angle_box.Text);
+
+            double fractiondune = double.Parse(fraction_dune.Text);
+            double slabdepth = maxslabdepth;
+
+            double factor = Math.Tan((angle * (3.141592654 / 180))) * (DX / dune_mult);
+            Random xr = new Random();
+
+            double[,] oldelev;
+            oldelev = new double[xmax + 2, ymax + 2];
+
             for (x = 1; x <= xmax; x++)
             {
-                if (elev[x, y] > -9999)
+                for (y = 1; y <= ymax; y++)
                 {
-                    grain_array_tot++;
-                    index[x, y] = grain_array_tot;
-
-                    grain[grain_array_tot, 0, tracer_area[x, y]] = 0;
-                    for (int i = 1; i <= G_MAX - 1; i++)
-                    {
-                        if (grain_area[x, y] == 0)
-                        { grain[grain_array_tot, i, tracer_area[x, y]] = active * dprop[i]; }
-                        else if (grain_area[x, y] == 1)
-                        { grain[grain_array_tot, i, tracer_area[x, y]] = active * dprop_[i]; }
-                    }
-                    grain[grain_array_tot, G_MAX, tracer_area[x, y]] = 0;
-
-                    for (int rr = 0; rr <= 9; rr++)
-                    {
-                        for (inc = 0; inc <= (G_MAX - 2); inc++)
-                        {
-                            if (grain_area[x, y] == 0)
-                            { strata[grain_array_tot, rr, inc, tracer_area[x, y]] = active * dprop[inc + 1]; }
-                            else if (grain_area[x, y] == 1)
-                            { strata[grain_array_tot, rr, inc, tracer_area[x, y]] = active * dprop_[inc + 1]; }
-                        }
-                    }
-
-                }
-            }
-        }
-    }
-
-}
-
-void dune1(double time) // does dune things from top to bottom
-{
-    int dune_recirculate = 0;
-    int x, y, n, prob, counter1 = 1, ytemp, ytemp2, x2, y2;
-    int t, checkup = int.Parse(upstream_check_box.Text);
-    int flag = 1;
-
-    double maxslabdepth = double.Parse(slab_depth_box.Text);
-    int dep_probability = int.Parse(depo_prob_box.Text);
-    int downstream_offset = int.Parse(offset_box.Text);
-    double number_slabs_per_col = double.Parse(init_depth_box.Text);
-    double angle = double.Parse(shadow_angle_box.Text);
-
-    double fractiondune = double.Parse(fraction_dune.Text);
-    double slabdepth = maxslabdepth;
-
-    double factor = Math.Tan((angle * (3.141592654 / 180))) * (DX / dune_mult);
-    Random xr = new Random();
-
-    double[,] oldelev;
-    oldelev = new double[xmax + 2, ymax + 2];
-
-    for (x = 1; x <= xmax; x++)
-    {
-        for (y = 1; y <= ymax; y++)
-        {
-            // subtract eleev from sand so splitting into sand and elev for dune part...
-            oldelev[x, y] = elev[x, y];
+                    // subtract eleev from sand so splitting into sand and elev for dune part...
+                    oldelev[x, y] = elev[x, y];
 
 
-            double sandsum = 0;
-            double sand_diff = 0;
-            for (x2 = 0; x2 < dune_mult; x2++)
-            {
-                for (y2 = 0; y2 < dune_mult; y2++)
-                {
-                    // this next line is needed to remove all sand from the far LH and RH cells
-                    if (x == xmax) sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] = 0;
-                    if (x == 1) sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] = 0;
-
-                    if (sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] > 0)
-                    {
-                        sandsum += sand2[(x * dune_mult) - x2, (y * dune_mult) - y2];
-                    }
-
-                }
-            }
-
-            // if water then transfer sand back to elev.
-            if (water_depth[x, y] >= water_depth_erosion_threshold) sand[x, y] = 0;
-
-
-            // then check and see if sand is less than sand2 - meaning there has been addition of dune sand to flucial sand
-            if (sand[x, y] < (sandsum / (dune_mult * dune_mult)))
-            {
-                sand_diff = (sandsum / (dune_mult * dune_mult)) - sand[x, y];
-
-
-                //if waterdepth >0 then sand > elev and grain (at a rate)
-                //then also reduce sand 2 by same amount transferred.
-
-
-
-                double tempsandvol = sand_diff;// amount to be removed from sand2...
-
-                // now has to reduce sand vol..
-                double sand2tot = 0;
-                int sand2num = 0;
-                for (x2 = 0; x2 < dune_mult; x2++)
-                {
-                    for (y2 = 0; y2 < dune_mult; y2++)
-                    {
-                        if (sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] > 0)
-                        {
-                            sand2tot += sand2[(x * dune_mult) - x2, (y * dune_mult) - y2];
-                            sand2num++;
-                        }
-
-                    }
-                }
-                for (x2 = 0; x2 < dune_mult; x2++)
-                {
-                    for (y2 = 0; y2 < dune_mult; y2++)
-                    {
-                        if (sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] > 0)
-                        {
-                            sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] -= (tempsandvol * dune_mult * dune_mult) *
-                                (sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] / sand2tot);
-
-                        }
-
-                    }
-                }
-            }
-
-            elev[x, y] -= sand[x, y];
-
-            // check to add to sand from grain (if no water)
-            // if so then update sand and sand2 (and elev if subtracting from grain and
-            // adding to sand
-
-            if (water_depth[x, y] < water_depth_erosion_threshold)
-            {
-                if (elev[x, y] - init_elevs[x, y] > 0)
-                {
-                    double tempslabdepth = elev[x, y] - init_elevs[x, y];
-                    //if (tempslabdepth < slabdepth) tempslabdepth = 0;
-                    if (tempslabdepth > slabdepth) tempslabdepth = slabdepth;
-                    sand[x, y] += tempslabdepth;
-                    elev[x, y] -= tempslabdepth;
-
-                    // now also update sand2 values... averaged across cell.
+                    double sandsum = 0;
+                    double sand_diff = 0;
                     for (x2 = 0; x2 < dune_mult; x2++)
                     {
                         for (y2 = 0; y2 < dune_mult; y2++)
                         {
-                            sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] += tempslabdepth;
+                            // this next line is needed to remove all sand from the far LH and RH cells
+                            if (x == xmax) sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] = 0;
+                            if (x == 1) sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] = 0;
+
+                            if (sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] > 0)
+                            {
+                                sandsum += sand2[(x * dune_mult) - x2, (y * dune_mult) - y2];
+                            }
+
+                        }
+                    }
+
+                    // if water then transfer sand back to elev.
+                    if (water_depth[x, y] >= water_depth_erosion_threshold) sand[x, y] = 0;
+
+
+                    // then check and see if sand is less than sand2 - meaning there has been addition of dune sand to flucial sand
+                    if (sand[x, y] < (sandsum / (dune_mult * dune_mult)))
+                    {
+                        sand_diff = (sandsum / (dune_mult * dune_mult)) - sand[x, y];
+
+
+                        //if waterdepth >0 then sand > elev and grain (at a rate)
+                        //then also reduce sand 2 by same amount transferred.
+
+
+
+                        double tempsandvol = sand_diff;// amount to be removed from sand2...
+
+                        // now has to reduce sand vol..
+                        double sand2tot = 0;
+                        int sand2num = 0;
+                        for (x2 = 0; x2 < dune_mult; x2++)
+                        {
+                            for (y2 = 0; y2 < dune_mult; y2++)
+                            {
+                                if (sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] > 0)
+                                {
+                                    sand2tot += sand2[(x * dune_mult) - x2, (y * dune_mult) - y2];
+                                    sand2num++;
+                                }
+
+                            }
+                        }
+                        for (x2 = 0; x2 < dune_mult; x2++)
+                        {
+                            for (y2 = 0; y2 < dune_mult; y2++)
+                            {
+                                if (sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] > 0)
+                                {
+                                    sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] -= (tempsandvol * dune_mult * dune_mult) *
+                                        (sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] / sand2tot);
+
+                                }
+
+                            }
+                        }
+                    }
+
+                    elev[x, y] -= sand[x, y];
+
+                    // check to add to sand from grain (if no water)
+                    // if so then update sand and sand2 (and elev if subtracting from grain and
+                    // adding to sand
+
+                    if (water_depth[x, y] < water_depth_erosion_threshold)
+                    {
+                        if (elev[x, y] - init_elevs[x, y] > 0)
+                        {
+                            double tempslabdepth = elev[x, y] - init_elevs[x, y];
+                            //if (tempslabdepth < slabdepth) tempslabdepth = 0;
+                            if (tempslabdepth > slabdepth) tempslabdepth = slabdepth;
+                            sand[x, y] += tempslabdepth;
+                            elev[x, y] -= tempslabdepth;
+
+                            // now also update sand2 values... averaged across cell.
+                            for (x2 = 0; x2 < dune_mult; x2++)
+                            {
+                                for (y2 = 0; y2 < dune_mult; y2++)
+                                {
+                                    sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] += tempslabdepth;
+                                }
+                            }
+
+                        }
+
+                    }
+
+                    //update elev2 from elev
+                    for (x2 = 0; x2 < dune_mult; x2++)
+                    {
+                        for (y2 = 0; y2 < dune_mult; y2++)
+                        {
+                            elev2[(x * dune_mult) - x2, (y * dune_mult) - y2] = elev[x, y];
                         }
                     }
 
                 }
+            }
+
+            /////////////////////////////////////////////////////////////
+            // adding sand part
+            /////////////////////////////////////////////////////////////
+
+            //if (Math.IEEERemainder((int)(cycle / 60000), 2) == 0)
+            //if (Math.IEEERemainder((int)(cycle), 2) == 0)
+
+            for (x = 50; x < (xmax) * dune_mult * fractiondune; x++)
+            {
+                //if(Math.IEEERemainder(Math.Abs(x/50)-1,3)==0)sand2[x, 1] = initial_sand_depth;
+                sand2[xr.Next(50, (xmax * dune_mult)), 1] += number_slabs_per_col;
 
             }
 
-            //update elev2 from elev
-            for (x2 = 0; x2 < dune_mult; x2++)
+            /////////////////////////////////////////////////////////////
+            // end of adding sand code ///
+            /////////////////////////////////////////////////////////////
+
+
+            // check everywhere for sand landslides
+            for (x = 1; x <= xmax * dune_mult; x++)
             {
-                for (y2 = 0; y2 < dune_mult; y2++)
+                for (y = 1; y <= ymax * dune_mult; y++)
                 {
-                    elev2[(x * dune_mult) - x2, (y * dune_mult) - y2] = elev[x, y];
+                    slide_4(x, y);
                 }
             }
 
-        }
-    }
 
-    /////////////////////////////////////////////////////////////
-    // adding sand part
-    /////////////////////////////////////////////////////////////
-
-    //if (Math.IEEERemainder((int)(cycle / 60000), 2) == 0)
-    //if (Math.IEEERemainder((int)(cycle), 2) == 0)
-
-    for (x = 50; x < (xmax) * dune_mult * fractiondune; x++)
-    {
-        //if(Math.IEEERemainder(Math.Abs(x/50)-1,3)==0)sand2[x, 1] = initial_sand_depth;
-        sand2[xr.Next(50, (xmax * dune_mult)), 1] += number_slabs_per_col;
-
-    }
-
-    /////////////////////////////////////////////////////////////
-    // end of adding sand code ///
-    /////////////////////////////////////////////////////////////
-
-
-    // check everywhere for sand landslides
-    for (x = 1; x <= xmax * dune_mult; x++)
-    {
-        for (y = 1; y <= ymax * dune_mult; y++)
-        {
-            slide_4(x, y);
-        }
-    }
-
-
-    for (n = 1; n <= fractiondune * (xmax * dune_mult) * (ymax * dune_mult); n++)
-    {
-
-        // creating random x and y co-ords to check...
-        x = xr.Next(1, (xmax * dune_mult) + 1);
-        y = xr.Next(1, (ymax * dune_mult) + 1);
-        prob = 100;
-        counter1 = 0;
-        flag = 1;
-
-        //if (sand2[x, y] >= slabdepth)
-        if (sand2[x, y] >= slabdepth && water_depth[Math.Abs(x / dune_mult), Math.Abs(y / dune_mult)] < water_depth_erosion_threshold)
-        {
-            // to see if should be entrained or not...
-            for (t = 1; t <= checkup; t++)
+            for (n = 1; n <= fractiondune * (xmax * dune_mult) * (ymax * dune_mult); n++)
             {
-                ytemp = y - t;
-                if (dune_recirculate == 1 && ytemp < 1) ytemp = (ymax * dune_mult) + ytemp;
-                if (dune_recirculate == 0 && ytemp < 1) ytemp = 1;
-                if (((sand2[x, ytemp] + elev2[x, ytemp]) - (sand2[x, y] + elev2[x, y])) > (factor * (t)))
+
+                // creating random x and y co-ords to check...
+                x = xr.Next(1, (xmax * dune_mult) + 1);
+                y = xr.Next(1, (ymax * dune_mult) + 1);
+                prob = 100;
+                counter1 = 0;
+                flag = 1;
+
+                //if (sand2[x, y] >= slabdepth)
+                if (sand2[x, y] >= slabdepth && water_depth[Math.Abs(x / dune_mult), Math.Abs(y / dune_mult)] < water_depth_erosion_threshold)
                 {
-                    flag = 0;
-                    t = checkup;
-                }
-
-            }
-
-
-            // now having decided it can be eroded, now see if it can be moved
-            if (flag == 1)
-            {
-                // while random number greater than prob then move on one if poss..
-                while (prob > dep_probability)
-                {
-                    counter1++; // shift down one cell...
-                    prob = xr.Next(1, 100); // new random number
-
-                    //// try moving left and right??
-                    //if (xr.Next(1, 100) > 70) x++;
-                    //if (xr.Next(1, 100) > 70) x--;
-                    //if (x < 1) x = (xmax * dune_mult);
-                    //if (x > (xmax * dune_mult)) x = 1;
-
-
-                    // now adding in the downsrtream offset if needed done by ensuring prob is 100
-                    if (counter1 < downstream_offset) prob = 100; // break;
-
-                    // change comments on below lines if you want water to stop sand movement or not
-                    //if (water_depth[Math.Abs(x/dune_mult),Math.Abs((y)/dune_mult)] >= water_depth_erosion_threshold) prob = 0;
-                    if (water_depth[Math.Abs(x / dune_mult), Math.Abs((y + Math.Abs(counter1 / dune_mult)) / dune_mult)] >= water_depth_erosion_threshold) prob = 0;
-
-                    // seeing if in shadow or not...
-                    for (t = 1; t < checkup; t++)
+                    // to see if should be entrained or not...
+                    for (t = 1; t <= checkup; t++)
                     {
-                        ytemp = (y + counter1) - t;
-                        ytemp2 = (y + counter1);
-                        if (dune_recirculate == 0 && ytemp < 1) ytemp = 1;
+                        ytemp = y - t;
                         if (dune_recirculate == 1 && ytemp < 1) ytemp = (ymax * dune_mult) + ytemp;
+                        if (dune_recirculate == 0 && ytemp < 1) ytemp = 1;
+                        if (((sand2[x, ytemp] + elev2[x, ytemp]) - (sand2[x, y] + elev2[x, y])) > (factor * (t)))
+                        {
+                            flag = 0;
+                            t = checkup;
+                        }
+
+                    }
+
+
+                    // now having decided it can be eroded, now see if it can be moved
+                    if (flag == 1)
+                    {
+                        // while random number greater than prob then move on one if poss..
+                        while (prob > dep_probability)
+                        {
+                            counter1++; // shift down one cell...
+                            prob = xr.Next(1, 100); // new random number
+
+                            //// try moving left and right??
+                            //if (xr.Next(1, 100) > 70) x++;
+                            //if (xr.Next(1, 100) > 70) x--;
+                            //if (x < 1) x = (xmax * dune_mult);
+                            //if (x > (xmax * dune_mult)) x = 1;
+
+
+                            // now adding in the downsrtream offset if needed done by ensuring prob is 100
+                            if (counter1 < downstream_offset) prob = 100; // break;
+
+                            // change comments on below lines if you want water to stop sand movement or not
+                            //if (water_depth[Math.Abs(x/dune_mult),Math.Abs((y)/dune_mult)] >= water_depth_erosion_threshold) prob = 0;
+                            if (water_depth[Math.Abs(x / dune_mult), Math.Abs((y + Math.Abs(counter1 / dune_mult)) / dune_mult)] >= water_depth_erosion_threshold) prob = 0;
+
+                            // seeing if in shadow or not...
+                            for (t = 1; t < checkup; t++)
+                            {
+                                ytemp = (y + counter1) - t;
+                                ytemp2 = (y + counter1);
+                                if (dune_recirculate == 0 && ytemp < 1) ytemp = 1;
+                                if (dune_recirculate == 1 && ytemp < 1) ytemp = (ymax * dune_mult) + ytemp;
+                                if (dune_recirculate == 1)
+                                {
+                                    if (ytemp > (ymax * dune_mult)) ytemp = 0 + (ytemp - (ymax * dune_mult));
+                                    if (ytemp2 > (ymax * dune_mult)) ytemp2 = 0 + (ytemp2 - (ymax * dune_mult));
+                                }
+                                if (((sand2[x, ytemp] + elev2[x, ytemp]) - (sand2[x, ytemp2] + elev2[x, ytemp2])) > (factor * t))
+                                {
+                                    t = checkup;
+                                    prob = 0;
+                                }
+
+                            }
+                            //if (elev[x, ytemp - 1] - elev[x, y] > factor) break;
+                        }
+
+                        double tempmax = sand2[x, y];
+                        if (tempmax < 0) tempmax = 0;
+
+
+
+                        // now erode sand if there is enough there in the sand layer
+                        if (slabdepth < tempmax) tempmax = slabdepth;
+                        if (tempmax < 0) tempmax = 0;
+                        sand2[x, y] -= tempmax;
+                        // do landslides for just that cell and ones around.
+                        slide_4(x, y);
+
+                        ytemp = y + counter1;
+
                         if (dune_recirculate == 1)
                         {
-                            if (ytemp > (ymax * dune_mult)) ytemp = 0 + (ytemp - (ymax * dune_mult));
-                            if (ytemp2 > (ymax * dune_mult)) ytemp2 = 0 + (ytemp2 - (ymax * dune_mult));
+                            if (ytemp > (ymax * dune_mult))
+                            {
+                                ytemp = ytemp - (ymax * dune_mult);
+                                sand_out += (tempmax * (DX / dune_mult) * (DX / dune_mult));
+                            }
                         }
-                        if (((sand2[x, ytemp] + elev2[x, ytemp]) - (sand2[x, ytemp2] + elev2[x, ytemp2])) > (factor * t))
+
+                        // now deposit sand
+
+                        if (ytemp <= ymax * dune_mult)
                         {
-                            t = checkup;
-                            prob = 0;
+                            sand2[x, ytemp] += tempmax;
+
+                            // do landslides for just that cell and ones around.
+                            slide_4(x, ytemp);
+                        }
+                        if (ytemp > (ymax * dune_mult)) sand_out += (tempmax * (DX / dune_mult) * (DX / dune_mult));
+
+                    }
+                }
+
+            }
+
+
+
+
+            // now do landslides everywhere 5 times... just to make sure..
+            for (t = 1; t <= 5; t++)
+            {
+                for (x = 1; x <= xmax * dune_mult; x++)
+                {
+                    for (y = 1; y <= ymax * dune_mult; y++)
+                    {
+                        if (sand2[x, y] > 0) slide_4(x, y);
+                    }
+                }
+            }
+
+            // sand = mean sand2
+
+            for (x = 1; x <= (xmax); x++)
+            {
+                for (y = 1; y <= (ymax); y++)
+                {
+
+                    double sandsum = 0;
+                    for (x2 = 0; x2 < dune_mult; x2++)
+                    {
+                        for (y2 = 0; y2 < dune_mult; y2++)
+                        {
+                            // this next line is needed to remove all sand from the far LH and RH cells
+                            if (x == xmax) sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] = 0;
+                            if (x == 1) sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] = 0;
+
+                            if (sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] > 0)
+                            {
+                                sandsum += sand2[(x * dune_mult) - x2, (y * dune_mult) - y2];
+                            }
+
+                        }
+                    }
+
+
+                    sand[x, y] = sandsum / (dune_mult * dune_mult);
+
+                    double newelev = elev[x, y] + sand[x, y];
+                    elev[x, y] = oldelev[x, y];
+                    elev_diff[x, y] = oldelev[x, y] - newelev;
+
+                }
+
+            }
+
+
+
+        }
+
+        void calc_hillshade() // <JOE 20051605- begin>
+        {
+            //Local variables
+            int x, y;
+
+            double slopemax;
+            double slope;
+            int slopetot;
+            double local_Illumination;
+
+            // Initialize Hillshade Paramaters
+            double azimuth = 315 * (3.141592654 / 180); // Default of 315 degrees converted to radians
+            double altitude = 45 * (3.141592654 / 180); // Default of 45 degrees converted to radians
+
+
+
+            for (x = 1; x <= xmax; x++)
+            {
+                for (y = 1; y <= ymax; y++)
+                {
+                    if (elev[x, y] != -9999)
+                    {
+                        slopemax = 0.0;
+                        slope = 0.0;
+                        slopetot = 0;
+
+                        // Do slope analysis and Aspect Calculation first
+                        if (elev[x, y] > elev[x, y - 1] && elev[x, y - 1] != -9999) // North 0
+                        {
+                            slope = Math.Pow((elev[x, y] - elev[x, y - 1]) / root, 1);
+                            if (slope > slopemax)
+                            {
+                                slopemax = slope;
+                                slopetot++;
+                                aspect[x, y] = 0 * (3.141592654 / 180);
+                            }
+
+                        }
+                        if (elev[x, y] > elev[x + 1, y - 1] && elev[x + 1, y - 1] != -9999) // Northeast 45
+                        {
+                            slope = Math.Pow((elev[x, y] - elev[x + 1, y - 1]) / DX, 1);
+                            if (slope > slopemax)
+                            {
+                                slopemax = slope;
+                                slopetot++;
+                                aspect[x, y] = 45 * (3.141592654 / 180);
+                            }
+                        }
+                        if (elev[x, y] > elev[x + 1, y] && elev[x + 1, y] != -9999) // East 90
+                        {
+                            slope = Math.Pow((elev[x, y] - elev[x + 1, y]) / root, 1);
+                            if (slope > slopemax)
+                            {
+                                slopemax = slope;
+                                slopetot++;
+                                aspect[x, y] = 90 * (3.141592654 / 180);
+                            }
+                        }
+                        if (elev[x, y] > elev[x + 1, y + 1] && elev[x + 1, y + 1] != -9999) // SouthEast 135
+                        {
+                            slope = Math.Pow((elev[x, y] - elev[x + 1, y + 1]) / root, 1);
+                            if (slope > slopemax)
+                            {
+                                slopemax = slope;
+                                slopetot++;
+                                aspect[x, y] = 135 * (3.141592654 / 180);
+                            }
+
+                        }
+                        if (elev[x, y] > elev[x, y + 1] && elev[x, y + 1] != -9999) // South 180
+                        {
+                            slope = Math.Pow((elev[x, y] - elev[x, y + 1]) / DX, 1);
+                            if (slope > slopemax)
+                            {
+                                slopemax = slope;
+                                slopetot++;
+                                aspect[x, y] = 180 * (3.141592654 / 180);
+                            }
+                        }
+                        if (elev[x, y] > elev[x - 1, y + 1] && elev[x - 1, y + 1] != -9999) // SouthWest 225
+                        {
+                            slope = Math.Pow((elev[x, y] - elev[x - 1, y + 1]) / root, 1);
+                            if (slope > slopemax)
+                            {
+                                slopemax = slope;
+                                slopetot++;
+                                aspect[x, y] = 225 * (3.141592654 / 180);
+                            }
+                        }
+                        if (elev[x, y] > elev[x - 1, y] && elev[x - 1, y] != -9999) // West 270
+                        {
+                            slope = Math.Pow((elev[x, y] - elev[x - 1, y]) / root, 1);
+                            if (slope > slopemax)
+                            {
+                                slopemax = slope;
+                                slopetot++;
+                                aspect[x, y] = 270;
+                            }
+                        }
+                        if (elev[x, y] > elev[x - 1, y - 1] && elev[x - 1, y - 1] != -9999) // Northwest 315
+                        {
+                            slope = Math.Pow((elev[x, y] - elev[x - 1, y - 1]) / DX, 1);
+                            if (slope > slopemax)
+                            {
+                                slopemax = slope;
+                                slopetot++;
+                                aspect[x, y] = 315 * (3.141592654 / 180);
+                            }
                         }
 
-                    }
-                    //if (elev[x, ytemp - 1] - elev[x, y] > factor) break;
-                }
+                        if (slope > 0) slopeAnalysis[x, y] = slopemax;// Tom's: (slope/slopetot); ?
 
-                double tempmax = sand2[x, y];
-                if (tempmax < 0) tempmax = 0;
+                        // Convert slope to radians
+                        slopeAnalysis[x, y] = System.Math.Atan(slopeAnalysis[x, y]);
 
 
+                        // Do Hillshade Calculation
+                        local_Illumination = 255 * ((System.Math.Cos(azimuth)
+                                                     * System.Math.Sin(slopeAnalysis[x, y])
+                                                     * System.Math.Cos(aspect[x, y] - azimuth))
+                                                   + (System.Math.Sin(altitude)
+                                                     * System.Math.Cos(slopeAnalysis[x, y])));
 
-                // now erode sand if there is enough there in the sand layer
-                if (slabdepth < tempmax) tempmax = slabdepth;
-                if (tempmax < 0) tempmax = 0;
-                sand2[x, y] -= tempmax;
-                // do landslides for just that cell and ones around.
-                slide_4(x, y);
-
-                ytemp = y + counter1;
-
-                if (dune_recirculate == 1)
-                {
-                    if (ytemp > (ymax * dune_mult))
-                    {
-                        ytemp = ytemp - (ymax * dune_mult);
-                        sand_out += (tempmax * (DX / dune_mult) * (DX / dune_mult));
+                        hillshade[x, y] = System.Math.Abs(local_Illumination);
                     }
                 }
-
-                // now deposit sand
-
-                if (ytemp <= ymax * dune_mult)
-                {
-                    sand2[x, ytemp] += tempmax;
-
-                    // do landslides for just that cell and ones around.
-                    slide_4(x, ytemp);
-                }
-                if (ytemp > (ymax * dune_mult)) sand_out += (tempmax * (DX / dune_mult) * (DX / dune_mult));
-
             }
-        }
 
-    }
+        }       // End calc_hillshade() <JOE 20051605- end>
 
-
-
-
-    // now do landslides everywhere 5 times... just to make sure..
-    for (t = 1; t <= 5; t++)
-    {
-        for (x = 1; x <= xmax * dune_mult; x++)
+        void Color_HSVtoRGB()   // <JOE 20051605>
         {
-            for (y = 1; y <= ymax * dune_mult; y++)
+            // Convert HSV to RGB.
+            // Made this a seperate function as it is called multiple times in drawwater().
+
+            if (sat == 0)
             {
-                if (sand2[x, y] > 0) slide_4(x, y);
-            }
-        }
-    }
-
-    // sand = mean sand2
-
-    for (x = 1; x <= (xmax); x++)
-    {
-        for (y = 1; y <= (ymax); y++)
-        {
-
-            double sandsum = 0;
-            for (x2 = 0; x2 < dune_mult; x2++)
-            {
-                for (y2 = 0; y2 < dune_mult; y2++)
-                {
-                    // this next line is needed to remove all sand from the far LH and RH cells
-                    if (x == xmax) sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] = 0;
-                    if (x == 1) sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] = 0;
-
-                    if (sand2[(x * dune_mult) - x2, (y * dune_mult) - y2] > 0)
-                    {
-                        sandsum += sand2[(x * dune_mult) - x2, (y * dune_mult) - y2];
-                    }
-
-                }
-            }
-
-
-            sand[x, y] = sandsum / (dune_mult * dune_mult);
-
-            double newelev = elev[x, y] + sand[x, y];
-            elev[x, y] = oldelev[x, y];
-            elev_diff[x, y] = oldelev[x, y] - newelev;
-
-        }
-
-    }
-
-
-
-}
-
-void calc_hillshade() // <JOE 20051605- begin>
-{
-    //Local variables
-    int x, y;
-
-    double slopemax;
-    double slope;
-    int slopetot;
-    double local_Illumination;
-
-    // Initialize Hillshade Paramaters
-    double azimuth = 315 * (3.141592654 / 180); // Default of 315 degrees converted to radians
-    double altitude = 45 * (3.141592654 / 180); // Default of 45 degrees converted to radians
-
-
-
-    for (x = 1; x <= xmax; x++)
-    {
-        for (y = 1; y <= ymax; y++)
-        {
-            if (elev[x, y] != -9999)
-            {
-                slopemax = 0.0;
-                slope = 0.0;
-                slopetot = 0;
-
-                // Do slope analysis and Aspect Calculation first
-                if (elev[x, y] > elev[x, y - 1] && elev[x, y - 1] != -9999) // North 0
-                {
-                    slope = Math.Pow((elev[x, y] - elev[x, y - 1]) / root, 1);
-                    if (slope > slopemax)
-                    {
-                        slopemax = slope;
-                        slopetot++;
-                        aspect[x, y] = 0 * (3.141592654 / 180);
-                    }
-
-                }
-                if (elev[x, y] > elev[x + 1, y - 1] && elev[x + 1, y - 1] != -9999) // Northeast 45
-                {
-                    slope = Math.Pow((elev[x, y] - elev[x + 1, y - 1]) / DX, 1);
-                    if (slope > slopemax)
-                    {
-                        slopemax = slope;
-                        slopetot++;
-                        aspect[x, y] = 45 * (3.141592654 / 180);
-                    }
-                }
-                if (elev[x, y] > elev[x + 1, y] && elev[x + 1, y] != -9999) // East 90
-                {
-                    slope = Math.Pow((elev[x, y] - elev[x + 1, y]) / root, 1);
-                    if (slope > slopemax)
-                    {
-                        slopemax = slope;
-                        slopetot++;
-                        aspect[x, y] = 90 * (3.141592654 / 180);
-                    }
-                }
-                if (elev[x, y] > elev[x + 1, y + 1] && elev[x + 1, y + 1] != -9999) // SouthEast 135
-                {
-                    slope = Math.Pow((elev[x, y] - elev[x + 1, y + 1]) / root, 1);
-                    if (slope > slopemax)
-                    {
-                        slopemax = slope;
-                        slopetot++;
-                        aspect[x, y] = 135 * (3.141592654 / 180);
-                    }
-
-                }
-                if (elev[x, y] > elev[x, y + 1] && elev[x, y + 1] != -9999) // South 180
-                {
-                    slope = Math.Pow((elev[x, y] - elev[x, y + 1]) / DX, 1);
-                    if (slope > slopemax)
-                    {
-                        slopemax = slope;
-                        slopetot++;
-                        aspect[x, y] = 180 * (3.141592654 / 180);
-                    }
-                }
-                if (elev[x, y] > elev[x - 1, y + 1] && elev[x - 1, y + 1] != -9999) // SouthWest 225
-                {
-                    slope = Math.Pow((elev[x, y] - elev[x - 1, y + 1]) / root, 1);
-                    if (slope > slopemax)
-                    {
-                        slopemax = slope;
-                        slopetot++;
-                        aspect[x, y] = 225 * (3.141592654 / 180);
-                    }
-                }
-                if (elev[x, y] > elev[x - 1, y] && elev[x - 1, y] != -9999) // West 270
-                {
-                    slope = Math.Pow((elev[x, y] - elev[x - 1, y]) / root, 1);
-                    if (slope > slopemax)
-                    {
-                        slopemax = slope;
-                        slopetot++;
-                        aspect[x, y] = 270;
-                    }
-                }
-                if (elev[x, y] > elev[x - 1, y - 1] && elev[x - 1, y - 1] != -9999) // Northwest 315
-                {
-                    slope = Math.Pow((elev[x, y] - elev[x - 1, y - 1]) / DX, 1);
-                    if (slope > slopemax)
-                    {
-                        slopemax = slope;
-                        slopetot++;
-                        aspect[x, y] = 315 * (3.141592654 / 180);
-                    }
-                }
-
-                if (slope > 0) slopeAnalysis[x, y] = slopemax;// Tom's: (slope/slopetot); ?
-
-                // Convert slope to radians
-                slopeAnalysis[x, y] = System.Math.Atan(slopeAnalysis[x, y]);
-
-
-                // Do Hillshade Calculation
-                local_Illumination = 255 * ((System.Math.Cos(azimuth)
-                                             * System.Math.Sin(slopeAnalysis[x, y])
-                                             * System.Math.Cos(aspect[x, y] - azimuth))
-                                           + (System.Math.Sin(altitude)
-                                             * System.Math.Cos(slopeAnalysis[x, y])));
-
-                hillshade[x, y] = System.Math.Abs(local_Illumination);
-            }
-        }
-    }
-
-}       // End calc_hillshade() <JOE 20051605- end>
-
-void Color_HSVtoRGB()   // <JOE 20051605>
-{
-    // Convert HSV to RGB.
-    // Made this a seperate function as it is called multiple times in drawwater().
-
-    if (sat == 0)
-    {
-        // If sat is 0, all colors are the same.
-        // This is some flavor of gray.
-        red = val;
-        green = val;
-        blue = val;
-    }
-    else
-    {
-        double pFactor;
-        double qFactor;
-        double tFactor;
-
-        double fractionalSector;
-        int sectorNumber;
-        double sectorPos;
-
-        // The color wheel consists of six 60 degree sectors.
-        // Figure out which sector you are in.
-        sectorPos = hue / 60;
-        sectorNumber = (int)(Math.Floor(sectorPos));
-
-        // get the fractional part of the sector.
-        // That is, how many degrees into the sector are you?
-        fractionalSector = sectorPos - sectorNumber;
-
-        // Calculate values for the three axes
-        // of the color.
-        pFactor = val * (1 - sat);
-        qFactor = val * (1 - (sat * fractionalSector));
-        tFactor = val * (1 - (sat * (1 - fractionalSector)));
-
-        // Assign the fractional colors to r, g, and b based on the sector the angle is in.
-        switch (sectorNumber)
-        {
-            case 0:
+                // If sat is 0, all colors are the same.
+                // This is some flavor of gray.
                 red = val;
-                green = tFactor;
-                blue = pFactor;
-                break;
-            case 1:
-                red = qFactor;
                 green = val;
-                blue = pFactor;
-                break;
-            case 2:
-                red = pFactor;
-                green = val;
-                blue = tFactor;
-                break;
-            case 3:
-                red = pFactor;
-                green = qFactor;
                 blue = val;
-                break;
-            case 4:
-                red = tFactor;
-                green = pFactor;
-                blue = val;
-                break;
-            case 5:
-                red = val;
-                green = pFactor;
-                blue = qFactor;
-                break;
-        }
-    }
-}
-
-void drawwater(System.Drawing.Graphics graphics)// <JMW 20041018>
-{
-    Graphics objGraphics;
-    objGraphics = Graphics.FromImage(m_objDrawingSurface);
-    objGraphics.Clear(SystemColors.Control);
-
-    int x, y, z, tot;
-    int redcol = 0, greencol = 0, bluecol = 0, alphacol = 255;
-    int t = 0;
-    double tot_max, tomsedi = 0;
-
-
-    // load background image....
-    //try
-    //{
-    //    Image tom1 = Image.FromFile(@"img.png");
-    //    objGraphics.DrawImage(tom1, 0, 0, xmax * graphics_scale, ymax * graphics_scale);
-    //}
-    //catch
-    //{
-    //}
-
-
-    // Set Graphics Display Size
-    if (xmax <= 0) xmax = 1;
-
-    //set scaling of graphics - so X bmp pixels to every model pixel.
-    t = graphics_scale;
-
-    // These loop through the entire grid
-    // DEM <JOE 20050905>
-    if (menuItem30.Checked == true)
-    {
-        double zDEM;
-        double zCalc, zMin = 100000.0, zMax = -9990.0, zRange, hsMin = 0, hsMax = 255, hsRange, hs;
-        double valMin = 0.0;
-        double valMax = 1.0;
-
-
-
-        calc_hillshade();       // Call up routine
-
-        // First, find max, min and range of DEM and Hillshade
-        for (x = 1; x <= xmax; x++)
-        {
-            for (y = 1; y <= ymax; y++)
+            }
+            else
             {
-                zCalc = elev[x, y];
-                if (zCalc != -9999)
+                double pFactor;
+                double qFactor;
+                double tFactor;
+
+                double fractionalSector;
+                int sectorNumber;
+                double sectorPos;
+
+                // The color wheel consists of six 60 degree sectors.
+                // Figure out which sector you are in.
+                sectorPos = hue / 60;
+                sectorNumber = (int)(Math.Floor(sectorPos));
+
+                // get the fractional part of the sector.
+                // That is, how many degrees into the sector are you?
+                fractionalSector = sectorPos - sectorNumber;
+
+                // Calculate values for the three axes
+                // of the color.
+                pFactor = val * (1 - sat);
+                qFactor = val * (1 - (sat * fractionalSector));
+                tFactor = val * (1 - (sat * (1 - fractionalSector)));
+
+                // Assign the fractional colors to r, g, and b based on the sector the angle is in.
+                switch (sectorNumber)
                 {
-                    if (zCalc < zMin) zMin = zCalc;
-                    if (zCalc > zMax) zMax = zCalc;
-                    hs = hillshade[x, y];
-                    if (hs < hsMin) hsMin = hs;
-                    if (hs > hsMax) hsMax = hs;
+                    case 0:
+                        red = val;
+                        green = tFactor;
+                        blue = pFactor;
+                        break;
+                    case 1:
+                        red = qFactor;
+                        green = val;
+                        blue = pFactor;
+                        break;
+                    case 2:
+                        red = pFactor;
+                        green = val;
+                        blue = tFactor;
+                        break;
+                    case 3:
+                        red = pFactor;
+                        green = qFactor;
+                        blue = val;
+                        break;
+                    case 4:
+                        red = tFactor;
+                        green = pFactor;
+                        blue = val;
+                        break;
+                    case 5:
+                        red = val;
+                        green = pFactor;
+                        blue = qFactor;
+                        break;
                 }
             }
         }
-        zRange = zMax - zMin;
-        hsRange = hsMax - hsMin;
 
-        for (x = 1; x <= xmax; x++)
+        void drawwater(System.Drawing.Graphics graphics)// <JMW 20041018>
         {
-            for (y = 1; y <= ymax; y++)
+            Graphics objGraphics;
+            objGraphics = Graphics.FromImage(m_objDrawingSurface);
+            objGraphics.Clear(SystemColors.Control);
+
+            int x, y, z, tot;
+            int redcol = 0, greencol = 0, bluecol = 0, alphacol = 255;
+            int t = 0;
+            double tot_max, tomsedi = 0;
+
+
+            // load background image....
+            //try
+            //{
+            //    Image tom1 = Image.FromFile(@"img.png");
+            //    objGraphics.DrawImage(tom1, 0, 0, xmax * graphics_scale, ymax * graphics_scale);
+            //}
+            //catch
+            //{
+            //}
+
+
+            // Set Graphics Display Size
+            if (xmax <= 0) xmax = 1;
+
+            //set scaling of graphics - so X bmp pixels to every model pixel.
+            t = graphics_scale;
+
+            // These loop through the entire grid
+            // DEM <JOE 20050905>
+            if (menuItem30.Checked == true)
             {
-                if (elev[x, y] > -9999.0)
+                double zDEM;
+                double zCalc, zMin = 100000.0, zMax = -9990.0, zRange, hsMin = 0, hsMax = 255, hsRange, hs;
+                double valMin = 0.0;
+                double valMax = 1.0;
+
+
+
+                calc_hillshade();       // Call up routine
+
+                // First, find max, min and range of DEM and Hillshade
+                for (x = 1; x <= xmax; x++)
                 {
-                    // HILLSHADE: Draw first underneath
+                    for (y = 1; y <= ymax; y++)
+                    {
+                        zCalc = elev[x, y];
+                        if (zCalc != -9999)
+                        {
+                            if (zCalc < zMin) zMin = zCalc;
+                            if (zCalc > zMax) zMax = zCalc;
+                            hs = hillshade[x, y];
+                            if (hs < hsMin) hsMin = hs;
+                            if (hs > hsMax) hsMax = hs;
+                        }
+                    }
+                }
+                zRange = zMax - zMin;
+                hsRange = hsMax - hsMin;
 
-                    // set gray scale intensity
-                    hue = 360.0;    // hue doesn't matter for gray shade
-                    sat = 0.0;      // ensures gray shade
-                    valMin = 0.0;
-                    valMax = 1.0;
-                    val = ((hillshade[x, y] / 255) * (valMax - valMin)) + valMin; // uses maximum contrast
-                                                                                  //							val = (((hillshade[x,y] - hsMin)/(zRange)) * (valMax - valMin)) + valMin; // lower contrast
+                for (x = 1; x <= xmax; x++)
+                {
+                    for (y = 1; y <= ymax; y++)
+                    {
+                        if (elev[x, y] > -9999.0)
+                        {
+                            // HILLSHADE: Draw first underneath
 
-                    Color_HSVtoRGB();   // Call up color conversion
-                    redcol = System.Convert.ToInt32(red * 255);
-                    greencol = System.Convert.ToInt32(green * 255);
-                    bluecol = System.Convert.ToInt32(blue * 255);
-                    alphacol = 255;
+                            // set gray scale intensity
+                            hue = 360.0;    // hue doesn't matter for gray shade
+                            sat = 0.0;      // ensures gray shade
+                            valMin = 0.0;
+                            valMax = 1.0;
+                            val = ((hillshade[x, y] / 255) * (valMax - valMin)) + valMin; // uses maximum contrast
+                                                                                          //							val = (((hillshade[x,y] - hsMin)/(zRange)) * (valMax - valMin)) + valMin; // lower contrast
 
-                    SolidBrush brush2 = new SolidBrush(Color.FromArgb(alphacol, redcol, greencol, bluecol));
-                    objGraphics.FillRectangle(brush2, (x - 1) * t, (y - 1) * t, t, t);
+                            Color_HSVtoRGB();   // Call up color conversion
+                            redcol = System.Convert.ToInt32(red * 255);
+                            greencol = System.Convert.ToInt32(green * 255);
+                            bluecol = System.Convert.ToInt32(blue * 255);
+                            alphacol = 255;
 
-
-                    // DEM
-                    zDEM = (elev[x, y]);
-                    // Sets hue based on desired color range (in decimal degrees; max 360)
-                    double hueMin = 30.0;
-                    double hueMax = 85.0;
-                    //							hue = (((zDEM - zMin)/(zRange)) * (hueMax - hueMin)) + hueMin; // Forward
-                    hue = hueMax - (((zDEM - zMin) / (zRange)) * (hueMax - hueMin)); // Reverse
-
-                    // Set saturation based on desired range
-                    double satMin = 0.50;
-                    double satMax = 0.95;
-                    sat = (((zDEM - zMin) / (zRange)) * (satMax - satMin)) + satMin;
-                    //							sat = 0; // Use for grey-scale DEM only!
-
-                    // Set value based on desired range
-                    valMin = 0.40;
-                    valMax = 0.80;
-                    val = (((zDEM - zMin) / (zRange)) * (valMax - valMin)) + valMin;
-                    //							val = valMax - (((zDEM - zMin)/(zRange)) * (valMax - valMin));
-
-                    Color_HSVtoRGB();   // Call up color conversion
-                    redcol = System.Convert.ToInt32(red * 255);
-                    greencol = System.Convert.ToInt32(green * 255);
-                    bluecol = System.Convert.ToInt32(blue * 255);
-                    if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
-                    alphacol = 125;
-
-                    SolidBrush brush = new SolidBrush(Color.FromArgb(alphacol, redcol, greencol, bluecol));
-                    objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
-
-                }   // Close of Entire Grid Mask
-            }       // Close of Column Loop
-        }           // Close of Row Loop
-
-    }               // Close of DEM check box (menuitem34)
+                            SolidBrush brush2 = new SolidBrush(Color.FromArgb(alphacol, redcol, greencol, bluecol));
+                            objGraphics.FillRectangle(brush2, (x - 1) * t, (y - 1) * t, t, t);
 
 
-    // Find Ranges for those in Active Area
-    // Water Depth Range:
-    double wdCalc, wdMin = 100000.0, wdMax = -10.0, wdRange;
+                            // DEM
+                            zDEM = (elev[x, y]);
+                            // Sets hue based on desired color range (in decimal degrees; max 360)
+                            double hueMin = 30.0;
+                            double hueMax = 85.0;
+                            //							hue = (((zDEM - zMin)/(zRange)) * (hueMax - hueMin)) + hueMin; // Forward
+                            hue = hueMax - (((zDEM - zMin) / (zRange)) * (hueMax - hueMin)); // Reverse
 
-    // Find Water Depth Ranges
-    for (x = 1; x < xmax; x++)
-    {
-        for (y = 1; y <= ymax; y++)
-        {
-            wdCalc = water_depth[x, y];
-            if (wdCalc > 0)
+                            // Set saturation based on desired range
+                            double satMin = 0.50;
+                            double satMax = 0.95;
+                            sat = (((zDEM - zMin) / (zRange)) * (satMax - satMin)) + satMin;
+                            //							sat = 0; // Use for grey-scale DEM only!
+
+                            // Set value based on desired range
+                            valMin = 0.40;
+                            valMax = 0.80;
+                            val = (((zDEM - zMin) / (zRange)) * (valMax - valMin)) + valMin;
+                            //							val = valMax - (((zDEM - zMin)/(zRange)) * (valMax - valMin));
+
+                            Color_HSVtoRGB();   // Call up color conversion
+                            redcol = System.Convert.ToInt32(red * 255);
+                            greencol = System.Convert.ToInt32(green * 255);
+                            bluecol = System.Convert.ToInt32(blue * 255);
+                            if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                            alphacol = 125;
+
+                            SolidBrush brush = new SolidBrush(Color.FromArgb(alphacol, redcol, greencol, bluecol));
+                            objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+
+                        }   // Close of Entire Grid Mask
+                    }       // Close of Column Loop
+                }           // Close of Row Loop
+
+            }               // Close of DEM check box (menuitem34)
+
+
+            // Find Ranges for those in Active Area
+            // Water Depth Range:
+            double wdCalc, wdMin = 100000.0, wdMax = -10.0, wdRange;
+
+            // Find Water Depth Ranges
+            for (x = 1; x < xmax; x++)
             {
-                if (wdCalc < wdMin) wdMin = wdCalc;
-                if (wdCalc > wdMax) wdMax = wdCalc;
+                for (y = 1; y <= ymax; y++)
+                {
+                    wdCalc = water_depth[x, y];
+                    if (wdCalc > 0)
+                    {
+                        if (wdCalc < wdMin) wdMin = wdCalc;
+                        if (wdCalc > wdMax) wdMax = wdCalc;
+                    }
+                }
             }
-        }
-    }
-    wdRange = wdMax - wdMin;
+            wdRange = wdMax - wdMin;
 
 
 
-    // All these loop through just the 'Active Area'
-    for (x = 1; x <= xmax; x++)
-    {
-        for (y = 1; y <= ymax; y++)
-        {
-            if (1 > 0) // Index masks out so only 'active cells' shown	was if(index[x,y]>-9999)
+            // All these loop through just the 'Active Area'
+            for (x = 1; x <= xmax; x++)
             {
-                // Water Depth
-                if (menuItem3.Checked == true && water_depth[x, y] > water_depth_erosion_threshold)//MIN_Q)//||discharge[x,y]>0)
+                for (y = 1; y <= ymax; y++)
                 {
-
-                    z = 0;
-                    if (comboBox1.Text == "water depth")
+                    if (1 > 0) // Index masks out so only 'active cells' shown	was if(index[x,y]>-9999)
                     {
-                        z = (int)(water_depth[x, y] * (256 / wdRange));
-                    }
-                    else
-                    {
-                        z = (int)(water_depth[x, y] * 128);
-                    }
-
-                    if (z < 0) z = 0;
-                    if (z > 254) z = 254;
-
-                    greencol = 255 - z;
-                    redcol = z;
-                    bluecol = 255;
-                    if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
-                    if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
-
-                    alphacol = 255;
-
-                    SolidBrush brush = new SolidBrush(Color.FromArgb(alphacol, redcol, greencol, bluecol));
-                    objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
-
-                }
-
-                // DoD Erosion/ Depostion
-                if (menuItem4.Checked == true)
-                {
-                    tomsedi += (init_elevs[x, y] - elev[x, y]);
-                    tomsedi -= (Vsusptot[x, y, 0]);
-                    if (init_elevs[x, y] - elev[x, y] >= 0.001) //eroding
-                    {
-                        if (comboBox1.Text == "erosion/dep")
+                        // Water Depth
+                        if (menuItem3.Checked == true && water_depth[x, y] > water_depth_erosion_threshold)//MIN_Q)//||discharge[x,y]>0)
                         {
-                            z = (int)((init_elevs[x, y] - elev[x, y]) * 256 * contrastMultiplier);
-                        }
-                        else
-                        {
-                            z = (int)((init_elevs[x, y] - elev[x, y]) * 64);
-                        }
-                        if (z < 0) z = 0;
-                        if (z > 254) z = 254;
-                        greencol = 255 - z;
-                        redcol = z;
-                        if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
-                        if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
-                        // red green blue
 
-                        SolidBrush brush = new SolidBrush(Color.FromArgb(255, greencol, greencol));
-                        objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
-                    }
-
-                    if (init_elevs[x, y] - elev[x, y] <= -0.001) //depositing
-                    {
-                        z = (int)((elev[x, y] - init_elevs[x, y]) * 64);
-                        if (z < 0) z = 0;
-                        if (z > 254) z = 254;
-                        greencol = z;
-                        redcol = 255 - z;
-                        if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
-                        if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
-
-                        SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, 255, redcol));
-                        objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
-                    }
-
-                    //						if(init_elevs[x,y]-elev[x,y]>0.0001&&init_elevs[x,y]-elev[x,y]<0.1)graphics.DrawRectangle(Pens.Yellow,x*t,y*t,t,t);
-                    //						if(init_elevs[x,y]-elev[x,y]>0.1&&init_elevs[x,y]-elev[x,y]<0.2)graphics.DrawRectangle(Pens.Orange,x*t,y*t,t,t);
-                    //						if(init_elevs[x,y]-elev[x,y]>0.2&&init_elevs[x,y]-elev[x,y]<10)graphics.DrawRectangle(Pens.Red,x*t,y*t,t,t);
-                    //						if(init_elevs[x,y]-elev[x,y]<-0.0001&&init_elevs[x,y]-elev[x,y]>-0.1)graphics.DrawRectangle(Pens.LightGreen,x*t,y*t,t,t);
-                    //						if(init_elevs[x,y]-elev[x,y]<-0.1&&init_elevs[x,y]-elev[x,y]>-0.2)graphics.DrawRectangle(Pens.Green,x*t,y*t,t,t);
-                    //						if(init_elevs[x,y]-elev[x,y]<-0.2&&init_elevs[x,y]-elev[x,y]>-10)graphics.DrawRectangle(Pens.DarkGreen,x*t,y*t,t,t);
-
-
-                }
-
-
-                // Water Source Tracers - MDW 17-03-2016
-                if (menuItem10.Checked == true && water_depth[x, y] > water_depth_erosion_threshold)
-                {
-                    int srcR, srcG, srcB;
-                    redcol = 0; greencol = 0; bluecol = 0;
-                    //z = 0;
-                    // MDW_V2 modified to enable more complete labelling, and fixed an issue where selecting no sources could lead to an exception overload
-                    try { srcR = int.Parse(comboBox2.Text.Substring(0, 1)) - 1; } // adjust for zero-index
-                    catch { srcR = -1; } //R : exception should now never be triggered
-                    try { srcG = int.Parse(comboBox3.Text.Substring(0, 1)) - 1; }
-                    catch { srcG = -1; } //G
-                    try { srcB = int.Parse(comboBox4.Text.Substring(0, 1)) - 1; }
-                    catch { srcB = -1; } //B
-
-                    if (comboBox1.Text == "water source tracer")
-                    {   // MDW_V2 modified comparisons since "no source" (e.g. srcR == 0) is now a valid selection
-                        // reordered logic for inclusion of solutes
-                        if (checkBox12.Checked == true) // rainfall zone sources
-                        {
-                            if (srcR != -1) redcol = (int)(Math.Pow(watertracerRainZone[x, y, srcR], enhanceValue) * 256);   // MDW_V2 updated reference
-                            if (srcG != -1) greencol = (int)(Math.Pow(watertracerRainZone[x, y, srcG], enhanceValue) * 256); //
-                            if (srcB != -1) bluecol = (int)(Math.Pow(watertracerRainZone[x, y, srcB], enhanceValue) * 256);  //
-                        }
-                        else if (checkBoxSoluteVis.Checked == true) // solutes
-                        {
-                            if (srcR != -1)
+                            z = 0;
+                            if (comboBox1.Text == "water depth")
                             {
-                                if (soluteMax[srcR] == 0) { redcol = 0; }
-                                else { redcol = (int)(Math.Pow(solutetracer[x, y, srcR] / soluteMax[srcR], enhanceValue) * 256); }  // scale 0 to 1
-                                if (redcol > 256) { redcol = 256; }
+                                z = (int)(water_depth[x, y] * (256 / wdRange));
+                            }
+                            else
+                            {
+                                z = (int)(water_depth[x, y] * 128);
                             }
 
-                            if (srcG != -1)
-                            {
-                                if (soluteMax[srcG] == 0) { greencol = 0; }
-                                else { greencol = (int)(Math.Pow(solutetracer[x, y, srcG] / soluteMax[srcG], enhanceValue) * 256); }
-                                if (greencol > 256) { greencol = 256; }
+                            if (z < 0) z = 0;
+                            if (z > 254) z = 254;
 
-                            }
-                            if (srcB != -1)
-                            {
-                                if (soluteMax[srcB] == 0) { bluecol = 0; }
-                                else { bluecol = (int)(Math.Pow(solutetracer[x, y, srcB] / soluteMax[srcB], enhanceValue) * 256); }
-                                if (bluecol > 256) { bluecol = 256; }
-                            }
+                            greencol = 255 - z;
+                            redcol = z;
+                            bluecol = 255;
+                            if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                            if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+
+                            alphacol = 255;
+
+                            SolidBrush brush = new SolidBrush(Color.FromArgb(alphacol, redcol, greencol, bluecol));
+                            objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+
                         }
-                        else  // normal water sources
+
+                        // DoD Erosion/ Depostion
+                        if (menuItem4.Checked == true)
                         {
-                            if (srcR != -1) redcol = (int)(Math.Pow(watertracer[x, y, srcR], enhanceValue) * 256);
-                            if (srcG != -1) greencol = (int)(Math.Pow(watertracer[x, y, srcG], enhanceValue) * 256);
-                            if (srcB != -1) bluecol = (int)(Math.Pow(watertracer[x, y, srcB], enhanceValue) * 256);
-                        }
-                    }
-                    else // include depth shading
-                    {
-                        // MDW_V2 reordered logic to include solutes
-                        if (checkBox12.Checked == true) // rainfall zone sources
-                        {
-                            if (srcR != -1) redcol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(watertracerRainZone[x, y, srcR], enhanceValue)));   // MDW_V2 updated reference
-                            else redcol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
-                            if (srcG != -1) greencol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(watertracerRainZone[x, y, srcG], enhanceValue))); //
-                            else greencol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
-                            if (srcB != -1) bluecol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(watertracerRainZone[x, y, srcB], enhanceValue)));  //
-                            else bluecol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
-                        }
-                        else if (checkBoxSoluteVis.Checked == true) // solutes
-                        {
-                            // logic here checks if:
-                            // soluteMax is 0: will only be the case if the user enters zero for all values for that solute
-                            // solutetracer > soluteMax: will only be the case due to evaporation, if active
-                            if (srcR != -1)
+                            tomsedi += (init_elevs[x, y] - elev[x, y]);
+                            tomsedi -= (Vsusptot[x, y, 0]);
+                            if (init_elevs[x, y] - elev[x, y] >= 0.001) //eroding
                             {
-                                if (soluteMax[srcR] == 0) { redcol = (int)((1 - (water_depth[x, y] / wdRange)) * 128); }
-                                else if (solutetracer[x, y, srcR] > soluteMax[srcR]) { redcol = (int)((1 - (water_depth[x, y] / wdRange)) * 128) + 128; }
-                                else { redcol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(solutetracer[x, y, srcR] / soluteMax[srcR], enhanceValue))); }  // Scale solute 0 to 1
+                                if (comboBox1.Text == "erosion/dep")
+                                {
+                                    z = (int)((init_elevs[x, y] - elev[x, y]) * 256 * contrastMultiplier);
+                                }
+                                else
+                                {
+                                    z = (int)((init_elevs[x, y] - elev[x, y]) * 64);
+                                }
+                                if (z < 0) z = 0;
+                                if (z > 254) z = 254;
+                                greencol = 255 - z;
+                                redcol = z;
+                                if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                                if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+                                // red green blue
+
+                                SolidBrush brush = new SolidBrush(Color.FromArgb(255, greencol, greencol));
+                                objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
                             }
-                            else redcol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
-                            if (srcG != -1)
+
+                            if (init_elevs[x, y] - elev[x, y] <= -0.001) //depositing
                             {
-                                if (soluteMax[srcG] == 0) { greencol = (int)((1 - (water_depth[x, y] / wdRange)) * 128); }
-                                else if (solutetracer[x, y, srcG] > soluteMax[srcG]) { greencol = (int)((1 - (water_depth[x, y] / wdRange)) * 128) + 128; }
-                                else { greencol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(solutetracer[x, y, srcG] / soluteMax[srcG], enhanceValue))); }//
+                                z = (int)((elev[x, y] - init_elevs[x, y]) * 64);
+                                if (z < 0) z = 0;
+                                if (z > 254) z = 254;
+                                greencol = z;
+                                redcol = 255 - z;
+                                if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                                if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+
+                                SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, 255, redcol));
+                                objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
                             }
-                            else greencol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
-                            if (srcB != -1)
-                            {
-                                if (soluteMax[srcB] == 0) { bluecol = (int)((1 - (water_depth[x, y] / wdRange)) * 128); }
-                                else if (solutetracer[x, y, srcB] > soluteMax[srcB]) { bluecol = (int)((1 - (water_depth[x, y] / wdRange)) * 128) + 128; }
-                                else { bluecol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(solutetracer[x, y, srcB] / soluteMax[srcB], enhanceValue))); } //
-                            }
-                            else bluecol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
+
+                            //						if(init_elevs[x,y]-elev[x,y]>0.0001&&init_elevs[x,y]-elev[x,y]<0.1)graphics.DrawRectangle(Pens.Yellow,x*t,y*t,t,t);
+                            //						if(init_elevs[x,y]-elev[x,y]>0.1&&init_elevs[x,y]-elev[x,y]<0.2)graphics.DrawRectangle(Pens.Orange,x*t,y*t,t,t);
+                            //						if(init_elevs[x,y]-elev[x,y]>0.2&&init_elevs[x,y]-elev[x,y]<10)graphics.DrawRectangle(Pens.Red,x*t,y*t,t,t);
+                            //						if(init_elevs[x,y]-elev[x,y]<-0.0001&&init_elevs[x,y]-elev[x,y]>-0.1)graphics.DrawRectangle(Pens.LightGreen,x*t,y*t,t,t);
+                            //						if(init_elevs[x,y]-elev[x,y]<-0.1&&init_elevs[x,y]-elev[x,y]>-0.2)graphics.DrawRectangle(Pens.Green,x*t,y*t,t,t);
+                            //						if(init_elevs[x,y]-elev[x,y]<-0.2&&init_elevs[x,y]-elev[x,y]>-10)graphics.DrawRectangle(Pens.DarkGreen,x*t,y*t,t,t);
+
 
                         }
-                        else // normal water sources
+
+
+                        // Water Source Tracers - MDW 17-03-2016
+                        if (menuItem10.Checked == true && water_depth[x, y] > water_depth_erosion_threshold)
                         {
-                            if (srcR != -1) redcol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(watertracer[x, y, srcR], enhanceValue)));
-                            else redcol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
-                            if (srcG != -1) greencol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(watertracer[x, y, srcG], enhanceValue)));
-                            else greencol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
-                            if (srcB != -1) bluecol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(watertracer[x, y, srcB], enhanceValue)));
-                            else bluecol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
+                            int srcR, srcG, srcB;
+                            redcol = 0; greencol = 0; bluecol = 0;
+                            //z = 0;
+                            // MDW_V2 modified to enable more complete labelling, and fixed an issue where selecting no sources could lead to an exception overload
+                            try { srcR = int.Parse(comboBox2.Text.Substring(0, 1)) - 1; } // adjust for zero-index
+                            catch { srcR = -1; } //R : exception should now never be triggered
+                            try { srcG = int.Parse(comboBox3.Text.Substring(0, 1)) - 1; }
+                            catch { srcG = -1; } //G
+                            try { srcB = int.Parse(comboBox4.Text.Substring(0, 1)) - 1; }
+                            catch { srcB = -1; } //B
+
+                            if (comboBox1.Text == "water source tracer")
+                            {   // MDW_V2 modified comparisons since "no source" (e.g. srcR == 0) is now a valid selection
+                                // reordered logic for inclusion of solutes
+                                if (checkBox12.Checked == true) // rainfall zone sources
+                                {
+                                    if (srcR != -1) redcol = (int)(Math.Pow(watertracerRainZone[x, y, srcR], enhanceValue) * 256);   // MDW_V2 updated reference
+                                    if (srcG != -1) greencol = (int)(Math.Pow(watertracerRainZone[x, y, srcG], enhanceValue) * 256); //
+                                    if (srcB != -1) bluecol = (int)(Math.Pow(watertracerRainZone[x, y, srcB], enhanceValue) * 256);  //
+                                }
+                                else if (checkBoxSoluteVis.Checked == true) // solutes
+                                {
+                                    if (srcR != -1)
+                                    {
+                                        if (soluteMax[srcR] == 0) { redcol = 0; }
+                                        else { redcol = (int)(Math.Pow(solutetracer[x, y, srcR] / soluteMax[srcR], enhanceValue) * 256); }  // scale 0 to 1
+                                        if (redcol > 256) { redcol = 256; }
+                                    }
+
+                                    if (srcG != -1)
+                                    {
+                                        if (soluteMax[srcG] == 0) { greencol = 0; }
+                                        else { greencol = (int)(Math.Pow(solutetracer[x, y, srcG] / soluteMax[srcG], enhanceValue) * 256); }
+                                        if (greencol > 256) { greencol = 256; }
+
+                                    }
+                                    if (srcB != -1)
+                                    {
+                                        if (soluteMax[srcB] == 0) { bluecol = 0; }
+                                        else { bluecol = (int)(Math.Pow(solutetracer[x, y, srcB] / soluteMax[srcB], enhanceValue) * 256); }
+                                        if (bluecol > 256) { bluecol = 256; }
+                                    }
+                                }
+                                else  // normal water sources
+                                {
+                                    if (srcR != -1) redcol = (int)(Math.Pow(watertracer[x, y, srcR], enhanceValue) * 256);
+                                    if (srcG != -1) greencol = (int)(Math.Pow(watertracer[x, y, srcG], enhanceValue) * 256);
+                                    if (srcB != -1) bluecol = (int)(Math.Pow(watertracer[x, y, srcB], enhanceValue) * 256);
+                                }
+                            }
+                            else // include depth shading
+                            {
+                                // MDW_V2 reordered logic to include solutes
+                                if (checkBox12.Checked == true) // rainfall zone sources
+                                {
+                                    if (srcR != -1) redcol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(watertracerRainZone[x, y, srcR], enhanceValue)));   // MDW_V2 updated reference
+                                    else redcol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
+                                    if (srcG != -1) greencol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(watertracerRainZone[x, y, srcG], enhanceValue))); //
+                                    else greencol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
+                                    if (srcB != -1) bluecol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(watertracerRainZone[x, y, srcB], enhanceValue)));  //
+                                    else bluecol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
+                                }
+                                else if (checkBoxSoluteVis.Checked == true) // solutes
+                                {
+                                    // logic here checks if:
+                                    // soluteMax is 0: will only be the case if the user enters zero for all values for that solute
+                                    // solutetracer > soluteMax: will only be the case due to evaporation, if active
+                                    if (srcR != -1)
+                                    {
+                                        if (soluteMax[srcR] == 0) { redcol = (int)((1 - (water_depth[x, y] / wdRange)) * 128); }
+                                        else if (solutetracer[x, y, srcR] > soluteMax[srcR]) { redcol = (int)((1 - (water_depth[x, y] / wdRange)) * 128) + 128; }
+                                        else { redcol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(solutetracer[x, y, srcR] / soluteMax[srcR], enhanceValue))); }  // Scale solute 0 to 1
+                                    }
+                                    else redcol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
+                                    if (srcG != -1)
+                                    {
+                                        if (soluteMax[srcG] == 0) { greencol = (int)((1 - (water_depth[x, y] / wdRange)) * 128); }
+                                        else if (solutetracer[x, y, srcG] > soluteMax[srcG]) { greencol = (int)((1 - (water_depth[x, y] / wdRange)) * 128) + 128; }
+                                        else { greencol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(solutetracer[x, y, srcG] / soluteMax[srcG], enhanceValue))); }//
+                                    }
+                                    else greencol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
+                                    if (srcB != -1)
+                                    {
+                                        if (soluteMax[srcB] == 0) { bluecol = (int)((1 - (water_depth[x, y] / wdRange)) * 128); }
+                                        else if (solutetracer[x, y, srcB] > soluteMax[srcB]) { bluecol = (int)((1 - (water_depth[x, y] / wdRange)) * 128) + 128; }
+                                        else { bluecol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(solutetracer[x, y, srcB] / soluteMax[srcB], enhanceValue))); } //
+                                    }
+                                    else bluecol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
+
+                                }
+                                else // normal water sources
+                                {
+                                    if (srcR != -1) redcol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(watertracer[x, y, srcR], enhanceValue)));
+                                    else redcol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
+                                    if (srcG != -1) greencol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(watertracer[x, y, srcG], enhanceValue)));
+                                    else greencol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
+                                    if (srcB != -1) bluecol = (int)(((1 - (water_depth[x, y] / wdRange)) * 128) + (128 * Math.Pow(watertracer[x, y, srcB], enhanceValue)));
+                                    else bluecol = (int)((1 - (water_depth[x, y] / wdRange)) * 128);
+                                }
+
+                            }
+
+                            //if (redcol < 0) redcol = 0;
+                            //if (redcol > 254) redcol = 254;
+                            //if (greencol < 0) greencol = 0;
+                            //if (greencol > 254) greencol = 254;
+                            //if (bluecol < 0) bluecol = 0;
+                            //if (bluecol > 254) bluecol = 254;
+
+                            //greencol = 255 - z;
+                            //redcol = z;
+                            //bluecol = 255;
+
+                            if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                            if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+
+                            alphacol = 255;
+
+                            SolidBrush brush = new SolidBrush(Color.FromArgb(alphacol, redcol, greencol, bluecol));
+                            objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+
                         }
 
-                    }
 
-                    //if (redcol < 0) redcol = 0;
-                    //if (redcol > 254) redcol = 254;
-                    //if (greencol < 0) greencol = 0;
-                    //if (greencol > 254) greencol = 254;
-                    //if (bluecol < 0) bluecol = 0;
-                    //if (bluecol > 254) bluecol = 254;
+                        if (menuItem5.Checked == true)
+                        {
+                            //if(water_depth[x,y]>water_depth_erosion_threshold)//if(index[x,y]!=-9999)
+                            {
+                                z = (int)(veg[x, y, 1] * 256);
 
-                    //greencol = 255 - z;
-                    //redcol = z;
-                    //bluecol = 255;
+                                //z = rfarea[x, y] * 120;
+                                //z = (int)(rfarea[x, y] * 12.6);
 
-                    if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
-                    if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+                                //z = (int)(Vsusptot[x, y] * 20050);
+                                //z = (int)(discharge[x,y] * 50.6);
+                                //z = (int)(edge2[x,y] * 1000);
+                                //z = (int)(Math.Abs(mean_bed_slope (x, y)) * 50 * 256);
 
-                    alphacol = 255;
+                                if (z < 0) z = 0;
+                                if (z > 254) z = 254;
+                                greencol = z;
+                                redcol = 255 - z;
+                                if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                                if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
 
-                    SolidBrush brush = new SolidBrush(Color.FromArgb(alphacol, redcol, greencol, bluecol));
-                    objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+                                SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, 255, redcol));
+                                objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
 
-                }
+                            }
+                        }
 
 
-                if (menuItem5.Checked == true)
+                        // now to draw second teir
+
+
+                        if (menuItem7.Checked == true && edge[x, y] > -9999)
+                        {
+
+                            if (edge[x, y] >= 0) //Outside
+                            {
+                                z = 0;
+                                z = (int)((edge[x, y]) * 20000);
+
+                                if (z < 0) z = 0;
+                                //							z=(int)((2.131*Math.Pow(edge[x,y],-1.0794))*DX);
+                                //							z=254-z;
+                                if (z > 254) z = 254;
+                                if (z < 0) z = 0;
+                                greencol = 255 - z;
+                                redcol = z;
+                                if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                                if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+                                // red green blue
+
+                                SolidBrush brush = new SolidBrush(Color.FromArgb(255, greencol, greencol));
+                                objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+                            }
+
+                            if (edge[x, y] < 0) //inside
+                            {
+                                z = (int)((0 - edge[x, y]) * 50);
+                                if (z < 0) z = 0;
+                                if (z > 254) z = 254;
+                                //							z=(int)((2.131*Math.Pow(edge[x,y],-1.0794))*DX);
+                                //							z=254+z;
+                                //							if(z>254)z=254;
+                                //							if(z<0)z=0;
+                                greencol = z;
+                                redcol = 255 - z;
+                                if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                                if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+
+                                SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, 255, redcol));
+                                objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+                            }
+
+
+                        }
+
+                        if (menuItem8.Checked == true)
+
+
+                        {
+
+                            if (water_depth[x, y] > water_depth_erosion_threshold)
+                            {
+                                if (comboBox1.Text == "Bed sheer stress")
+                                {
+                                    z = (int)(contrastMultiplier * 5 * Tau[x, y]);
+                                }
+                                else
+                                {
+                                    z = (int)(5 * Tau[x, y]);
+                                    //z = (int)(Tau[x, y] * (4));
+                                }
+
+                                if (z < 0) z = 0;
+                                if (z > 254) z = 254;
+                                //if(z>100)z=254;
+                                greencol = 255 - z;
+                                redcol = z;
+                                if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                                if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+
+                                SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, greencol, 255));
+                                objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+
+                            }
+
+                        }
+
+                        // D50
+                        if (menuItem9.Checked == true)
+                        {
+                            if (index[x, y] != -9999)
+                            {
+                                if (comboBox1.Text == "grainsize")
+                                {
+                                    tot_max = d50(index[x, y]) * 2000 * contrastMultiplier;
+                                }
+                                else
+                                {
+                                    tot_max = d50(index[x, y]) * 2000;
+                                }
+                                //Console.WriteLine((Convert.ToString(tot_max)));
+
+                                tot = (int)tot_max;
+                                if (tot > 255) tot = 255;
+                                if (tot < 0) tot = 0;
+                                if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                                if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+
+                                SolidBrush brush = new SolidBrush(Color.FromArgb(255 - (tot * 1), 255 - (tot * 1), 255 - (tot * 1)));
+                                objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+
+                            }
+                        }
+
+
+
+                        // area drained
+                        if (menuItem26.Checked == true)
+                        {
+                            if (area[x, y] != -9999)
+                            {
+                                z = (int)area[x, y];
+
+
+                                if (z < 0) z = 0;
+                                if (z > 254) z = 254;
+
+                                greencol = 255 - z;
+                                redcol = z;
+                                if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                                if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+
+                                SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, greencol, 255));
+                                objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+
+                            }
+                        }
+
+                        // Suspended Sediment Concentration
+                        if (menuItem27.Checked == true)
+                        {
+                            if (index[x, y] != -9999)
+                            {
+                                if (Vsusptot[x, y, 0] > 0.0)
+                                {
+                                    if (comboBox1.Text == "susp conc")
+                                    {
+                                        z = (int)(Vsusptot[x, y, 0] * 25600 * contrastMultiplier);
+                                    }
+                                    else
+                                    {
+                                        z = (int)(Vsusptot[x, y, 0] * 25600);
+                                    }
+                                    if (z < 0) z = 0;
+                                    if (z > 254) z = 254;
+
+                                    greencol = 255 - z;
+                                    redcol = z;
+                                    if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                                    if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+
+                                    SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, greencol, 255));
+                                    objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+                                }
+                            }
+                        }
+
+                        // Soil depth
+                        if (menuItem28.Checked == true)
+                        {
+                            if (elev[x, y] > -9999)
+                            {
+
+                                if (comboBox1.Text == "soildepth")
+                                {
+                                    z = (int)((elev[x, y] - bedrock[x, y]) * 2500 * contrastMultiplier);
+                                }
+                                else
+                                {
+                                    z = (int)((elev[x, y] - bedrock[x, y]) * 2500);
+                                }
+                                if (z < 0) z = 0;
+                                if (z > 254) z = 254;
+                                greencol = 255 - z;
+                                redcol = z;
+                                if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                                if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+
+                                SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, greencol, 255));
+                                objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+
+                            }
+                        }
+
+                        // Flow Velocity
+                        if (menuItem31.Checked == true) // <JOE 20050605>
+                        {
+                            if (index[x, y] != -9999)
+                            {
+                                if (water_depth[x, y] > water_depth_erosion_threshold)
+                                {
+                                    z = 0;
+                                    if (comboBox1.Text == "flow velocity")
+                                    {
+                                        z = (int)((Vel[x, y]) * 125 * contrastMultiplier);
+                                    }
+                                    else
+                                    {
+                                        z = (int)((Vel[x, y]) * 125);
+                                    }
+                                    //if(yyy>0.25)z=254;
+                                    if (z < 0) z = 0;
+                                    if (z > 254) z = 254;
+                                    greencol = 255 - z;
+                                    redcol = z;
+                                    if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                                    if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+
+                                    SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, greencol, 255));
+                                    objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+                                }
+                            }
+                        }
+
+
+                    }           // Close of nodata check for 'active' grid only
+                }               // Close of Collumn Loop
+            }                   // Close of Row Loop
+
+
+            this.QsStatusPanel.Text = string.Format("Qs = {0:F8}", tomsedi * DX * DX);
+
+            objGraphics.Dispose();
+            zoomPanImageBox1.Image = m_objDrawingSurface;
+
+        }   // Close of drawwater() // <JOE 20051605- end>
+
+        double erode(double mult_factor)
+        {
+            double rho = 1000.0;
+            //double gravity = 9.8;
+            double tempbmax = 0;
+
+            double[,] gtot2;
+
+            gtot2 = new Double[20, tracers + 1];
+
+            for (int n = 0; n <= G_MAX; n++)
+            {
+                for (int T = 0; T <= tracers; T++) gtot2[n, T] = 0;
+            }
+
+            time_factor = time_factor * 1.5;
+            if (time_factor > max_time_step) time_factor = max_time_step;
+
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+            Parallel.For(1, ymax, options, delegate (int y)
+            {
+                int inc = 1;
+                while (down_scan[y, inc] > 0)
                 {
-                    //if(water_depth[x,y]>water_depth_erosion_threshold)//if(index[x,y]!=-9999)
+                    int x = down_scan[y, inc];
+                    inc++;
+
+                    // zero vels.
+                    Vel[x, y] = 0;
+                    Tau[x, y] = 0;
+                    erodetot[x, y] = 0;
+                    erodetot3[x, y] = 0;
+                    temp_elev[x, y] = 0;
+
+                    for (int n = 0; n < G_MAX; n++)
                     {
-                        z = (int)(veg[x, y, 1] * 256);
-
-                        //z = rfarea[x, y] * 120;
-                        //z = (int)(rfarea[x, y] * 12.6);
-
-                        //z = (int)(Vsusptot[x, y] * 20050);
-                        //z = (int)(discharge[x,y] * 50.6);
-                        //z = (int)(edge2[x,y] * 1000);
-                        //z = (int)(Math.Abs(mean_bed_slope (x, y)) * 50 * 256);
-
-                        if (z < 0) z = 0;
-                        if (z > 254) z = 254;
-                        greencol = z;
-                        redcol = 255 - z;
-                        if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
-                        if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
-
-                        SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, 255, redcol));
-                        objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
-
+                        for (int T = 0; T <= tracers; T++)
+                        {
+                            sr[x, y, n, T] = 0;
+                            sl[x, y, n, T] = 0;
+                            su[x, y, n, T] = 0;
+                            sd[x, y, n, T] = 0;
+                        }
                     }
-                }
+                    for (int T = 0; T <= tracers; T++) ss[x, y, T] = 0;
 
-
-                // now to draw second teir
-
-
-                if (menuItem7.Checked == true && edge[x, y] > -9999)
-                {
-
-                    if (edge[x, y] >= 0) //Outside
-                    {
-                        z = 0;
-                        z = (int)((edge[x, y]) * 20000);
-
-                        if (z < 0) z = 0;
-                        //							z=(int)((2.131*Math.Pow(edge[x,y],-1.0794))*DX);
-                        //							z=254-z;
-                        if (z > 254) z = 254;
-                        if (z < 0) z = 0;
-                        greencol = 255 - z;
-                        redcol = z;
-                        if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
-                        if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
-                        // red green blue
-
-                        SolidBrush brush = new SolidBrush(Color.FromArgb(255, greencol, greencol));
-                        objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
-                    }
-
-                    if (edge[x, y] < 0) //inside
-                    {
-                        z = (int)((0 - edge[x, y]) * 50);
-                        if (z < 0) z = 0;
-                        if (z > 254) z = 254;
-                        //							z=(int)((2.131*Math.Pow(edge[x,y],-1.0794))*DX);
-                        //							z=254+z;
-                        //							if(z>254)z=254;
-                        //							if(z<0)z=0;
-                        greencol = z;
-                        redcol = 255 - z;
-                        if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
-                        if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
-
-                        SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, 255, redcol));
-                        objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
-                    }
-
-
-                }
-
-                if (menuItem8.Checked == true)
-
-
-                {
 
                     if (water_depth[x, y] > water_depth_erosion_threshold)
                     {
-                        if (comboBox1.Text == "Bed sheer stress")
+                        double veltot = 0;
+                        double vel = 0;
+                        double qtot = 0;
+                        double tau = 0;
+                        double velnum = 0;
+                        double slopetot = 0;
+
+
+
+                        // add spatial mannings here
+                        double temp_mannings = mannings;
+                        if (SpatVarManningsCheckbox.Checked == true) temp_mannings = spat_var_mannings[x, y];
+
+                        // check to see if index for that cell...
+                        if (index[x, y] == -9999) addGS(x, y);
+
+                        // now tot up velocity directions, velocities and edge directions.
+                        for (int p = 1; p <= 8; p += 2)
                         {
-                            z = (int)(contrastMultiplier * 5 * Tau[x, y]);
-                        }
-                        else
-                        {
-                            z = (int)(5 * Tau[x, y]);
-                            //z = (int)(Tau[x, y] * (4));
-                        }
-
-                        if (z < 0) z = 0;
-                        if (z > 254) z = 254;
-                        //if(z>100)z=254;
-                        greencol = 255 - z;
-                        redcol = z;
-                        if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
-                        if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
-
-                        SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, greencol, 255));
-                        objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
-
-                    }
-
-                }
-
-                // D50
-                if (menuItem9.Checked == true)
-                {
-                    if (index[x, y] != -9999)
-                    {
-                        if (comboBox1.Text == "grainsize")
-                        {
-                            tot_max = d50(index[x, y]) * 2000 * contrastMultiplier;
-                        }
-                        else
-                        {
-                            tot_max = d50(index[x, y]) * 2000;
-                        }
-                        //Console.WriteLine((Convert.ToString(tot_max)));
-
-                        tot = (int)tot_max;
-                        if (tot > 255) tot = 255;
-                        if (tot < 0) tot = 0;
-                        if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
-                        if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
-
-                        SolidBrush brush = new SolidBrush(Color.FromArgb(255 - (tot * 1), 255 - (tot * 1), 255 - (tot * 1)));
-                        objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
-
-                    }
-                }
-
-
-
-                // area drained
-                if (menuItem26.Checked == true)
-                {
-                    if (area[x, y] != -9999)
-                    {
-                        z = (int)area[x, y];
-
-
-                        if (z < 0) z = 0;
-                        if (z > 254) z = 254;
-
-                        greencol = 255 - z;
-                        redcol = z;
-                        if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
-                        if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
-
-                        SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, greencol, 255));
-                        objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
-
-                    }
-                }
-
-                // Suspended Sediment Concentration
-                if (menuItem27.Checked == true)
-                {
-                    if (index[x, y] != -9999)
-                    {
-                        if (Vsusptot[x, y, 0] > 0.0)
-                        {
-                            if (comboBox1.Text == "susp conc")
+                            int x2 = x + deltaX[p];
+                            int y2 = y + deltaY[p];
+                            if (water_depth[x2, y2] > water_depth_erosion_threshold)
                             {
-                                z = (int)(Vsusptot[x, y, 0] * 25600 * contrastMultiplier);
+
+                                if (vel_dir[x, y, p] > 0)
+                                {
+                                    vel = vel_dir[x, y, p];
+                                    if (vel > max_vel)
+                                    {
+                                        this.tempStatusPanel.Text = Convert.ToString(x) + " " + Convert.ToString(y) + " " + Convert.ToString(vel);
+                                        vel = max_vel; // if vel too high cut it
+                                    }
+
+                                    veltot += vel * vel;
+                                    velnum++;
+                                    qtot += (vel * vel);
+                                    //slopetot += ((elev[x, y] - elev[x2, y2]) / DX);
+                                    slopetot += ((elev[x, y] - elev[x2, y2]) / DX) * vel;
+                                }
                             }
-                            else
-                            {
-                                z = (int)(Vsusptot[x, y, 0] * 25600);
-                            }
-                            if (z < 0) z = 0;
-                            if (z > 254) z = 254;
-
-                            greencol = 255 - z;
-                            redcol = z;
-                            if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
-                            if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
-
-                            SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, greencol, 255));
-                            objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
                         }
-                    }
-                }
 
-                // Soil depth
-                if (menuItem28.Checked == true)
-                {
-                    if (elev[x, y] > -9999)
-                    {
-
-                        if (comboBox1.Text == "soildepth")
+                        if (qtot > 0)
                         {
-                            z = (int)((elev[x, y] - bedrock[x, y]) * 2500 * contrastMultiplier);
-                        }
-                        else
-                        {
-                            z = (int)((elev[x, y] - bedrock[x, y]) * 2500);
-                        }
-                        if (z < 0) z = 0;
-                        if (z > 254) z = 254;
-                        greencol = 255 - z;
-                        redcol = z;
-                        if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
-                        if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
-
-                        SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, greencol, 255));
-                        objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
-
-                    }
-                }
-
-                // Flow Velocity
-                if (menuItem31.Checked == true) // <JOE 20050605>
-                {
-                    if (index[x, y] != -9999)
-                    {
-                        if (water_depth[x, y] > water_depth_erosion_threshold)
-                        {
-                            z = 0;
-                            if (comboBox1.Text == "flow velocity")
-                            {
-                                z = (int)((Vel[x, y]) * 125 * contrastMultiplier);
-                            }
-                            else
-                            {
-                                z = (int)((Vel[x, y]) * 125);
-                            }
-                            //if(yyy>0.25)z=254;
-                            if (z < 0) z = 0;
-                            if (z > 254) z = 254;
-                            greencol = 255 - z;
-                            redcol = z;
-                            if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
-                            if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
-
-                            SolidBrush brush = new SolidBrush(Color.FromArgb(redcol, greencol, 255));
-                            objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
-                        }
-                    }
-                }
-
-
-            }           // Close of nodata check for 'active' grid only
-        }               // Close of Collumn Loop
-    }                   // Close of Row Loop
-
-
-    this.QsStatusPanel.Text = string.Format("Qs = {0:F8}", tomsedi * DX * DX);
-
-    objGraphics.Dispose();
-    zoomPanImageBox1.Image = m_objDrawingSurface;
-
-}   // Close of drawwater() // <JOE 20051605- end>
-
-double erode(double mult_factor)
-{
-    double rho = 1000.0;
-    //double gravity = 9.8;
-    double tempbmax = 0;
-
-    double[,] gtot2;
-
-    gtot2 = new Double[20, tracers + 1];
-
-    for (int n = 0; n <= G_MAX; n++)
-    {
-        for (int T = 0; T <= tracers; T++) gtot2[n, T] = 0;
-    }
-
-    time_factor = time_factor * 1.5;
-    if (time_factor > max_time_step) time_factor = max_time_step;
-
-    var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
-    Parallel.For(1, ymax, options, delegate (int y)
-    {
-        int inc = 1;
-        while (down_scan[y, inc] > 0)
-        {
-            int x = down_scan[y, inc];
-            inc++;
-
-            // zero vels.
-            Vel[x, y] = 0;
-            Tau[x, y] = 0;
-            erodetot[x, y] = 0;
-            erodetot3[x, y] = 0;
-            temp_elev[x, y] = 0;
-
-            for (int n = 0; n < G_MAX; n++)
-            {
-                for (int T = 0; T <= tracers; T++)
-                {
-                    sr[x, y, n, T] = 0;
-                    sl[x, y, n, T] = 0;
-                    su[x, y, n, T] = 0;
-                    sd[x, y, n, T] = 0;
-                }
-            }
-            for (int T = 0; T <= tracers; T++) ss[x, y, T] = 0;
-
-
-            if (water_depth[x, y] > water_depth_erosion_threshold)
-            {
-                double veltot = 0;
-                double vel = 0;
-                double qtot = 0;
-                double tau = 0;
-                double velnum = 0;
-                double slopetot = 0;
-
-
-
-                // add spatial mannings here
-                double temp_mannings = mannings;
-                if (SpatVarManningsCheckbox.Checked == true) temp_mannings = spat_var_mannings[x, y];
-
-                // check to see if index for that cell...
-                if (index[x, y] == -9999) addGS(x, y);
-
-                // now tot up velocity directions, velocities and edge directions.
-                for (int p = 1; p <= 8; p += 2)
-                {
-                    int x2 = x + deltaX[p];
-                    int y2 = y + deltaY[p];
-                    if (water_depth[x2, y2] > water_depth_erosion_threshold)
-                    {
-
-                        if (vel_dir[x, y, p] > 0)
-                        {
-                            vel = vel_dir[x, y, p];
-                            if (vel > max_vel)
+                            vel = (Math.Sqrt(qtot));
+                            Vel[x, y] = vel;
+                            if (vel < 0)
                             {
                                 this.tempStatusPanel.Text = Convert.ToString(x) + " " + Convert.ToString(y) + " " + Convert.ToString(vel);
-                                vel = max_vel; // if vel too high cut it
                             }
-
-                            veltot += vel * vel;
-                            velnum++;
-                            qtot += (vel * vel);
-                            //slopetot += ((elev[x, y] - elev[x2, y2]) / DX);
-                            slopetot += ((elev[x, y] - elev[x2, y2]) / DX) * vel;
+                            if (vel > max_vel) vel = max_vel; // if vel too high cut it
+                            double ci = gravity * (temp_mannings * temp_mannings) * Math.Pow(water_depth[x, y], -0.33);
+                            //tauvel = 1000 * ci * vel * vel;
+                            if (slopetot > 0) slopetot = 0;
+                            //tauvel = 1000 * ci * vel * vel * (1 + (1 * (slopetot)));
+                            tau = 1000 * ci * vel * vel * (1 + (1 * (slopetot / vel)));
+                            Tau[x, y] = tau;
                         }
                     }
                 }
-
-                if (qtot > 0)
-                {
-                    vel = (Math.Sqrt(qtot));
-                    Vel[x, y] = vel;
-                    if (vel < 0)
-                    {
-                        this.tempStatusPanel.Text = Convert.ToString(x) + " " + Convert.ToString(y) + " " + Convert.ToString(vel);
-                    }
-                    if (vel > max_vel) vel = max_vel; // if vel too high cut it
-                    double ci = gravity * (temp_mannings * temp_mannings) * Math.Pow(water_depth[x, y], -0.33);
-                    //tauvel = 1000 * ci * vel * vel;
-                    if (slopetot > 0) slopetot = 0;
-                    //tauvel = 1000 * ci * vel * vel * (1 + (1 * (slopetot)));
-                    tau = 1000 * ci * vel * vel * (1 + (1 * (slopetot / vel)));
-                    Tau[x, y] = tau;
-                }
-            }
-        }
-    });
+            });
 
 
-    int counter2 = 0;
-    do
-    {
-        counter2++;
-        tempbmax = 0;
-        double[] tempbmax2;
-        tempbmax2 = new Double[ymax + 2];
-
-        //var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount *  4 };
-        Parallel.For(1, ymax, options, delegate (int y)
-        {
-            int inc = 1;
-            while (down_scan[y, inc] > 0)
+            int counter2 = 0;
+            do
             {
-                int x = down_scan[y, inc];
-                inc++;
+                counter2++;
+                tempbmax = 0;
+                double[] tempbmax2;
+                tempbmax2 = new Double[ymax + 2];
 
-                // now do some erosion
-                if (Tau[x, y] > 0)
+                //var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount *  4 };
+                Parallel.For(1, ymax, options, delegate (int y)
                 {
-                    double d_50 = 0;
-                    double Fs = 0;
-                    double Di = 0;
-                    double graintot = 0;
-                    double tau = Tau[x, y];
-                    double temp_tau_ri = 0;
-                    double U_star = 0;
-                    double U_star_cubed = 0;
-
-                    double[] temp_dist, tempdir;
-                    double[,] tracer_proportions;
-                    tempdir = new Double[11]; // array that holds velocity directions temp - so they dont have to be calculated again
-                    temp_dist = new Double[11]; // array that holds amount to be removed from cell in each grainsize
-                    tracer_proportions = new double[11, tracers + 1];
-
-                    // additional tracer code.
-                    for (int n = 1; n <= G_MAX - 1; n++) // now work out the proportion of the different tracer fractions for each grainsize in the donor cell.
+                    int inc = 1;
+                    while (down_scan[y, inc] > 0)
                     {
-                        double temptot = 0;
-                        for (int T = 0; T <= tracers; T++) temptot += grain[index[x, y], n, T];
-                        if (temptot <= 0) temptot = 1;
-                        for (int T = 0; T <= tracers; T++)
+                        int x = down_scan[y, inc];
+                        inc++;
+
+                        // now do some erosion
+                        if (Tau[x, y] > 0)
                         {
-                            tracer_proportions[n, T] = grain[index[x, y], n, T] / temptot;
-                        }
-                    }
+                            double d_50 = 0;
+                            double Fs = 0;
+                            double Di = 0;
+                            double graintot = 0;
+                            double tau = Tau[x, y];
+                            double temp_tau_ri = 0;
+                            double U_star = 0;
+                            double U_star_cubed = 0;
 
-                    if (wilcock == 1)
-                    {
-                        d_50 = d50(index[x, y]);
-                        if (d_50 < d1) d_50 = d1;
-                        Fs = sand_fraction(index[x, y]);
-                        for (int T = 0; T <= tracers; T++) for (int n = 1; n <= G_MAX; n++) graintot += (grain[index[x, y], n, T]);
-                        temp_tau_ri = (0.021 + (0.015 * Math.Exp(-20 * Fs))) * (rho * gravity * d_50);
-                        U_star = Math.Pow(tau / rho, 0.5);
-                        U_star_cubed = U_star * U_star * U_star;
-                    }
-                    //////
-                    double temptot1 = 0;
+                            double[] temp_dist, tempdir;
+                            double[,] tracer_proportions;
+                            tempdir = new Double[11]; // array that holds velocity directions temp - so they dont have to be calculated again
+                            temp_dist = new Double[11]; // array that holds amount to be removed from cell in each grainsize
+                            tracer_proportions = new double[11, tracers + 1];
 
-                    for (int n = 1; n <= G_MAX - 1; n++)
-                    {
-
-                        switch (n)
-                        {
-                            case 1: Di = d1; break;
-                            case 2: Di = d2; break;
-                            case 3: Di = d3; break;
-                            case 4: Di = d4; break;
-                            case 5: Di = d5; break;
-                            case 6: Di = d6; break;
-                            case 7: Di = d7; break;
-                            case 8: Di = d8; break;
-                            case 9: Di = d9; break;
-                        }
-
-                        // Wilcock and Crowe/Curran
-
-
-                        if (wilcock == 1)
-                        {
-                            Double tau_ri = 0, Wi_star;
-                            tau_ri = temp_tau_ri * Math.Pow((Di / d_50), (0.67 / (1 + Math.Exp(1.5 - (Di / d_50)))));
-                            double temptot5 = 0;
-                            for (int T = 0; T <= tracers; T++) temptot5 += grain[index[x, y], n, T];
-                            double Fi = temptot5 / graintot;
-
-                            if ((tau / tau_ri) < 1.35)
+                            // additional tracer code.
+                            for (int n = 1; n <= G_MAX - 1; n++) // now work out the proportion of the different tracer fractions for each grainsize in the donor cell.
                             {
-                                Wi_star = 0.002 * Math.Pow(tau / tau_ri, 7.5);
-                            }
-                            else
-                            {
-                                Wi_star = 14 * Math.Pow(1 - (0.894 / Math.Pow(tau / tau_ri, 0.5)), 4.5);
-                            }
-                            //maybe should divide by DX as well..
-                            temp_dist[n] = mult_factor * time_factor *
-                                ((Fi * (U_star_cubed)) / ((2.65 - 1) * gravity)) * Wi_star / DX;
-                        }
-                        // Einstein sed tpt eqtn
-                        if (einstein == 1)
-                        {
-                            // maybe should divide by DX as well..
-                            temp_dist[n] = mult_factor * time_factor * (40 * Math.Pow((1 / (((2650 - 1000) * Di) / (tau / gravity))), 3))
-                                / Math.Sqrt(1000 / ((2650 - 1000) * gravity * (Di * Di * Di))) / DX;
-                        }
-
-                        // Meyer-Peter_Muller set tpt eqtn https://en.m.wikipedia.org/wiki/Sediment_transport#Meyer-Peter_M.C3.BCller_and_derivatives
-                        // here using Wiberg and Dungan 89 modification https://dx.doi.org/10.1061%2F%28ASCE%290733-9429%281989%29115%3A1%28101%29
-                        if (meyer == 1)
-                        {
-                            double TauStar = tau / ((2650 - 1000) * gravity * Di);
-                            if (TauStar > 0.047)
-                            {
-                                temp_dist[n] = mult_factor * time_factor * 9.64 * Math.Pow(TauStar, 0.166) * Math.Pow((TauStar - 0.047), 1.5);
-                            }
-
-                        }
-
-
-
-                        //if (temp_dist[n] < 0.0000000000001) temp_dist[n] = 0;
-
-                        // first check to see that theres not too little sediment in a cell to be entrained
-                        double temptot = 0;
-                        for (int T = 0; T <= tracers; T++) temptot += grain[index[x, y], n, T];
-                        if (temp_dist[n] > temptot) temp_dist[n] = temptot;
-                        // then check to see if this would make SS levels too high.. and if so reduce
-
-
-                        if (isSuspended[n] && n == 1)
-                        {
-                            for (int T = 0; T <= tracers; T++)
-                            {
-                                if (((temp_dist[n] + Vsusptot[x, y, T]) * tracer_proportions[n, T]) / water_depth[x, y] > Csuspmax)
+                                double temptot = 0;
+                                for (int T = 0; T <= tracers; T++) temptot += grain[index[x, y], n, T];
+                                if (temptot <= 0) temptot = 1;
+                                for (int T = 0; T <= tracers; T++)
                                 {
-                                    //work out max amount of sediment that can be there (waterdepth * csuspmax) then subtract whats already there
-                                    // (Vsusptot) to leave what can be entrained. Check if < 0 after.
-                                    temp_dist[n] = (water_depth[x, y] * Csuspmax * tracer_proportions[n, T]) - Vsusptot[x, y, T]; //// DOUBLE CHECK I've got this right TC May2020
+                                    tracer_proportions[n, T] = grain[index[x, y], n, T] / temptot;
                                 }
                             }
-                        }
-                        if (temp_dist[n] < 0) temp_dist[n] = 0;
 
-                        // nwo placed here speeding up reduction of erode repeats.
-                        temptot1 += temp_dist[n];
-
-                    }
-
-
-                    //check if this makes it below bedrock
-                    if (elev[x, y] - temptot1 <= bedrock[x, y])
-                    {
-                        // now remove from proportion that can be eroded..
-                        // we can do this as we have the prop (in temptot) that is there to be eroded.
-                        double elevdiff = elev[x, y] - bedrock[x, y];
-                        double temptot3 = temptot1;
-                        temptot1 = 0;
-                        for (int n = 1; n <= G_MAX - 1; n++)
-                        {
-                            if (elev[x, y] <= bedrock[x, y])
+                            if (wilcock == 1)
                             {
-                                temp_dist[n] = 0;
+                                d_50 = d50(index[x, y]);
+                                if (d_50 < d1) d_50 = d1;
+                                Fs = sand_fraction(index[x, y]);
+                                for (int T = 0; T <= tracers; T++) for (int n = 1; n <= G_MAX; n++) graintot += (grain[index[x, y], n, T]);
+                                temp_tau_ri = (0.021 + (0.015 * Math.Exp(-20 * Fs))) * (rho * gravity * d_50);
+                                U_star = Math.Pow(tau / rho, 0.5);
+                                U_star_cubed = U_star * U_star * U_star;
                             }
-                            else
-                            {
-                                temp_dist[n] = elevdiff * (temp_dist[n] / temptot3);
-                                if (temp_dist[n] < 0) temp_dist[n] = 0;
-                            }
-                            temptot1 += temp_dist[n];
-                        }
+                            //////
+                            double temptot1 = 0;
 
-                        // here insert bedrock erosion routine?
-                        if (tau > bedrock_erosion_threshold)
-                        {
-                            double amount = 0; // amount is amount of erosion into the bedrock.
-                            amount = Math.Pow(bedrock_erosion_rate * tau, 1.5) * time_factor * mult_factor * 0.000000317; // las value to turn it into erosion per year (number of years per second)
-                            bedrock[x, y] -= amount;
-                            // now add amount of bedrock eroded into sediment proportions.
-                            for (int n2 = 1; n2 <= G_MAX - 1; n2++)
-                            {
-                                if (grain_area[x, y] == 0)
-                                { grain[index[x, y], n2, 0] += amount * dprop[n2]; }
-                                else if (grain_area[x, y] == 1)
-                                { grain[index[x, y], n2, 0] += amount * dprop_[n2]; }
-                            }
-                        }
-                    }
-
-
-                    // veg components
-                    // here to erode the veg layer..
-                    if (veg[x, y, 1] > 0 && tau > vegTauCrit)
-                    {
-                        // now to remove from veg layer..
-                        veg[x, y, 1] -= mult_factor * time_factor * Math.Pow(tau - vegTauCrit, 0.5) * 0.00001;
-                        if (veg[x, y, 1] < 0) veg[x, y, 1] = 0;
-                    }
-
-                    //// now to determine if movement should be restricted due to veg... (old method)
-                    if (radioButton1.Checked && veg[x, y, 1] > 0.25)
-                    {
-                        // now checks if this removed from the cell would put it below the veg layer..
-                        if (elev[x, y] - temptot1 <= veg[x, y, 0])
-                        {
-                            // now remove from proportion that can be eroded..
-                            // we can do this as we have the prop (in temptot) that is there to be eroded.
-                            double elevdiff = 0;
-                            elevdiff = elev[x, y] - veg[x, y, 0];
-                            if (elevdiff < 0) elevdiff = 0;
-                            double temptot3 = temptot1;
-                            temptot1 = 0;
                             for (int n = 1; n <= G_MAX - 1; n++)
                             {
-                                temp_dist[n] = elevdiff * (temp_dist[n] / temptot3);
-                                if (elev[x, y] <= veg[x, y, 0]) temp_dist[n] = 0;
+
+                                switch (n)
+                                {
+                                    case 1: Di = d1; break;
+                                    case 2: Di = d2; break;
+                                    case 3: Di = d3; break;
+                                    case 4: Di = d4; break;
+                                    case 5: Di = d5; break;
+                                    case 6: Di = d6; break;
+                                    case 7: Di = d7; break;
+                                    case 8: Di = d8; break;
+                                    case 9: Di = d9; break;
+                                }
+
+                                // Wilcock and Crowe/Curran
+
+
+                                if (wilcock == 1)
+                                {
+                                    Double tau_ri = 0, Wi_star;
+                                    tau_ri = temp_tau_ri * Math.Pow((Di / d_50), (0.67 / (1 + Math.Exp(1.5 - (Di / d_50)))));
+                                    double temptot5 = 0;
+                                    for (int T = 0; T <= tracers; T++) temptot5 += grain[index[x, y], n, T];
+                                    double Fi = temptot5 / graintot;
+
+                                    if ((tau / tau_ri) < 1.35)
+                                    {
+                                        Wi_star = 0.002 * Math.Pow(tau / tau_ri, 7.5);
+                                    }
+                                    else
+                                    {
+                                        Wi_star = 14 * Math.Pow(1 - (0.894 / Math.Pow(tau / tau_ri, 0.5)), 4.5);
+                                    }
+                                    //maybe should divide by DX as well..
+                                    temp_dist[n] = mult_factor * time_factor *
+                                        ((Fi * (U_star_cubed)) / ((2.65 - 1) * gravity)) * Wi_star / DX;
+                                }
+                                // Einstein sed tpt eqtn
+                                if (einstein == 1)
+                                {
+                                    // maybe should divide by DX as well..
+                                    temp_dist[n] = mult_factor * time_factor * (40 * Math.Pow((1 / (((2650 - 1000) * Di) / (tau / gravity))), 3))
+                                        / Math.Sqrt(1000 / ((2650 - 1000) * gravity * (Di * Di * Di))) / DX;
+                                }
+
+                                // Meyer-Peter_Muller set tpt eqtn https://en.m.wikipedia.org/wiki/Sediment_transport#Meyer-Peter_M.C3.BCller_and_derivatives
+                                // here using Wiberg and Dungan 89 modification https://dx.doi.org/10.1061%2F%28ASCE%290733-9429%281989%29115%3A1%28101%29
+                                if (meyer == 1)
+                                {
+                                    double TauStar = tau / ((2650 - 1000) * gravity * Di);
+                                    if (TauStar > 0.047)
+                                    {
+                                        temp_dist[n] = mult_factor * time_factor * 9.64 * Math.Pow(TauStar, 0.166) * Math.Pow((TauStar - 0.047), 1.5);
+                                    }
+
+                                }
+
+
+
+                                //if (temp_dist[n] < 0.0000000000001) temp_dist[n] = 0;
+
+                                // first check to see that theres not too little sediment in a cell to be entrained
+                                double temptot = 0;
+                                for (int T = 0; T <= tracers; T++) temptot += grain[index[x, y], n, T];
+                                if (temp_dist[n] > temptot) temp_dist[n] = temptot;
+                                // then check to see if this would make SS levels too high.. and if so reduce
+
+
+                                if (isSuspended[n] && n == 1)
+                                {
+                                    for (int T = 0; T <= tracers; T++)
+                                    {
+                                        if (((temp_dist[n] + Vsusptot[x, y, T]) * tracer_proportions[n, T]) / water_depth[x, y] > Csuspmax)
+                                        {
+                                            //work out max amount of sediment that can be there (waterdepth * csuspmax) then subtract whats already there
+                                            // (Vsusptot) to leave what can be entrained. Check if < 0 after.
+                                            temp_dist[n] = (water_depth[x, y] * Csuspmax * tracer_proportions[n, T]) - Vsusptot[x, y, T]; //// DOUBLE CHECK I've got this right TC May2020
+                                        }
+                                    }
+                                }
+                                if (temp_dist[n] < 0) temp_dist[n] = 0;
+
+                                // nwo placed here speeding up reduction of erode repeats.
                                 temptot1 += temp_dist[n];
+
                             }
-                            //temptot1 -= elevdiff;
-                            if (temptot1 < 0) temptot1 = 0;
 
-                        }
-                        //tempStatusPanel.Text = Convert.ToString(1);
-                    }
 
-                    //// now to determine if movement should be restricted due to veg... (new method)
-                    if (radioButton2.Checked && veg[x, y, 1] > 0.1)
-                    {
-                        temptot1 = 0;
-                        for (int n = 1; n <= G_MAX - 1; n++)
-                        {
-                            temp_dist[n] *= 1 - (veg[x, y, 1] * (1 - veg_lat_restriction));
-                            temptot1 += temp_dist[n];
-                        }
-                        //temptot1 -= elevdiff;
-                        if (temptot1 < 0) temptot1 = 0;
-
-                        //tempStatusPanel.Text = Convert.ToString(2);
-                    }
-
-                    if (temptot1 > tempbmax2[y]) tempbmax2[y] = temptot1;
-                    //tempStatusPanel.Text = Convert.ToString(temptot1);
-
-                    // now work out what portion of bedload has to go where...
-                    // only allow actual transfer of sediment if there is flow in a direction - i.e. some sedeiment transport
-
-                    // wonder if this part could be separately parallelised?
-                    if (temptot1 > 0)
-                    {
-                        double temptot2 = 0;
-                        double veltot = 0;
-                        for (int p = 1; p <= 8; p += 2)
-                        {
-                            int x2 = x + deltaX[p];
-                            int y2 = y + deltaY[p];
-                            if (water_depth[x2, y2] > water_depth_erosion_threshold)
+                            //check if this makes it below bedrock
+                            if (elev[x, y] - temptot1 <= bedrock[x, y])
                             {
-                                if (edge[x, y] > edge[x2, y2])
-                                {
-                                    temptot2 += (edge[x, y] - edge[x2, y2]);
-                                }
-
-                                if (vel_dir[x, y, p] > 0)
-                                {
-                                    // first work out velocities in each direction (for sedi distribution)
-                                    double vel = vel_dir[x, y, p];
-                                    tempdir[p] = vel * vel;
-                                    veltot += tempdir[p];
-                                }
-                            }
-                        }
-
-
-                        for (int p = 1; p <= 8; p += 2)
-                        {
-                            int x2 = x + deltaX[p];
-                            int y2 = y + deltaY[p];
-
-
-
-                            if (water_depth[x2, y2] > water_depth_erosion_threshold)
-                            {
-                                if (index[x2, y2] == -9999) addGS(x2, y2);
-                                double factor = 0;
-
-                                // vel slope
-                                if (vel_dir[x, y, p] > 0)
-                                {
-                                    factor += 0.75 * tempdir[p] / veltot;
-                                }
-                                // now for lateral gradient.
-                                if (edge[x, y] > edge[x2, y2])
-                                {
-                                    factor += 0.25 * ((edge[x, y] - edge[x2, y2]) / temptot2);
-                                }
-
-                                // now loop through grainsizes
+                                // now remove from proportion that can be eroded..
+                                // we can do this as we have the prop (in temptot) that is there to be eroded.
+                                double elevdiff = elev[x, y] - bedrock[x, y];
+                                double temptot3 = temptot1;
+                                temptot1 = 0;
                                 for (int n = 1; n <= G_MAX - 1; n++)
                                 {
-                                    if (temp_dist[n] > 0)
+                                    if (elev[x, y] <= bedrock[x, y])
                                     {
-                                        if (n == 1 && isSuspended[n])
+                                        temp_dist[n] = 0;
+                                    }
+                                    else
+                                    {
+                                        temp_dist[n] = elevdiff * (temp_dist[n] / temptot3);
+                                        if (temp_dist[n] < 0) temp_dist[n] = 0;
+                                    }
+                                    temptot1 += temp_dist[n];
+                                }
+
+                                // here insert bedrock erosion routine?
+                                if (tau > bedrock_erosion_threshold)
+                                {
+                                    double amount = 0; // amount is amount of erosion into the bedrock.
+                                    amount = Math.Pow(bedrock_erosion_rate * tau, 1.5) * time_factor * mult_factor * 0.000000317; // las value to turn it into erosion per year (number of years per second)
+                                    bedrock[x, y] -= amount;
+                                    // now add amount of bedrock eroded into sediment proportions.
+                                    for (int n2 = 1; n2 <= G_MAX - 1; n2++)
+                                    {
+                                        if (grain_area[x, y] == 0)
+                                        { grain[index[x, y], n2, 0] += amount * dprop[n2]; }
+                                        else if (grain_area[x, y] == 1)
+                                        { grain[index[x, y], n2, 0] += amount * dprop_[n2]; }
+                                    }
+                                }
+                            }
+
+
+                            // veg components
+                            // here to erode the veg layer..
+                            if (veg[x, y, 1] > 0 && tau > vegTauCrit)
+                            {
+                                // now to remove from veg layer..
+                                veg[x, y, 1] -= mult_factor * time_factor * Math.Pow(tau - vegTauCrit, 0.5) * 0.00001;
+                                if (veg[x, y, 1] < 0) veg[x, y, 1] = 0;
+                            }
+
+                            //// now to determine if movement should be restricted due to veg... (old method)
+                            if (radioButton1.Checked && veg[x, y, 1] > 0.25)
+                            {
+                                // now checks if this removed from the cell would put it below the veg layer..
+                                if (elev[x, y] - temptot1 <= veg[x, y, 0])
+                                {
+                                    // now remove from proportion that can be eroded..
+                                    // we can do this as we have the prop (in temptot) that is there to be eroded.
+                                    double elevdiff = 0;
+                                    elevdiff = elev[x, y] - veg[x, y, 0];
+                                    if (elevdiff < 0) elevdiff = 0;
+                                    double temptot3 = temptot1;
+                                    temptot1 = 0;
+                                    for (int n = 1; n <= G_MAX - 1; n++)
+                                    {
+                                        temp_dist[n] = elevdiff * (temp_dist[n] / temptot3);
+                                        if (elev[x, y] <= veg[x, y, 0]) temp_dist[n] = 0;
+                                        temptot1 += temp_dist[n];
+                                    }
+                                    //temptot1 -= elevdiff;
+                                    if (temptot1 < 0) temptot1 = 0;
+
+                                }
+                                //tempStatusPanel.Text = Convert.ToString(1);
+                            }
+
+                            //// now to determine if movement should be restricted due to veg... (new method)
+                            if (radioButton2.Checked && veg[x, y, 1] > 0.1)
+                            {
+                                temptot1 = 0;
+                                for (int n = 1; n <= G_MAX - 1; n++)
+                                {
+                                    temp_dist[n] *= 1 - (veg[x, y, 1] * (1 - veg_lat_restriction));
+                                    temptot1 += temp_dist[n];
+                                }
+                                //temptot1 -= elevdiff;
+                                if (temptot1 < 0) temptot1 = 0;
+
+                                //tempStatusPanel.Text = Convert.ToString(2);
+                            }
+
+                            if (temptot1 > tempbmax2[y]) tempbmax2[y] = temptot1;
+                            //tempStatusPanel.Text = Convert.ToString(temptot1);
+
+                            // now work out what portion of bedload has to go where...
+                            // only allow actual transfer of sediment if there is flow in a direction - i.e. some sedeiment transport
+
+                            // wonder if this part could be separately parallelised?
+                            if (temptot1 > 0)
+                            {
+                                double temptot2 = 0;
+                                double veltot = 0;
+                                for (int p = 1; p <= 8; p += 2)
+                                {
+                                    int x2 = x + deltaX[p];
+                                    int y2 = y + deltaY[p];
+                                    if (water_depth[x2, y2] > water_depth_erosion_threshold)
+                                    {
+                                        if (edge[x, y] > edge[x2, y2])
                                         {
-                                            // put amount entrained by ss in to ss[,]
-                                            for (int T = 0; T <= tracers; T++) ss[x, y, T] = temp_dist[n] * tracer_proportions[n, T];
+                                            temptot2 += (edge[x, y] - edge[x2, y2]);
                                         }
-                                        else
+
+                                        if (vel_dir[x, y, p] > 0)
                                         {
-                                            switch (p)
+                                            // first work out velocities in each direction (for sedi distribution)
+                                            double vel = vel_dir[x, y, p];
+                                            tempdir[p] = vel * vel;
+                                            veltot += tempdir[p];
+                                        }
+                                    }
+                                }
+
+
+                                for (int p = 1; p <= 8; p += 2)
+                                {
+                                    int x2 = x + deltaX[p];
+                                    int y2 = y + deltaY[p];
+
+
+
+                                    if (water_depth[x2, y2] > water_depth_erosion_threshold)
+                                    {
+                                        if (index[x2, y2] == -9999) addGS(x2, y2);
+                                        double factor = 0;
+
+                                        // vel slope
+                                        if (vel_dir[x, y, p] > 0)
+                                        {
+                                            factor += 0.75 * tempdir[p] / veltot;
+                                        }
+                                        // now for lateral gradient.
+                                        if (edge[x, y] > edge[x2, y2])
+                                        {
+                                            factor += 0.25 * ((edge[x, y] - edge[x2, y2]) / temptot2);
+                                        }
+
+                                        // now loop through grainsizes
+                                        for (int n = 1; n <= G_MAX - 1; n++)
+                                        {
+                                            if (temp_dist[n] > 0)
                                             {
-                                                case 1: for (int T = 0; T <= tracers; T++) su[x, y, n, T] = temp_dist[n] * tracer_proportions[n, T] * factor; break;
-                                                case 3: for (int T = 0; T <= tracers; T++) sr[x, y, n, T] = temp_dist[n] * tracer_proportions[n, T] * factor; break;
-                                                case 5: for (int T = 0; T <= tracers; T++) sd[x, y, n, T] = temp_dist[n] * tracer_proportions[n, T] * factor; break;
-                                                case 7: for (int T = 0; T <= tracers; T++) sl[x, y, n, T] = temp_dist[n] * tracer_proportions[n, T] * factor; break;
+                                                if (n == 1 && isSuspended[n])
+                                                {
+                                                    // put amount entrained by ss in to ss[,]
+                                                    for (int T = 0; T <= tracers; T++) ss[x, y, T] = temp_dist[n] * tracer_proportions[n, T];
+                                                }
+                                                else
+                                                {
+                                                    switch (p)
+                                                    {
+                                                        case 1: for (int T = 0; T <= tracers; T++) su[x, y, n, T] = temp_dist[n] * tracer_proportions[n, T] * factor; break;
+                                                        case 3: for (int T = 0; T <= tracers; T++) sr[x, y, n, T] = temp_dist[n] * tracer_proportions[n, T] * factor; break;
+                                                        case 5: for (int T = 0; T <= tracers; T++) sd[x, y, n, T] = temp_dist[n] * tracer_proportions[n, T] * factor; break;
+                                                        case 7: for (int T = 0; T <= tracers; T++) sl[x, y, n, T] = temp_dist[n] * tracer_proportions[n, T] * factor; break;
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -13324,4650 +13293,4648 @@ double erode(double mult_factor)
                             }
                         }
                     }
-                }
-            }
-        });
+                });
 
-        // we have to do a reduction on tempbmax.
-        for (int y = 1; y <= ymax; y++) if (tempbmax2[y] > tempbmax) tempbmax = tempbmax2[y];
+                // we have to do a reduction on tempbmax.
+                for (int y = 1; y <= ymax; y++) if (tempbmax2[y] > tempbmax) tempbmax = tempbmax2[y];
 
-        if (tempbmax > ERODEFACTOR)
-        {
-            time_factor *= (ERODEFACTOR / tempbmax) * 0.5;
-        }
-    } while (tempbmax > ERODEFACTOR);
-
-    //tempStatusPanel.Text = Convert.ToString(counter2);
-
-    //
-    // new temp erode array.
-
-
-    var options1 = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
-    Parallel.For(2, ymax, options1, delegate (int y)
-    {
-        int inc = 1;
-        while (down_scan[y, inc] > 0)
-        {
-            int x = down_scan[y, inc];
-            inc++;
-
-
-            if (water_depth[x, y] > water_depth_erosion_threshold && x < xmax && x > 1)
-            {
-
-                if (index[x, y] == -9999) addGS(x, y);
-                for (int n = 1; n <= G_MAX - 1; n++)
+                if (tempbmax > ERODEFACTOR)
                 {
-                    if (n == 1 && isSuspended[n])
-                    {
-                        // updating entrainment of SS
-                        for (int T = 0; T <= tracers; T++)
-                        {
-                            Vsusptot[x, y, T] += ss[x, y, T];
-                            grain[index[x, y], n, T] -= ss[x, y, T];
-                            erodetot[x, y] -= ss[x, y, T];
-                        }
+                    time_factor *= (ERODEFACTOR / tempbmax) * 0.5;
+                }
+            } while (tempbmax > ERODEFACTOR);
 
-                        // this next part is unusual. You have to stop susp sed deposition on the input cells, otherwies
-                        // it drops sediment out, but cannot entrain as ss levels in input are too high leading to
-                        // little mountains of sediment. This means a new array in order to check whether a cell is an
-                        // input point or not..
-                        if (!inputpointsarray[x, y])
+            //tempStatusPanel.Text = Convert.ToString(counter2);
+
+            //
+            // new temp erode array.
+
+
+            var options1 = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+            Parallel.For(2, ymax, options1, delegate (int y)
+            {
+                int inc = 1;
+                while (down_scan[y, inc] > 0)
+                {
+                    int x = down_scan[y, inc];
+                    inc++;
+
+
+                    if (water_depth[x, y] > water_depth_erosion_threshold && x < xmax && x > 1)
+                    {
+
+                        if (index[x, y] == -9999) addGS(x, y);
+                        for (int n = 1; n <= G_MAX - 1; n++)
                         {
-                            // now calc ss to be dropped
-                            double coeff = (fallVelocity[n] * time_factor * mult_factor) / water_depth[x, y];
-                            if (coeff > 1) coeff = 1;
-                            for (int T = 0; T <= tracers; T++)
+                            if (n == 1 && isSuspended[n])
                             {
-                                double Vpdrop = coeff * Vsusptot[x, y, T];
-                                if (Vpdrop > 0.001) Vpdrop = 0.001; //only allow 1mm to be deposited per iteration
-                                grain[index[x, y], n, T] += Vpdrop;
-                                erodetot[x, y] += Vpdrop;
-                                Vsusptot[x, y, T] -= Vpdrop;
+                                // updating entrainment of SS
+                                for (int T = 0; T <= tracers; T++)
+                                {
+                                    Vsusptot[x, y, T] += ss[x, y, T];
+                                    grain[index[x, y], n, T] -= ss[x, y, T];
+                                    erodetot[x, y] -= ss[x, y, T];
+                                }
+
+                                // this next part is unusual. You have to stop susp sed deposition on the input cells, otherwies
+                                // it drops sediment out, but cannot entrain as ss levels in input are too high leading to
+                                // little mountains of sediment. This means a new array in order to check whether a cell is an
+                                // input point or not..
+                                if (!inputpointsarray[x, y])
+                                {
+                                    // now calc ss to be dropped
+                                    double coeff = (fallVelocity[n] * time_factor * mult_factor) / water_depth[x, y];
+                                    if (coeff > 1) coeff = 1;
+                                    for (int T = 0; T <= tracers; T++)
+                                    {
+                                        double Vpdrop = coeff * Vsusptot[x, y, T];
+                                        if (Vpdrop > 0.001) Vpdrop = 0.001; //only allow 1mm to be deposited per iteration
+                                        grain[index[x, y], n, T] += Vpdrop;
+                                        erodetot[x, y] += Vpdrop;
+                                        Vsusptot[x, y, T] -= Vpdrop;
+                                    }
+                                    //if (Vsusptot[x, y] < 0) Vsusptot[x, y] = 0; NOT this line.
+                                }
                             }
-                            //if (Vsusptot[x, y] < 0) Vsusptot[x, y] = 0; NOT this line.
+                            else
+                            {
+                                //else update grain and elevations for bedload.
+                                for (int T = 0; T <= tracers; T++)
+                                {
+                                    double val1 = (su[x, y, n, T] + sr[x, y, n, T] + sd[x, y, n, T] + sl[x, y, n, T]);
+                                    double val2 = (su[x, y + 1, n, T] + sd[x, y - 1, n, T] + sl[x + 1, y, n, T] + sr[x - 1, y, n, T]);
+                                    grain[index[x, y], n, T] += val2 - val1;
+                                    erodetot[x, y] += val2 - val1;
+                                    erodetot3[x, y] += val1;
+                                }
+                            }
+                        }
+
+                        temp_elev[x, y] += erodetot[x, y];
+                        if (erodetot[x, y] != 0) sort_active(x, y);
+
+                        //
+                        // test lateral code...
+                        //
+
+                        if (erodetot3[x, y] > 0)
+                        {
+
+                            if (elev[x - 1, y] > elev[x, y] && x > 2)
+                            {
+                                double amt = 0;
+
+                                if (water_depth[x - 1, y] < water_depth_erosion_threshold)
+                                    amt = mult_factor * lateral_constant * Tau[x, y] * edge[x - 1, y] * time_factor / DX;
+                                else amt = bed_proportion * erodetot3[x, y] * (elev[x - 1, y] - elev[x, y]) / DX * 0.1;
+
+                                if (amt > 0)
+                                {
+                                    amt *= 1 - (veg[x - 1, y, 1] * (1 - veg_lat_restriction));
+                                    if ((elev[x - 1, y] - amt) < bedrock[x - 1, y] || x - 1 == 1) amt = 0;
+                                    if (amt > ERODEFACTOR * 0.1) amt = ERODEFACTOR * 0.1;
+                                    //if (amt > erodetot2 / 2) amt = erodetot2 / 2;
+                                    if (amt < 0) amt = 0;
+                                    temp_elev[x, y] += amt;
+                                    temp_elev[x - 1, y] -= amt;
+                                    slide_GS(x - 1, y, amt, x, y);
+                                }
+                            }
+                            if (elev[x + 1, y] > elev[x, y] && x < xmax - 1)
+                            {
+                                double amt = 0;
+                                if (water_depth[x + 1, y] < water_depth_erosion_threshold)
+                                    amt = mult_factor * lateral_constant * Tau[x, y] * edge[x + 1, y] * time_factor / DX;
+                                else amt = bed_proportion * erodetot3[x, y] * (elev[x + 1, y] - elev[x, y]) / DX * 0.1;
+
+                                if (amt > 0)
+                                {
+                                    amt *= 1 - (veg[x + 1, y, 1] * (1 - veg_lat_restriction));
+                                    if ((elev[x + 1, y] - amt) < bedrock[x + 1, y] || x + 1 == xmax) amt = 0;
+                                    if (amt > ERODEFACTOR * 0.1) amt = ERODEFACTOR * 0.1;
+                                    //if (amt > erodetot2 /2) amt = erodetot2 /2;
+                                    if (amt < 0) amt = 0;
+                                    temp_elev[x, y] += amt;
+                                    temp_elev[x + 1, y] -= amt;
+                                    slide_GS(x + 1, y, amt, x, y);
+                                }
+                            }
+
+
                         }
                     }
-                    else
+                }
+            });
+
+            Parallel.For(2, xmax, options1, delegate (int x)
+            {
+                int inc = 1;
+                while (cross_scan[x, inc] > 0)
+                {
+                    int y = cross_scan[x, inc];
+                    inc++;
+
                     {
-                        //else update grain and elevations for bedload.
+
+                        if (erodetot3[x, y] > 0)
+                        {
+                            if (elev[x, y - 1] > elev[x, y])
+                            {
+                                double amt = 0;
+                                if (water_depth[x, y - 1] < water_depth_erosion_threshold)
+                                    amt = mult_factor * lateral_constant * Tau[x, y] * edge[x, y - 1] * time_factor / DX;
+                                else amt = bed_proportion * erodetot3[x, y] * (elev[x, y - 1] - elev[x, y]) / DX * 0.1;
+
+                                if (amt > 0)
+                                {
+                                    amt *= 1 - (veg[x, y - 1, 1] * (1 - veg_lat_restriction));
+                                    if ((elev[x, y - 1] - amt) < bedrock[x, y - 1] || y - 1 == 1) amt = 0;
+                                    if (amt > ERODEFACTOR * 0.1) amt = ERODEFACTOR * 0.1;
+                                    //if (amt > erodetot2 / 2) amt = erodetot2 / 2;
+                                    if (amt < 0) amt = 0;
+                                    temp_elev[x, y] += amt;
+                                    temp_elev[x, y - 1] -= amt;
+                                    slide_GS(x, y - 1, amt, x, y);
+                                }
+                            }
+                            if (elev[x, y + 1] > elev[x, y])
+                            {
+                                double amt = 0;
+                                if (water_depth[x, y + 1] < water_depth_erosion_threshold)
+                                    amt = amt = mult_factor * lateral_constant * Tau[x, y] * edge[x, y + 1] * time_factor / DX;
+                                else amt = bed_proportion * erodetot3[x, y] * (elev[x, y + 1] - elev[x, y]) / DX * 0.1;
+
+                                if (amt > 0)
+                                {
+                                    amt *= 1 - (veg[x, y + 1, 1] * (1 - veg_lat_restriction));
+                                    if ((elev[x, y + 1] - amt) < bedrock[x, y + 1] || y + 1 == ymax) amt = 0;
+                                    if (amt > ERODEFACTOR * 0.1) amt = ERODEFACTOR * 0.1;
+                                    //if (amt > erodetot2 / 2) amt = erodetot2 / 2;
+                                    if (amt < 0) amt = 0;
+                                    temp_elev[x, y] += amt;
+                                    temp_elev[x, y + 1] -= amt;
+                                    slide_GS(x, y + 1, amt, x, y);
+                                }
+                            }
+
+
+                        }
+                    }
+                }
+            });
+
+            Parallel.For(2, ymax, options, delegate (int y)
+            {
+                int inc = 1;
+                while (down_scan[y, inc] > 0)
+                {
+                    int x = down_scan[y, inc];
+                    inc++;
+
+                    if (x > 1 && x < xmax) elev[x, y] += temp_elev[x, y];
+
+                }
+            });
+
+
+            // now calculate sediment outputs from all four edges...
+            for (int y = 2; y < ymax; y++)
+            {
+                if (water_depth[xmax, y] > water_depth_erosion_threshold || Vsusptot[xmax, y, 0] > 0)
+                {
+                    for (int n = 1; n <= G_MAX - 1; n++)
+                    {
                         for (int T = 0; T <= tracers; T++)
                         {
-                            double val1 = (su[x, y, n, T] + sr[x, y, n, T] + sd[x, y, n, T] + sl[x, y, n, T]);
-                            double val2 = (su[x, y + 1, n, T] + sd[x, y - 1, n, T] + sl[x + 1, y, n, T] + sr[x - 1, y, n, T]);
-                            grain[index[x, y], n, T] += val2 - val1;
-                            erodetot[x, y] += val2 - val1;
-                            erodetot3[x, y] += val1;
+                            if (isSuspended[n])
+                            {
+                                gtot2[n, T] += Vsusptot[xmax, y, T];
+                                Vsusptot[xmax, y, T] = 0;
+                            }
+                            else
+                            {
+                                gtot2[n, T] += sr[xmax - 1, y, n, T];
+                            }
                         }
                     }
                 }
-
-                temp_elev[x, y] += erodetot[x, y];
-                if (erodetot[x, y] != 0) sort_active(x, y);
-
-                //
-                // test lateral code...
-                //
-
-                if (erodetot3[x, y] > 0)
+                if (water_depth[1, y] > water_depth_erosion_threshold || Vsusptot[1, y, 0] > 0)
                 {
-
-                    if (elev[x - 1, y] > elev[x, y] && x > 2)
+                    for (int n = 1; n <= G_MAX - 1; n++)
                     {
-                        double amt = 0;
-
-                        if (water_depth[x - 1, y] < water_depth_erosion_threshold)
-                            amt = mult_factor * lateral_constant * Tau[x, y] * edge[x - 1, y] * time_factor / DX;
-                        else amt = bed_proportion * erodetot3[x, y] * (elev[x - 1, y] - elev[x, y]) / DX * 0.1;
-
-                        if (amt > 0)
+                        for (int T = 0; T <= tracers; T++)
                         {
-                            amt *= 1 - (veg[x - 1, y, 1] * (1 - veg_lat_restriction));
-                            if ((elev[x - 1, y] - amt) < bedrock[x - 1, y] || x - 1 == 1) amt = 0;
-                            if (amt > ERODEFACTOR * 0.1) amt = ERODEFACTOR * 0.1;
-                            //if (amt > erodetot2 / 2) amt = erodetot2 / 2;
-                            if (amt < 0) amt = 0;
-                            temp_elev[x, y] += amt;
-                            temp_elev[x - 1, y] -= amt;
-                            slide_GS(x - 1, y, amt, x, y);
+                            if (isSuspended[n])
+                            {
+                                gtot2[n, T] += Vsusptot[1, y, T];
+                                Vsusptot[1, y, T] = 0;
+                            }
+                            else
+                            {
+                                gtot2[n, T] += sl[2, y, n, T];
+                            }
                         }
                     }
-                    if (elev[x + 1, y] > elev[x, y] && x < xmax - 1)
-                    {
-                        double amt = 0;
-                        if (water_depth[x + 1, y] < water_depth_erosion_threshold)
-                            amt = mult_factor * lateral_constant * Tau[x, y] * edge[x + 1, y] * time_factor / DX;
-                        else amt = bed_proportion * erodetot3[x, y] * (elev[x + 1, y] - elev[x, y]) / DX * 0.1;
-
-                        if (amt > 0)
-                        {
-                            amt *= 1 - (veg[x + 1, y, 1] * (1 - veg_lat_restriction));
-                            if ((elev[x + 1, y] - amt) < bedrock[x + 1, y] || x + 1 == xmax) amt = 0;
-                            if (amt > ERODEFACTOR * 0.1) amt = ERODEFACTOR * 0.1;
-                            //if (amt > erodetot2 /2) amt = erodetot2 /2;
-                            if (amt < 0) amt = 0;
-                            temp_elev[x, y] += amt;
-                            temp_elev[x + 1, y] -= amt;
-                            slide_GS(x + 1, y, amt, x, y);
-                        }
-                    }
-
-
                 }
             }
-        }
-    });
 
-    Parallel.For(2, xmax, options1, delegate (int x)
-    {
-        int inc = 1;
-        while (cross_scan[x, inc] > 0)
-        {
-            int y = cross_scan[x, inc];
-            inc++;
-
+            for (int x = 2; x < xmax; x++)
             {
-
-                if (erodetot3[x, y] > 0)
+                if (water_depth[x, ymax] > water_depth_erosion_threshold || Vsusptot[x, ymax, 0] > 0)
                 {
-                    if (elev[x, y - 1] > elev[x, y])
+                    for (int n = 1; n <= G_MAX - 1; n++)
                     {
-                        double amt = 0;
-                        if (water_depth[x, y - 1] < water_depth_erosion_threshold)
-                            amt = mult_factor * lateral_constant * Tau[x, y] * edge[x, y - 1] * time_factor / DX;
-                        else amt = bed_proportion * erodetot3[x, y] * (elev[x, y - 1] - elev[x, y]) / DX * 0.1;
-
-                        if (amt > 0)
+                        for (int T = 0; T <= tracers; T++)
                         {
-                            amt *= 1 - (veg[x, y - 1, 1] * (1 - veg_lat_restriction));
-                            if ((elev[x, y - 1] - amt) < bedrock[x, y - 1] || y - 1 == 1) amt = 0;
-                            if (amt > ERODEFACTOR * 0.1) amt = ERODEFACTOR * 0.1;
-                            //if (amt > erodetot2 / 2) amt = erodetot2 / 2;
-                            if (amt < 0) amt = 0;
-                            temp_elev[x, y] += amt;
-                            temp_elev[x, y - 1] -= amt;
-                            slide_GS(x, y - 1, amt, x, y);
+                            if (isSuspended[n])
+                            {
+                                gtot2[n, T] += Vsusptot[x, ymax, T];
+                                Vsusptot[x, ymax, T] = 0;
+                            }
+                            else
+                            {
+                                gtot2[n, T] += sd[x, ymax - 1, n, T];
+                            }
                         }
                     }
-                    if (elev[x, y + 1] > elev[x, y])
+                }
+                if (water_depth[x, 1] > water_depth_erosion_threshold || Vsusptot[x, 1, 0] > 0)
+                {
+                    for (int n = 1; n <= G_MAX - 1; n++)
                     {
-                        double amt = 0;
-                        if (water_depth[x, y + 1] < water_depth_erosion_threshold)
-                            amt = amt = mult_factor * lateral_constant * Tau[x, y] * edge[x, y + 1] * time_factor / DX;
-                        else amt = bed_proportion * erodetot3[x, y] * (elev[x, y + 1] - elev[x, y]) / DX * 0.1;
-
-                        if (amt > 0)
+                        for (int T = 0; T <= tracers; T++)
                         {
-                            amt *= 1 - (veg[x, y + 1, 1] * (1 - veg_lat_restriction));
-                            if ((elev[x, y + 1] - amt) < bedrock[x, y + 1] || y + 1 == ymax) amt = 0;
-                            if (amt > ERODEFACTOR * 0.1) amt = ERODEFACTOR * 0.1;
-                            //if (amt > erodetot2 / 2) amt = erodetot2 / 2;
-                            if (amt < 0) amt = 0;
-                            temp_elev[x, y] += amt;
-                            temp_elev[x, y + 1] -= amt;
-                            slide_GS(x, y + 1, amt, x, y);
+                            if (isSuspended[n])
+                            {
+                                gtot2[n, T] += Vsusptot[x, 1, T];
+                                Vsusptot[x, 1, T] = 0;
+                            }
+                            else
+                            {
+                                gtot2[n, T] += su[x, 2, n, T];
+                            }
                         }
                     }
-
-
                 }
             }
-        }
-    });
 
-    Parallel.For(2, ymax, options, delegate (int y)
-    {
-        int inc = 1;
-        while (down_scan[y, inc] > 0)
-        {
-            int x = down_scan[y, inc];
-            inc++;
+            /// now update files for outputing sediment and re-circulating...
+            ///
 
-            if (x > 1 && x < xmax) elev[x, y] += temp_elev[x, y];
-
-        }
-    });
-
-
-    // now calculate sediment outputs from all four edges...
-    for (int y = 2; y < ymax; y++)
-    {
-        if (water_depth[xmax, y] > water_depth_erosion_threshold || Vsusptot[xmax, y, 0] > 0)
-        {
-            for (int n = 1; n <= G_MAX - 1; n++)
+            sediQ = 0;
+            for (int n = 1; n <= G_MAX; n++)
             {
                 for (int T = 0; T <= tracers; T++)
                 {
-                    if (isSuspended[n])
-                    {
-                        gtot2[n, T] += Vsusptot[xmax, y, T];
-                        Vsusptot[xmax, y, T] = 0;
-                    }
-                    else
-                    {
-                        gtot2[n, T] += sr[xmax - 1, y, n, T];
-                    }
+                    if (temp_grain[n] < 0) temp_grain[n] = 0;
+                    if (recirculatebox.Checked == true && reach_mode_box.Checked == true)
+                        temp_grain[n] += gtot2[n, T] * recirculate_proportion; // important to divide input by time factor, so it can be reduced if re-circulating too much...
+                    sediQ += gtot2[n, T] * DX * DX;
+                    globalsediq += gtot2[n, T] * DX * DX;
+                    sum_grain[n, T] += gtot2[n, T] * DX * DX; // Gez
                 }
             }
+
+            return tempbmax;
+
         }
-        if (water_depth[1, y] > water_depth_erosion_threshold || Vsusptot[1, y, 0] > 0)
+
+        private void landslide_grainsize_CheckedChanged(object sender, EventArgs e)
         {
-            for (int n = 1; n <= G_MAX - 1; n++)
+            this.label30.Visible = true;
+            this.label32.Visible = true;
+            this.label118.Visible = true;
+            this.label110.Visible = true;
+            this.label111.Visible = true;
+            this.label112.Visible = true;
+            this.label113.Visible = true;
+            this.label114.Visible = true;
+            this.label115.Visible = true;
+            this.label116.Visible = true;
+            this.label117.Visible = true;
+            this.label120.Visible = true;
+            this.g1_box.Visible = true;
+            this.g2_box.Visible = true;
+            this.g3_box.Visible = true;
+            this.g4_box.Visible = true;
+            this.g5_box.Visible = true;
+            this.g6_box.Visible = true;
+            this.g7_box.Visible = true;
+            this.g8_box.Visible = true;
+            this.g9_box.Visible = true;
+            this.gp1_box.Visible = true;
+            this.gp2_box.Visible = true;
+            this.gp3_box.Visible = true;
+            this.gp4_box.Visible = true;
+            this.gp5_box.Visible = true;
+            this.gp6_box.Visible = true;
+            this.gp7_box.Visible = true;
+            this.gp8_box.Visible = true;
+            this.gp9_box.Visible = true;
+
+        }
+
+        void slide_3()
+        {
+            int x, y, inc;
+            double wet_factor;
+            double factor = Math.Tan((failureangle * (3.141592654 / 180))) * DX;
+            double diff = 0;
+
+            for (y = 2; y < ymax; y++)
             {
-                for (int T = 0; T <= tracers; T++)
+                inc = 1;
+                while (down_scan[y, inc] > 0)
                 {
-                    if (isSuspended[n])
-                    {
-                        gtot2[n, T] += Vsusptot[1, y, T];
-                        Vsusptot[1, y, T] = 0;
-                    }
-                    else
-                    {
-                        gtot2[n, T] += sl[2, y, n, T];
-                    }
-                }
-            }
-        }
-    }
+                    x = down_scan[y, inc];
+                    if (x == xmax) x = xmax - 1;
+                    if (x == 1) x = 2;
 
-    for (int x = 2; x < xmax; x++)
-    {
-        if (water_depth[x, ymax] > water_depth_erosion_threshold || Vsusptot[x, ymax, 0] > 0)
-        {
-            for (int n = 1; n <= G_MAX - 1; n++)
-            {
-                for (int T = 0; T <= tracers; T++)
-                {
-                    if (isSuspended[n])
-                    {
-                        gtot2[n, T] += Vsusptot[x, ymax, T];
-                        Vsusptot[x, ymax, T] = 0;
-                    }
-                    else
-                    {
-                        gtot2[n, T] += sd[x, ymax - 1, n, T];
-                    }
-                }
-            }
-        }
-        if (water_depth[x, 1] > water_depth_erosion_threshold || Vsusptot[x, 1, 0] > 0)
-        {
-            for (int n = 1; n <= G_MAX - 1; n++)
-            {
-                for (int T = 0; T <= tracers; T++)
-                {
-                    if (isSuspended[n])
-                    {
-                        gtot2[n, T] += Vsusptot[x, 1, T];
-                        Vsusptot[x, 1, T] = 0;
-                    }
-                    else
-                    {
-                        gtot2[n, T] += su[x, 2, n, T];
-                    }
-                }
-            }
-        }
-    }
+                    inc++;
+                    /** check to see if under water **/
+                    wet_factor = factor;
+                    //if(water_depth[x,y]>0.01)wet_factor=factor/2;
+                    if (elev[x, y] <= (bedrock[x, y] + active)) wet_factor = 10000;
 
-    /// now update files for outputing sediment and re-circulating...
-    ///
-
-    sediQ = 0;
-    for (int n = 1; n <= G_MAX; n++)
-    {
-        for (int T = 0; T <= tracers; T++)
-        {
-            if (temp_grain[n] < 0) temp_grain[n] = 0;
-            if (recirculatebox.Checked == true && reach_mode_box.Checked == true)
-                temp_grain[n] += gtot2[n, T] * recirculate_proportion; // important to divide input by time factor, so it can be reduced if re-circulating too much...
-            sediQ += gtot2[n, T] * DX * DX;
-            globalsediq += gtot2[n, T] * DX * DX;
-            sum_grain[n, T] += gtot2[n, T] * DX * DX; // Gez
-        }
-    }
-
-    return tempbmax;
-
-}
-
-private void landslide_grainsize_CheckedChanged(object sender, EventArgs e)
-{
-    this.label30.Visible = true;
-    this.label32.Visible = true;
-    this.label118.Visible = true;
-    this.label110.Visible = true;
-    this.label111.Visible = true;
-    this.label112.Visible = true;
-    this.label113.Visible = true;
-    this.label114.Visible = true;
-    this.label115.Visible = true;
-    this.label116.Visible = true;
-    this.label117.Visible = true;
-    this.label120.Visible = true;
-    this.g1_box.Visible = true;
-    this.g2_box.Visible = true;
-    this.g3_box.Visible = true;
-    this.g4_box.Visible = true;
-    this.g5_box.Visible = true;
-    this.g6_box.Visible = true;
-    this.g7_box.Visible = true;
-    this.g8_box.Visible = true;
-    this.g9_box.Visible = true;
-    this.gp1_box.Visible = true;
-    this.gp2_box.Visible = true;
-    this.gp3_box.Visible = true;
-    this.gp4_box.Visible = true;
-    this.gp5_box.Visible = true;
-    this.gp6_box.Visible = true;
-    this.gp7_box.Visible = true;
-    this.gp8_box.Visible = true;
-    this.gp9_box.Visible = true;
-
-}
-
-void slide_3()
-{
-    int x, y, inc;
-    double wet_factor;
-    double factor = Math.Tan((failureangle * (3.141592654 / 180))) * DX;
-    double diff = 0;
-
-    for (y = 2; y < ymax; y++)
-    {
-        inc = 1;
-        while (down_scan[y, inc] > 0)
-        {
-            x = down_scan[y, inc];
-            if (x == xmax) x = xmax - 1;
-            if (x == 1) x = 2;
-
-            inc++;
-            /** check to see if under water **/
-            wet_factor = factor;
-            //if(water_depth[x,y]>0.01)wet_factor=factor/2;
-            if (elev[x, y] <= (bedrock[x, y] + active)) wet_factor = 10000;
-
-            /** chexk landslides in channel slowly */
-
-            if (((elev[x, y] - elev[x + 1, y + 1]) / 1.41) > wet_factor && elev[x + 1, y + 1] > -9999)
-            {
-                diff = ((elev[x, y] - elev[x + 1, y + 1]) / 1.41) - wet_factor;
-                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                if (diff < 0) diff = 0;
-                elev[x, y] -= diff;
-                elev[x + 1, y + 1] += diff;
-                slide_GS(x, y, diff, x + 1, y + 1);
-            }
-            if ((elev[x, y] - elev[x, y + 1]) > wet_factor && elev[x, y + 1] > -9999)
-            {
-                diff = (elev[x, y] - elev[x, y + 1]) - wet_factor;
-                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                if (diff < 0) diff = 0;
-                elev[x, y] -= diff;
-                elev[x, y + 1] += diff;
-                slide_GS(x, y, diff, x, y + 1);
-            }
-            if (((elev[x, y] - elev[x - 1, y + 1]) / 1.41) > wet_factor && elev[x - 1, y + 1] > -9999)
-            {
-                diff = ((elev[x, y] - elev[x - 1, y + 1]) / 1.41) - wet_factor;
-                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                if (diff < 0) diff = 0;
-                elev[x, y] -= diff;
-                elev[x - 1, y + 1] += diff;
-                slide_GS(x, y, diff, x - 1, y + 1);
-            }
-            if ((elev[x, y] - elev[x - 1, y]) > wet_factor && elev[x - 1, y] > -9999)
-            {
-                diff = (elev[x, y] - elev[x - 1, y]) - wet_factor;
-                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                if (diff < 0) diff = 0;
-                elev[x, y] -= diff;
-                elev[x - 1, y] += diff;
-                slide_GS(x, y, diff, x - 1, y);
-            }
-
-            if (((elev[x, y] - elev[x - 1, y - 1]) / 1.41) > wet_factor && elev[x - 1, y - 1] > -9999)
-            {
-                diff = ((elev[x, y] - elev[x - 1, y - 1]) / 1.41) - wet_factor;
-                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                if (diff < 0) diff = 0;
-                elev[x, y] -= diff;
-                elev[x - 1, y - 1] += diff;
-                slide_GS(x, y, diff, x - 1, y - 1);
-            }
-            if ((elev[x, y] - elev[x, y - 1]) > wet_factor && elev[x, y - 1] > -9999)
-            {
-                diff = (elev[x, y] - elev[x, y - 1]) - wet_factor;
-                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                if (diff < 0) diff = 0;
-                elev[x, y] -= diff;
-                elev[x, y - 1] += diff;
-                slide_GS(x, y, diff, x, y - 1);
-            }
-            if (((elev[x, y] - elev[x + 1, y - 1]) / 1.41) > wet_factor && elev[x + 1, y - 1] > -9999)
-            {
-                diff = ((elev[x, y] - elev[x + 1, y - 1]) / 1.41) - wet_factor;
-                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                if (diff < 0) diff = 0;
-                elev[x, y] -= diff;
-                elev[x + 1, y - 1] += diff;
-                slide_GS(x, y, diff, x + 1, y - 1);
-            }
-
-            if ((elev[x, y] - elev[x + 1, y]) > wet_factor && elev[x + 1, y] > -9999)
-            {
-                diff = (elev[x, y] - elev[x + 1, y]) - wet_factor;
-                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
-                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
-                if (diff < 0) diff = 0;
-                elev[x, y] -= diff;
-                elev[x + 1, y] += diff;
-                slide_GS(x, y, diff, x + 1, y);
-            }
-
-        }
-    }
-
-}
-
-private void tracer_file_TextChanged(object sender, EventArgs e)
-{
-
-}
-
-private void menuItem16_Click(object sender, EventArgs e)
-{
-    menuItem16.Checked = (!menuItem16.Checked);
-}
-
-private void tracerOutcheckBox_CheckedChanged(object sender, EventArgs e)
-{
-
-}
-
-private void checkBox_tracer_CheckedChanged(object sender, EventArgs e)
-{
-    this.label106.Visible = true;
-    this.label107.Visible = true;
-    this.label122.Visible = true;
-    this.label123.Visible = true;
-    this.label124.Visible = true;
-    this.tracer_num.Visible = true;
-    this.tracer_file.Visible = true;
-    this.mine_input_textBox.Visible = true;
-}
-
-void slide_5()
-{
-    int x, y, inc = 0;
-    double wet_factor;
-    double factor = Math.Tan((failureangle * (3.141592654 / 180))) * DX;
-    //if(landslidesBox.Checked == true) factor = DX * ((-265000 * j_mean) + 1.38);
-    double diff = 0;
-    double total = 0;
-
-    if (DuneBox.Checked == true)
-    {
-        for (x = 1; x <= xmax; x++)
-        {
-            for (y = 1; y <= ymax; y++)
-            {
-                elev[x, y] -= sand[x, y];
-            }
-        }
-    }
-
-
-
-    do
-    {
-        total = 0;
-        inc++;
-        for (y = 2; y < ymax; y++)
-        {
-            for (x = 2; x < xmax; x++)
-            {
-
-                wet_factor = factor;
-                //if(water_depth[x,y]>0.01)wet_factor=factor/2;
-                if (elev[x, y] >= (bedrock[x, y] + active))
-                {
-
+                    /** chexk landslides in channel slowly */
 
                     if (((elev[x, y] - elev[x + 1, y + 1]) / 1.41) > wet_factor && elev[x + 1, y + 1] > -9999)
                     {
                         diff = ((elev[x, y] - elev[x + 1, y + 1]) / 1.41) - wet_factor;
-                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x + 1, y + 1] += diff;
                         slide_GS(x, y, diff, x + 1, y + 1);
-                        total += diff;
                     }
                     if ((elev[x, y] - elev[x, y + 1]) > wet_factor && elev[x, y + 1] > -9999)
                     {
                         diff = (elev[x, y] - elev[x, y + 1]) - wet_factor;
-                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x, y + 1] += diff;
                         slide_GS(x, y, diff, x, y + 1);
-                        total += diff;
                     }
                     if (((elev[x, y] - elev[x - 1, y + 1]) / 1.41) > wet_factor && elev[x - 1, y + 1] > -9999)
                     {
                         diff = ((elev[x, y] - elev[x - 1, y + 1]) / 1.41) - wet_factor;
-                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x - 1, y + 1] += diff;
                         slide_GS(x, y, diff, x - 1, y + 1);
-                        total += diff;
                     }
                     if ((elev[x, y] - elev[x - 1, y]) > wet_factor && elev[x - 1, y] > -9999)
                     {
                         diff = (elev[x, y] - elev[x - 1, y]) - wet_factor;
-                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x - 1, y] += diff;
                         slide_GS(x, y, diff, x - 1, y);
-                        total += diff;
                     }
 
                     if (((elev[x, y] - elev[x - 1, y - 1]) / 1.41) > wet_factor && elev[x - 1, y - 1] > -9999)
                     {
                         diff = ((elev[x, y] - elev[x - 1, y - 1]) / 1.41) - wet_factor;
-                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x - 1, y - 1] += diff;
                         slide_GS(x, y, diff, x - 1, y - 1);
-                        total += diff;
                     }
                     if ((elev[x, y] - elev[x, y - 1]) > wet_factor && elev[x, y - 1] > -9999)
                     {
                         diff = (elev[x, y] - elev[x, y - 1]) - wet_factor;
-                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x, y - 1] += diff;
                         slide_GS(x, y, diff, x, y - 1);
-                        total += diff;
                     }
                     if (((elev[x, y] - elev[x + 1, y - 1]) / 1.41) > wet_factor && elev[x + 1, y - 1] > -9999)
                     {
                         diff = ((elev[x, y] - elev[x + 1, y - 1]) / 1.41) - wet_factor;
-                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x + 1, y - 1] += diff;
                         slide_GS(x, y, diff, x + 1, y - 1);
-                        total += diff;
                     }
-
-
 
                     if ((elev[x, y] - elev[x + 1, y]) > wet_factor && elev[x + 1, y] > -9999)
                     {
                         diff = (elev[x, y] - elev[x + 1, y]) - wet_factor;
-                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                        if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
                         if (diff < 0) diff = 0;
                         elev[x, y] -= diff;
                         elev[x + 1, y] += diff;
                         slide_GS(x, y, diff, x + 1, y);
-                        total += diff;
+                    }
+
+                }
+            }
+
+        }
+
+        private void tracer_file_TextChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void menuItem16_Click(object sender, EventArgs e)
+        {
+            menuItem16.Checked = (!menuItem16.Checked);
+        }
+
+        private void tracerOutcheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void checkBox_tracer_CheckedChanged(object sender, EventArgs e)
+        {
+            this.label106.Visible = true;
+            this.label107.Visible = true;
+            this.label122.Visible = true;
+            this.label123.Visible = true;
+            this.label124.Visible = true;
+            this.tracer_num.Visible = true;
+            this.tracer_file.Visible = true;
+            this.mine_input_textBox.Visible = true;
+        }
+
+        void slide_5()
+        {
+            int x, y, inc = 0;
+            double wet_factor;
+            double factor = Math.Tan((failureangle * (3.141592654 / 180))) * DX;
+            //if(landslidesBox.Checked == true) factor = DX * ((-265000 * j_mean) + 1.38);
+            double diff = 0;
+            double total = 0;
+
+            if (DuneBox.Checked == true)
+            {
+                for (x = 1; x <= xmax; x++)
+                {
+                    for (y = 1; y <= ymax; y++)
+                    {
+                        elev[x, y] -= sand[x, y];
                     }
                 }
             }
-        }
-    } while (total > 0 && inc < 200);
 
-    if (DuneBox.Checked == true)
-    {
-        for (x = 1; x <= xmax; x++)
-        {
-            for (y = 1; y <= ymax; y++)
+
+
+            do
             {
-                elev[x, y] += sand[x, y];
-            }
-        }
-    }
+                total = 0;
+                inc++;
+                for (y = 2; y < ymax; y++)
+                {
+                    for (x = 2; x < xmax; x++)
+                    {
 
-}
-
-void slide_4(int x, int y) // landslides from sand dunes...
-{
-    double wet_factor;
-    double factor = Math.Tan((double.Parse(textBox10.Text) * (3.141592654 / 180))) * (DX / dune_mult);
-    double diff = 0;
-
-    wet_factor = factor;
+                        wet_factor = factor;
+                        //if(water_depth[x,y]>0.01)wet_factor=factor/2;
+                        if (elev[x, y] >= (bedrock[x, y] + active))
+                        {
 
 
+                            if (((elev[x, y] - elev[x + 1, y + 1]) / 1.41) > wet_factor && elev[x + 1, y + 1] > -9999)
+                            {
+                                diff = ((elev[x, y] - elev[x + 1, y + 1]) / 1.41) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x + 1, y + 1] += diff;
+                                slide_GS(x, y, diff, x + 1, y + 1);
+                                total += diff;
+                            }
+                            if ((elev[x, y] - elev[x, y + 1]) > wet_factor && elev[x, y + 1] > -9999)
+                            {
+                                diff = (elev[x, y] - elev[x, y + 1]) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x, y + 1] += diff;
+                                slide_GS(x, y, diff, x, y + 1);
+                                total += diff;
+                            }
+                            if (((elev[x, y] - elev[x - 1, y + 1]) / 1.41) > wet_factor && elev[x - 1, y + 1] > -9999)
+                            {
+                                diff = ((elev[x, y] - elev[x - 1, y + 1]) / 1.41) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x - 1, y + 1] += diff;
+                                slide_GS(x, y, diff, x - 1, y + 1);
+                                total += diff;
+                            }
+                            if ((elev[x, y] - elev[x - 1, y]) > wet_factor && elev[x - 1, y] > -9999)
+                            {
+                                diff = (elev[x, y] - elev[x - 1, y]) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x - 1, y] += diff;
+                                slide_GS(x, y, diff, x - 1, y);
+                                total += diff;
+                            }
 
-    if ((((elev2[x, y] + sand2[x, y]) - (elev2[x + 1, y + 1] + sand2[x + 1, y + 1])) / 1.41) > wet_factor && (elev2[x + 1, y + 1] + sand2[x + 1, y + 1]) > 0)
-    {
-        diff = (((elev2[x, y] + sand2[x, y]) - (elev2[x + 1, y + 1] + sand2[x + 1, y + 1])) / 1.41) - wet_factor;
-        if (diff > sand2[x, y]) diff = sand2[x, y];
-        //if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
-        sand2[x, y] -= diff;
-        sand2[x + 1, y + 1] += diff;
-    }
-    if (((elev2[x, y] + sand2[x, y]) - (elev2[x, y + 1] + sand2[x, y + 1])) > wet_factor && (elev2[x, y + 1] + sand2[x, y + 1]) > 0)
-    {
-        diff = ((elev2[x, y] + sand2[x, y]) - (elev2[x, y + 1] + sand2[x, y + 1])) - wet_factor;
-        if (diff > sand2[x, y]) diff = sand2[x, y];
-        //if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
-        sand2[x, y] -= diff;
-        sand2[x, y + 1] += diff;
-    }
-    if ((((elev2[x, y] + sand2[x, y]) - (elev2[x - 1, y + 1] + sand2[x - 1, y + 1])) / 1.41) > wet_factor && (elev2[x - 1, y + 1] + sand2[x - 1, y + 1]) > 0)
-    {
-        diff = (((elev2[x, y] + sand2[x, y]) - (elev2[x - 1, y + 1] + sand2[x - 1, y + 1])) / 1.41) - wet_factor;
-        if (diff > sand2[x, y]) diff = sand2[x, y];
-        // if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
-        sand2[x, y] -= diff;
-        sand2[x - 1, y + 1] += diff;
-    }
-    if (((elev2[x, y] + sand2[x, y]) - (elev2[x - 1, y] + sand2[x - 1, y])) > wet_factor && (elev2[x - 1, y] + sand2[x - 1, y]) > 0)
-    {
-        diff = ((elev2[x, y] + sand2[x, y]) - (elev2[x - 1, y] + sand2[x - 1, y])) - wet_factor;
-        if (diff > sand2[x, y]) diff = sand2[x, y];
-        //if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
-        sand2[x, y] -= diff;
-        sand2[x - 1, y] += diff;
-    }
-
-    if ((((elev2[x, y] + sand2[x, y]) - (elev2[x - 1, y - 1] + sand2[x - 1, y - 1])) / 1.41) > wet_factor && (elev2[x - 1, y - 1] + sand2[x - 1, y - 1]) > 0)
-    {
-        diff = (((elev2[x, y] + sand2[x, y]) - (elev2[x - 1, y - 1] + sand2[x - 1, y - 1])) / 1.41) - wet_factor;
-        if (diff > sand2[x, y]) diff = sand2[x, y];
-        //if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
-        sand2[x, y] -= diff;
-        sand2[x - 1, y - 1] += diff;
-
-
-    }
-    if (((elev2[x, y] + sand2[x, y]) - (elev2[x, y - 1] + sand2[x, y - 1])) > wet_factor && (elev2[x, y - 1] + sand2[x, y - 1]) > 0)
-    {
-        diff = ((elev2[x, y] + sand2[x, y]) - (elev2[x, y - 1] + sand2[x, y - 1])) - wet_factor;
-        if (diff > sand2[x, y]) diff = sand2[x, y];
-        //if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
-        sand2[x, y] -= diff;
-        sand2[x, y - 1] += diff;
-
-
-    }
-    if ((((elev2[x, y] + sand2[x, y]) - (elev2[x + 1, y - 1] + sand2[x + 1, y - 1])) / 1.41) > wet_factor && (elev2[x + 1, y - 1] + sand2[x + 1, y - 1]) > 0)
-    {
-        diff = (((elev2[x, y] + sand2[x, y]) - (elev2[x + 1, y - 1] + sand2[x + 1, y - 1])) / 1.41) - wet_factor;
-        if (diff > sand2[x, y]) diff = sand2[x, y];
-        //if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
-        sand2[x, y] -= diff;
-        sand2[x + 1, y - 1] += diff;
-
-    }
-
-
-    if (((elev2[x, y] + sand2[x, y]) - (elev2[x + 1, y] + sand2[x + 1, y])) > wet_factor && (elev2[x + 1, y] + sand2[x + 1, y]) > 0)
-    {
-        diff = ((elev2[x, y] + sand2[x, y]) - (elev2[x + 1, y] + sand2[x + 1, y])) - wet_factor;
-        if (diff > sand2[x, y]) diff = sand2[x, y];
-        //if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
-        sand2[x, y] -= diff;
-        sand2[x + 1, y] += diff;
-
-    }
-
-
-}
-
-void slide_GS(int x, int y, double amount, int x2, int y2)
-{
-
-    /** Ok, heres how it works, x and y are ones material moved from,
-      x2 and y2 are ones material moved to...
-      amd amount is the amount shifted. */
-
-    int n;
-    double total = 0;
-
-    // do only for cells where both have grainsize..
-
-    if (index[x, y] != -9999 && index[x2, y2] != -9999)
-    {
+                            if (((elev[x, y] - elev[x - 1, y - 1]) / 1.41) > wet_factor && elev[x - 1, y - 1] > -9999)
+                            {
+                                diff = ((elev[x, y] - elev[x - 1, y - 1]) / 1.41) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x - 1, y - 1] += diff;
+                                slide_GS(x, y, diff, x - 1, y - 1);
+                                total += diff;
+                            }
+                            if ((elev[x, y] - elev[x, y - 1]) > wet_factor && elev[x, y - 1] > -9999)
+                            {
+                                diff = (elev[x, y] - elev[x, y - 1]) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x, y - 1] += diff;
+                                slide_GS(x, y, diff, x, y - 1);
+                                total += diff;
+                            }
+                            if (((elev[x, y] - elev[x + 1, y - 1]) / 1.41) > wet_factor && elev[x + 1, y - 1] > -9999)
+                            {
+                                diff = ((elev[x, y] - elev[x + 1, y - 1]) / 1.41) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x + 1, y - 1] += diff;
+                                slide_GS(x, y, diff, x + 1, y - 1);
+                                total += diff;
+                            }
 
 
-        for (int T = 0; T <= tracers; T++)
-        {
-            for (n = 1; n <= (G_MAX - 1); n++)
+
+                            if ((elev[x, y] - elev[x + 1, y]) > wet_factor && elev[x + 1, y] > -9999)
+                            {
+                                diff = (elev[x, y] - elev[x + 1, y]) - wet_factor;
+                                if ((elev[x, y] - diff) < (bedrock[x, y] + active)) diff = (elev[x, y] - (bedrock[x, y] + active));
+                                if (diff > ERODEFACTOR) diff = ERODEFACTOR;
+                                if (diff < 0) diff = 0;
+                                elev[x, y] -= diff;
+                                elev[x + 1, y] += diff;
+                                slide_GS(x, y, diff, x + 1, y);
+                                total += diff;
+                            }
+                        }
+                    }
+                }
+            } while (total > 0 && inc < 200);
+
+            if (DuneBox.Checked == true)
             {
-
-                if (grain[index[x, y], n, T] > 0) total += grain[index[x, y], n, T];
-
-            }
-        }
-
-        if (amount > total)
-        {
-            for (n = 1; n <= G_MAX - 1; n++)
-            {
-                // here is where you may need to add more from different tracer areas
-                //for (int T = 0; T <= tracers; T++) grain[index[x2, y2], n, T] += (amount - total) * dprop[n];
-                // maybe like below
-                int TT = tracer_area[x, y];// TT= tracer area.... //int TT = tracer number of area of donor cells[x, y];
-
-                if (grain_area[x, y] == 0)
-                { grain[index[x2, y2], n, TT] += (amount - total) * dprop[n]; }
-
-                else if (grain_area[x, y] == 1)
-                { grain[index[x2, y2], n, TT] += (amount - total) * dprop_[n]; }
+                for (x = 1; x <= xmax; x++)
+                {
+                    for (y = 1; y <= ymax; y++)
+                    {
+                        elev[x, y] += sand[x, y];
+                    }
+                }
             }
 
-            amount = total;
         }
 
-        if (total > 0)
+        void slide_4(int x, int y) // landslides from sand dunes...
         {
-            for (n = 1; n <= (G_MAX - 1); n++)
+            double wet_factor;
+            double factor = Math.Tan((double.Parse(textBox10.Text) * (3.141592654 / 180))) * (DX / dune_mult);
+            double diff = 0;
+
+            wet_factor = factor;
+
+
+
+            if ((((elev2[x, y] + sand2[x, y]) - (elev2[x + 1, y + 1] + sand2[x + 1, y + 1])) / 1.41) > wet_factor && (elev2[x + 1, y + 1] + sand2[x + 1, y + 1]) > 0)
             {
+                diff = (((elev2[x, y] + sand2[x, y]) - (elev2[x + 1, y + 1] + sand2[x + 1, y + 1])) / 1.41) - wet_factor;
+                if (diff > sand2[x, y]) diff = sand2[x, y];
+                //if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
+                sand2[x, y] -= diff;
+                sand2[x + 1, y + 1] += diff;
+            }
+            if (((elev2[x, y] + sand2[x, y]) - (elev2[x, y + 1] + sand2[x, y + 1])) > wet_factor && (elev2[x, y + 1] + sand2[x, y + 1]) > 0)
+            {
+                diff = ((elev2[x, y] + sand2[x, y]) - (elev2[x, y + 1] + sand2[x, y + 1])) - wet_factor;
+                if (diff > sand2[x, y]) diff = sand2[x, y];
+                //if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
+                sand2[x, y] -= diff;
+                sand2[x, y + 1] += diff;
+            }
+            if ((((elev2[x, y] + sand2[x, y]) - (elev2[x - 1, y + 1] + sand2[x - 1, y + 1])) / 1.41) > wet_factor && (elev2[x - 1, y + 1] + sand2[x - 1, y + 1]) > 0)
+            {
+                diff = (((elev2[x, y] + sand2[x, y]) - (elev2[x - 1, y + 1] + sand2[x - 1, y + 1])) / 1.41) - wet_factor;
+                if (diff > sand2[x, y]) diff = sand2[x, y];
+                // if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
+                sand2[x, y] -= diff;
+                sand2[x - 1, y + 1] += diff;
+            }
+            if (((elev2[x, y] + sand2[x, y]) - (elev2[x - 1, y] + sand2[x - 1, y])) > wet_factor && (elev2[x - 1, y] + sand2[x - 1, y]) > 0)
+            {
+                diff = ((elev2[x, y] + sand2[x, y]) - (elev2[x - 1, y] + sand2[x - 1, y])) - wet_factor;
+                if (diff > sand2[x, y]) diff = sand2[x, y];
+                //if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
+                sand2[x, y] -= diff;
+                sand2[x - 1, y] += diff;
+            }
+
+            if ((((elev2[x, y] + sand2[x, y]) - (elev2[x - 1, y - 1] + sand2[x - 1, y - 1])) / 1.41) > wet_factor && (elev2[x - 1, y - 1] + sand2[x - 1, y - 1]) > 0)
+            {
+                diff = (((elev2[x, y] + sand2[x, y]) - (elev2[x - 1, y - 1] + sand2[x - 1, y - 1])) / 1.41) - wet_factor;
+                if (diff > sand2[x, y]) diff = sand2[x, y];
+                //if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
+                sand2[x, y] -= diff;
+                sand2[x - 1, y - 1] += diff;
+
+
+            }
+            if (((elev2[x, y] + sand2[x, y]) - (elev2[x, y - 1] + sand2[x, y - 1])) > wet_factor && (elev2[x, y - 1] + sand2[x, y - 1]) > 0)
+            {
+                diff = ((elev2[x, y] + sand2[x, y]) - (elev2[x, y - 1] + sand2[x, y - 1])) - wet_factor;
+                if (diff > sand2[x, y]) diff = sand2[x, y];
+                //if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
+                sand2[x, y] -= diff;
+                sand2[x, y - 1] += diff;
+
+
+            }
+            if ((((elev2[x, y] + sand2[x, y]) - (elev2[x + 1, y - 1] + sand2[x + 1, y - 1])) / 1.41) > wet_factor && (elev2[x + 1, y - 1] + sand2[x + 1, y - 1]) > 0)
+            {
+                diff = (((elev2[x, y] + sand2[x, y]) - (elev2[x + 1, y - 1] + sand2[x + 1, y - 1])) / 1.41) - wet_factor;
+                if (diff > sand2[x, y]) diff = sand2[x, y];
+                //if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
+                sand2[x, y] -= diff;
+                sand2[x + 1, y - 1] += diff;
+
+            }
+
+
+            if (((elev2[x, y] + sand2[x, y]) - (elev2[x + 1, y] + sand2[x + 1, y])) > wet_factor && (elev2[x + 1, y] + sand2[x + 1, y]) > 0)
+            {
+                diff = ((elev2[x, y] + sand2[x, y]) - (elev2[x + 1, y] + sand2[x + 1, y])) - wet_factor;
+                if (diff > sand2[x, y]) diff = sand2[x, y];
+                //if (((elev2[x, y] + sand2[x, y]) - diff) < (bedrock[x, y] + active)) diff = ((elev2[x, y] + sand2[x, y]) - (bedrock[x, y] + active));
+                sand2[x, y] -= diff;
+                sand2[x + 1, y] += diff;
+
+            }
+
+
+        }
+
+        void slide_GS(int x, int y, double amount, int x2, int y2)
+        {
+
+            /** Ok, heres how it works, x and y are ones material moved from,
+              x2 and y2 are ones material moved to...
+              amd amount is the amount shifted. */
+
+            int n;
+            double total = 0;
+
+            // do only for cells where both have grainsize..
+
+            if (index[x, y] != -9999 && index[x2, y2] != -9999)
+            {
+
+
                 for (int T = 0; T <= tracers; T++)
                 {
-                    double transferamt = amount * (grain[index[x, y], n, T] / total);
-                    grain[index[x2, y2], n, T] += transferamt;
-                    grain[index[x, y], n, T] -= transferamt;
-                    if (grain[index[x, y], n, T] < 0) grain[index[x, y], n, T] = 0;
+                    for (n = 1; n <= (G_MAX - 1); n++)
+                    {
+
+                        if (grain[index[x, y], n, T] > 0) total += grain[index[x, y], n, T];
+
+                    }
                 }
-            }
 
-        }
-
-
-        /* then to set active layer to correct depth before erosion, */
-        sort_active(x, y);
-        sort_active(x2, y2);
-        return;
-    }
-
-    //now do for cells where only recieving cells have grainsize
-    // just adds amount to reviving cells of normal..
-    if (index[x, y] == -9999 && index[x2, y2] != -9999)
-    {
-        for (n = 1; n <= G_MAX - 1; n++)
-        {
-            // below needs to be modded for TRACER material
-            //
-            int TT = tracer_area[x, y];// TT= tracer area.... //int TT = tracer number of area of donor cells[x, y];
-
-            if (grain_area[x, y] == 0)
-            { grain[index[x2, y2], n, TT] += (amount) * dprop[n]; }
-
-            else if (grain_area[x, y] == 1)
-            { grain[index[x2, y2], n, TT] += (amount) * dprop_[n]; }
-        }
-
-        /* then to set active layer to correct depth before erosion, */
-        sort_active(x2, y2);
-        return;
-    }
-
-    // now for cells whre dontaing cell has grainsize but not other...
-    if (index[x, y] != -9999 && index[x2, y2] == -9999)
-    {
-
-        addGS(x2, y2); // add grainsize array for recieving cell..
-
-        if (amount > active)
-        {
-
-            for (n = 1; n <= G_MAX - 1; n++)
-            {
-                // below needs to be modded for TRACER material
-                //
-                int TT = tracer_area[x, y];// TT= tracer area....//int TT = tracer number of area of donor cells[x, y];
-
-                if (grain_area[x, y] == 0)
-                { grain[index[x2, y2], n, TT] += (amount - active) * dprop[n]; }
-
-                else if (grain_area[x, y] == 1)
-                { grain[index[x2, y2], n, TT] += (amount - active) * dprop_[n]; }
-
-            }
-
-            amount = active;
-        }
-
-
-        for (n = 1; n <= (G_MAX - 1); n++)
-        {
-            for (int T = 0; T <= tracers; T++) if (grain[index[x, y], n, T] > 0) total += grain[index[x, y], n, T];
-        }
-
-        for (n = 1; n <= (G_MAX - 1); n++)
-        {
-            if (total > 0)
-            {
-                for (int T = 0; T <= tracers; T++)
+                if (amount > total)
                 {
-                    grain[index[x2, y2], n, T] += amount * (grain[index[x, y], n, T] / total);
-                    if (grain[index[x, y], n, T] > 0.0001) grain[index[x, y], n, T] -= amount * (grain[index[x, y], n, T] / total);
-                    if (grain[index[x, y], n, T] < 0) grain[index[x, y], n, T] = 0;
+                    for (n = 1; n <= G_MAX - 1; n++)
+                    {
+                        // here is where you may need to add more from different tracer areas
+                        //for (int T = 0; T <= tracers; T++) grain[index[x2, y2], n, T] += (amount - total) * dprop[n];
+                        // maybe like below
+                        int TT = tracer_area[x, y];// TT= tracer area.... //int TT = tracer number of area of donor cells[x, y];
+
+                        if (grain_area[x, y] == 0)
+                        { grain[index[x2, y2], n, TT] += (amount - total) * dprop[n]; }
+
+                        else if (grain_area[x, y] == 1)
+                        { grain[index[x2, y2], n, TT] += (amount - total) * dprop_[n]; }
+                    }
+
+                    amount = total;
                 }
+
+                if (total > 0)
+                {
+                    for (n = 1; n <= (G_MAX - 1); n++)
+                    {
+                        for (int T = 0; T <= tracers; T++)
+                        {
+                            double transferamt = amount * (grain[index[x, y], n, T] / total);
+                            grain[index[x2, y2], n, T] += transferamt;
+                            grain[index[x, y], n, T] -= transferamt;
+                            if (grain[index[x, y], n, T] < 0) grain[index[x, y], n, T] = 0;
+                        }
+                    }
+
+                }
+
+
+                /* then to set active layer to correct depth before erosion, */
+                sort_active(x, y);
+                sort_active(x2, y2);
+                return;
             }
 
-        }
-
-        /* then to set active layer to correct depth before erosion, */
-        sort_active(x, y);
-        sort_active(x2, y2);
-        return;
-    }
-}
-
-double mean_ws_elev(int x, int y)
-{
-    double elevtot = 0;
-    int counter = 0;
-
-    for (int dir = 1; dir <= 8; dir++)
-    {
-        int x2, y2;
-        x2 = x + deltaX[dir];
-        y2 = y + deltaY[dir];
-
-        if (water_depth[x2, y2] > water_depth_erosion_threshold)
-        {
-            elevtot += water_depth[x2, y2] + elev[x2, y2];
-            counter++;
-        }
-
-    }
-    if (counter > 0)
-    {
-        elevtot /= counter;
-        return elevtot;
-    }
-
-    else return 0;
-}
-
-void lateral3()
-{
-
-    double[,] edge_temp, edge_temp2, water_depth2;
-    int[,] upscale, upscale_edge;
-
-    edge_temp = new Double[xmax + 1, ymax + 1];
-    edge_temp2 = new Double[xmax + 1, ymax + 1];
-    water_depth2 = new Double[xmax + 1, ymax + 1];
-    upscale = new int[(xmax + 1) * 2, (ymax + 1) * 2];
-    upscale_edge = new int[(xmax + 1) * 2, (ymax + 1) * 2];
-
-
-    // first make water depth2 equal to water depth then remove single wet cells frmo water depth2 that have an undue influence..
-    double mft = 0.1;// water_depth_erosion_threshold;//MIN_Q;// vel_dir threshold
-
-    var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
-    Parallel.For(1, ymax, options, delegate (int y)
-    {
-        int inc = 1;
-        while (down_scan[y, inc] > 0)
-        {
-            int x = down_scan[y, inc];
-
-            edge_temp[x, y] = 0;
-            if (x == 1) x++;
-            if (x == xmax) x--;
-            inc++;
-
-            if (Tau[x, y] > mft)
+            //now do for cells where only recieving cells have grainsize
+            // just adds amount to reviving cells of normal..
+            if (index[x, y] == -9999 && index[x2, y2] != -9999)
             {
-                water_depth2[x, y] = Tau[x, y];
-                int tempcounter = 0;
-                for (int dir = 1; dir <= 8; dir++)
+                for (n = 1; n <= G_MAX - 1; n++)
                 {
-                    int x2, y2;
-                    x2 = x + deltaX[dir];
-                    y2 = y + deltaY[dir];
-                    if (Tau[x2, y2] < mft) tempcounter++;
+                    // below needs to be modded for TRACER material
+                    //
+                    int TT = tracer_area[x, y];// TT= tracer area.... //int TT = tracer number of area of donor cells[x, y];
+
+                    if (grain_area[x, y] == 0)
+                    { grain[index[x2, y2], n, TT] += (amount) * dprop[n]; }
+
+                    else if (grain_area[x, y] == 1)
+                    { grain[index[x2, y2], n, TT] += (amount) * dprop_[n]; }
                 }
-                if (tempcounter > 6) water_depth2[x, y] = 0;
+
+                /* then to set active layer to correct depth before erosion, */
+                sort_active(x2, y2);
+                return;
+            }
+
+            // now for cells whre dontaing cell has grainsize but not other...
+            if (index[x, y] != -9999 && index[x2, y2] == -9999)
+            {
+
+                addGS(x2, y2); // add grainsize array for recieving cell..
+
+                if (amount > active)
+                {
+
+                    for (n = 1; n <= G_MAX - 1; n++)
+                    {
+                        // below needs to be modded for TRACER material
+                        //
+                        int TT = tracer_area[x, y];// TT= tracer area....//int TT = tracer number of area of donor cells[x, y];
+
+                        if (grain_area[x, y] == 0)
+                        { grain[index[x2, y2], n, TT] += (amount - active) * dprop[n]; }
+
+                        else if (grain_area[x, y] == 1)
+                        { grain[index[x2, y2], n, TT] += (amount - active) * dprop_[n]; }
+
+                    }
+
+                    amount = active;
+                }
+
+
+                for (n = 1; n <= (G_MAX - 1); n++)
+                {
+                    for (int T = 0; T <= tracers; T++) if (grain[index[x, y], n, T] > 0) total += grain[index[x, y], n, T];
+                }
+
+                for (n = 1; n <= (G_MAX - 1); n++)
+                {
+                    if (total > 0)
+                    {
+                        for (int T = 0; T <= tracers; T++)
+                        {
+                            grain[index[x2, y2], n, T] += amount * (grain[index[x, y], n, T] / total);
+                            if (grain[index[x, y], n, T] > 0.0001) grain[index[x, y], n, T] -= amount * (grain[index[x, y], n, T] / total);
+                            if (grain[index[x, y], n, T] < 0) grain[index[x, y], n, T] = 0;
+                        }
+                    }
+
+                }
+
+                /* then to set active layer to correct depth before erosion, */
+                sort_active(x, y);
+                sort_active(x2, y2);
+                return;
             }
         }
-    });
 
-    // first make water depth2 equal to water depth then remove single wet cells frmo water depth2 that have an undue influence..
-    //double mft = water_depth_erosion_threshold;//MIN_Q;// vel_dir threshold
-    //for (int y = 2; y < ymax; y++)
-    //{
-
-    //    int inc = 1;
-    //    while (down_scan[y, inc] > 0)
-    //    {
-    //        int x = down_scan[y, inc];
-
-    //        edge_temp[x, y] = 0;
-    //        if (x == 1) x++;
-    //        if (x == xmax) x--;
-    //        inc++;
-
-    //        if (water_depth[x, y] > mft)
-    //        {
-    //            water_depth2[x, y] = water_depth[x, y];
-    //            int tempcounter = 0;
-    //            for (int dir = 1; dir <= 8; dir++)
-    //            {
-    //                int x2, y2;
-    //                x2 = x + deltaX[dir];
-    //                y2 = y + deltaY[dir];
-    //                if (water_depth[x2, y2] < mft) tempcounter++;
-    //            }
-    //            if (tempcounter > 6) water_depth2[x, y] = 0;
-    //        }
-    //    }
-    //}
-
-
-    // first determine which cells are at the edge of the channel
-
-    //var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
-    Parallel.For(2, ymax, options, delegate (int y)
-    {
-        Parallel.For(2, xmax, options, delegate (int x)
+        double mean_ws_elev(int x, int y)
         {
-            edge[x, y] = -9999;
+            double elevtot = 0;
+            int counter = 0;
 
-            if (water_depth2[x, y] < mft)
+            for (int dir = 1; dir <= 8; dir++)
             {
-                // if water depth < threshold then if its next to a wet cell then its an edge cell
-                if (water_depth2[x, y - 1] > mft ||
-                    water_depth2[x - 1, y] > mft ||
-                    water_depth2[x + 1, y] > mft ||
-                    water_depth2[x, y + 1] > mft)
+                int x2, y2;
+                x2 = x + deltaX[dir];
+                y2 = y + deltaY[dir];
+
+                if (water_depth[x2, y2] > water_depth_erosion_threshold)
                 {
-                    edge[x, y] = 0;
+                    elevtot += water_depth[x2, y2] + elev[x2, y2];
+                    counter++;
                 }
 
-                // unless its a dry cell surrounded by wet...
-                if (water_depth2[x, y - 1] > mft &&
-                    water_depth2[x - 1, y] > mft &&
-                    water_depth2[x + 1, y] > mft &&
-                    water_depth2[x, y + 1] > mft)
+            }
+            if (counter > 0)
+            {
+                elevtot /= counter;
+                return elevtot;
+            }
+
+            else return 0;
+        }
+
+        void lateral3()
+        {
+
+            double[,] edge_temp, edge_temp2, water_depth2;
+            int[,] upscale, upscale_edge;
+
+            edge_temp = new Double[xmax + 1, ymax + 1];
+            edge_temp2 = new Double[xmax + 1, ymax + 1];
+            water_depth2 = new Double[xmax + 1, ymax + 1];
+            upscale = new int[(xmax + 1) * 2, (ymax + 1) * 2];
+            upscale_edge = new int[(xmax + 1) * 2, (ymax + 1) * 2];
+
+
+            // first make water depth2 equal to water depth then remove single wet cells frmo water depth2 that have an undue influence..
+            double mft = 0.1;// water_depth_erosion_threshold;//MIN_Q;// vel_dir threshold
+
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+            Parallel.For(1, ymax, options, delegate (int y)
+            {
+                int inc = 1;
+                while (down_scan[y, inc] > 0)
+                {
+                    int x = down_scan[y, inc];
+
+                    edge_temp[x, y] = 0;
+                    if (x == 1) x++;
+                    if (x == xmax) x--;
+                    inc++;
+
+                    if (Tau[x, y] > mft)
+                    {
+                        water_depth2[x, y] = Tau[x, y];
+                        int tempcounter = 0;
+                        for (int dir = 1; dir <= 8; dir++)
+                        {
+                            int x2, y2;
+                            x2 = x + deltaX[dir];
+                            y2 = y + deltaY[dir];
+                            if (Tau[x2, y2] < mft) tempcounter++;
+                        }
+                        if (tempcounter > 6) water_depth2[x, y] = 0;
+                    }
+                }
+            });
+
+            // first make water depth2 equal to water depth then remove single wet cells frmo water depth2 that have an undue influence..
+            //double mft = water_depth_erosion_threshold;//MIN_Q;// vel_dir threshold
+            //for (int y = 2; y < ymax; y++)
+            //{
+
+            //    int inc = 1;
+            //    while (down_scan[y, inc] > 0)
+            //    {
+            //        int x = down_scan[y, inc];
+
+            //        edge_temp[x, y] = 0;
+            //        if (x == 1) x++;
+            //        if (x == xmax) x--;
+            //        inc++;
+
+            //        if (water_depth[x, y] > mft)
+            //        {
+            //            water_depth2[x, y] = water_depth[x, y];
+            //            int tempcounter = 0;
+            //            for (int dir = 1; dir <= 8; dir++)
+            //            {
+            //                int x2, y2;
+            //                x2 = x + deltaX[dir];
+            //                y2 = y + deltaY[dir];
+            //                if (water_depth[x2, y2] < mft) tempcounter++;
+            //            }
+            //            if (tempcounter > 6) water_depth2[x, y] = 0;
+            //        }
+            //    }
+            //}
+
+
+            // first determine which cells are at the edge of the channel
+
+            //var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+            Parallel.For(2, ymax, options, delegate (int y)
+            {
+                Parallel.For(2, xmax, options, delegate (int x)
                 {
                     edge[x, y] = -9999;
-                    edge2[x, y] = -9999;
-                }
 
-                // then update upscaled grid..
-                upscale[(x * 2), (y * 2)] = 0; // if dry
-                upscale[(x * 2), (y * 2) - 1] = 0;
-                upscale[(x * 2) - 1, (y * 2)] = 0;
-                upscale[(x * 2) - 1, (y * 2) - 1] = 0;
-            }
+                    if (water_depth2[x, y] < mft)
+                    {
+                        // if water depth < threshold then if its next to a wet cell then its an edge cell
+                        if (water_depth2[x, y - 1] > mft ||
+                            water_depth2[x - 1, y] > mft ||
+                            water_depth2[x + 1, y] > mft ||
+                            water_depth2[x, y + 1] > mft)
+                        {
+                            edge[x, y] = 0;
+                        }
 
-            // update upscaled grid with wet cells (if wet)
-            if (water_depth2[x, y] >= mft)
-            {
-                upscale[(x * 2), (y * 2)] = 1; // if wet
-                upscale[(x * 2), (y * 2) - 1] = 1;
-                upscale[(x * 2) - 1, (y * 2)] = 1;
-                upscale[(x * 2) - 1, (y * 2) - 1] = 1;
-            }
-        });
-    });
+                        // unless its a dry cell surrounded by wet...
+                        if (water_depth2[x, y - 1] > mft &&
+                            water_depth2[x - 1, y] > mft &&
+                            water_depth2[x + 1, y] > mft &&
+                            water_depth2[x, y + 1] > mft)
+                        {
+                            edge[x, y] = -9999;
+                            edge2[x, y] = -9999;
+                        }
+
+                        // then update upscaled grid..
+                        upscale[(x * 2), (y * 2)] = 0; // if dry
+                        upscale[(x * 2), (y * 2) - 1] = 0;
+                        upscale[(x * 2) - 1, (y * 2)] = 0;
+                        upscale[(x * 2) - 1, (y * 2) - 1] = 0;
+                    }
+
+                    // update upscaled grid with wet cells (if wet)
+                    if (water_depth2[x, y] >= mft)
+                    {
+                        upscale[(x * 2), (y * 2)] = 1; // if wet
+                        upscale[(x * 2), (y * 2) - 1] = 1;
+                        upscale[(x * 2) - 1, (y * 2)] = 1;
+                        upscale[(x * 2) - 1, (y * 2) - 1] = 1;
+                    }
+                });
+            });
 
 
 
-    // now determine edge cells on the new grid..
+            // now determine edge cells on the new grid..
 
-    Parallel.For(2, ymax * 2, options, delegate (int y)
-      {
-          Parallel.For(2, xmax * 2, options, delegate (int x)
-          {
-              upscale_edge[x, y] = 0;
-              if (upscale[x, y] == 0)
+            Parallel.For(2, ymax * 2, options, delegate (int y)
               {
-                  if (upscale[x, y - 1] == 1 ||
-                      upscale[x - 1, y] == 1 ||
-                      upscale[x + 1, y] == 1 ||
-                      upscale[x, y + 1] == 1)
+                  Parallel.For(2, xmax * 2, options, delegate (int x)
                   {
-                      upscale[x, y] = 2;
-                  }
-              }
-          });
+                      upscale_edge[x, y] = 0;
+                      if (upscale[x, y] == 0)
+                      {
+                          if (upscale[x, y - 1] == 1 ||
+                              upscale[x - 1, y] == 1 ||
+                              upscale[x + 1, y] == 1 ||
+                              upscale[x, y + 1] == 1)
+                          {
+                              upscale[x, y] = 2;
+                          }
+                      }
+                  });
 
-      });
+              });
 
 
 
-    // now tall up inside and outside on upscaled grid
+            // now tall up inside and outside on upscaled grid
 
-    Parallel.For(2, ymax * 2, options, delegate (int y)
-    {
-        Parallel.For(2, xmax * 2, options, delegate (int x)
-        {
-            if (upscale[x, y] == 2)
+            Parallel.For(2, ymax * 2, options, delegate (int y)
             {
-                int wetcells = 0;
-                int drycells = 0;
-                int water = 0;
-                int edge_cell_counter = 1;
-
-                // sum up dry cells and edge cells -
-                // now manhattan neighbors
-                for (int dir = 1; dir <= 7; dir += 2)
+                Parallel.For(2, xmax * 2, options, delegate (int x)
                 {
-                    int x2, y2;
-                    x2 = x + deltaX[dir];
-                    y2 = y + deltaY[dir];
+                    if (upscale[x, y] == 2)
+                    {
+                        int wetcells = 0;
+                        int drycells = 0;
+                        int water = 0;
+                        int edge_cell_counter = 1;
 
-                    if (upscale[x2, y2] == 1) wetcells += 1;
-                    if (upscale[x2, y2] == 0) drycells += 1;
-                    if (upscale[x2, y2] == 2) edge_cell_counter += 1;
-                }
+                        // sum up dry cells and edge cells -
+                        // now manhattan neighbors
+                        for (int dir = 1; dir <= 7; dir += 2)
+                        {
+                            int x2, y2;
+                            x2 = x + deltaX[dir];
+                            y2 = y + deltaY[dir];
 
-                if (edge_cell_counter > 3) drycells += edge_cell_counter - 2;
-                //
-                water = wetcells - drycells;
-                upscale_edge[x, y] = water;
-            }
-        });
+                            if (upscale[x2, y2] == 1) wetcells += 1;
+                            if (upscale[x2, y2] == 0) drycells += 1;
+                            if (upscale[x2, y2] == 2) edge_cell_counter += 1;
+                        }
 
-    });
+                        if (edge_cell_counter > 3) drycells += edge_cell_counter - 2;
+                        //
+                        water = wetcells - drycells;
+                        upscale_edge[x, y] = water;
+                    }
+                });
+
+            });
 
 
-    // now update normal edge array..
+            // now update normal edge array..
 
-    Parallel.For(1, ymax + 1, options, delegate (int y)
-      {
-          Parallel.For(1, xmax + 1, options, delegate (int x)
-          {
-              if (edge[x, y] == 0)
+            Parallel.For(1, ymax + 1, options, delegate (int y)
               {
-                  edge[x, y] = (double)(upscale_edge[(x * 2), (y * 2)] +
-                      upscale_edge[(x * 2), (y * 2) - 1] +
-                      upscale_edge[(x * 2) - 1, (y * 2)] +
-                      upscale_edge[(x * 2) - 1, (y * 2) - 1]);
-                  if (edge[x, y] > 2) edge[x, y] = 2; // important line to stop too great inside bends...
-                  if (edge[x, y] < -2) edge[x, y] = -2;
+                  Parallel.For(1, xmax + 1, options, delegate (int x)
+                  {
+                      if (edge[x, y] == 0)
+                      {
+                          edge[x, y] = (double)(upscale_edge[(x * 2), (y * 2)] +
+                              upscale_edge[(x * 2), (y * 2) - 1] +
+                              upscale_edge[(x * 2) - 1, (y * 2)] +
+                              upscale_edge[(x * 2) - 1, (y * 2) - 1]);
+                          if (edge[x, y] > 2) edge[x, y] = 2; // important line to stop too great inside bends...
+                          if (edge[x, y] < -2) edge[x, y] = -2;
 
-              }
-          });
-      });
+                      }
+                  });
+              });
 
-    //then apply a smoothing filter over the top of this. here its done X number of times -
+            //then apply a smoothing filter over the top of this. here its done X number of times -
 
-    double smoothing_times = double.Parse(avge_smoothbox.Text);
-    double downstream_shift = double.Parse(downstreamshiftbox.Text);
+            double smoothing_times = double.Parse(avge_smoothbox.Text);
+            double downstream_shift = double.Parse(downstreamshiftbox.Text);
 
-    for (int n = 1; n <= smoothing_times + downstream_shift; n++)
-    {
-        //var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount *  4 };
-        Parallel.For(2, ymax, options, delegate (int y)
-        {
-            int inc = 1;
-            while (down_scan[y, inc] > 0)
+            for (int n = 1; n <= smoothing_times + downstream_shift; n++)
             {
-                int x = down_scan[y, inc];
-
-                edge_temp[x, y] = 0;
-                if (x == 1) x++;
-                if (x == xmax) x--;
-                if (y == 1) y++;
-                if (y == ymax) y--;
-                inc++;
-
-                if (edge[x, y] > -9999)
+                //var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount *  4 };
+                Parallel.For(2, ymax, options, delegate (int y)
                 {
-                    double mean = 0;
-                    double num = 0;
-                    double water_flag = 0;
-
-
-                    // add in cell itself..
-                    mean += edge[x, y];
-                    num++;
-
-
-                    for (int dir = 1; dir <= 8; dir++)
+                    int inc = 1;
+                    while (down_scan[y, inc] > 0)
                     {
-                        int x2, y2;
-                        x2 = x + deltaX[dir];
-                        y2 = y + deltaY[dir];
-                        if (water_depth2[x2, y2] > mft) water_flag++;
+                        int x = down_scan[y, inc];
 
-                        if (n > smoothing_times && edge[x2, y2] > -9999 && water_depth2[x2, y2] < mft && mean_ws_elev(x2, y2) > mean_ws_elev(x, y))
+                        edge_temp[x, y] = 0;
+                        if (x == 1) x++;
+                        if (x == xmax) x--;
+                        if (y == 1) y++;
+                        if (y == ymax) y--;
+                        inc++;
+
+                        if (edge[x, y] > -9999)
                         {
-                            //now to mean manhattan neighbours - only if they share a wet diagonal neighbour
-                            if ((Math.Abs(deltaX[dir]) + Math.Abs(deltaY[dir])) != 2)
-                            {
-                                if (deltaX[dir] == 1 && deltaY[dir] == 0 &&
-                                    (water_depth2[x + 1, y - 1] > mft ||
-                                    water_depth2[x + 1, y + 1] > mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                                if (deltaX[dir] == 0 && deltaY[dir] == 1 &&
-                                    (water_depth2[x + 1, y + 1] > mft ||
-                                    water_depth2[x - 1, y + 1] > mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                                if (deltaX[dir] == -1 && deltaY[dir] == 0 &&
-                                    (water_depth2[x - 1, y - 1] > mft ||
-                                    water_depth2[x - 1, y + 1] > mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                                if (deltaX[dir] == 0 && deltaY[dir] == -1 &&
-                                    (water_depth2[x - 1, y - 1] > mft ||
-                                    water_depth2[x + 1, y - 1] > mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                            }
-                            //now non manahttan neighbours, with concected by a dry cell checked..
-                            else
-                            {
-                                if (deltaX[dir] == -1 && deltaY[dir] == -1 &&
-                                    (water_depth2[x, y - 1] < mft ||
-                                    water_depth2[x - 1, y] < mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                                if (deltaX[dir] == 1 && deltaY[dir] == -1 &&
-                                    (water_depth2[x, y - 1] < mft ||
-                                    water_depth2[x + 1, y] < mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                                if (deltaX[dir] == 1 && deltaY[dir] == 1 &&
-                                    (water_depth2[x + 1, y] < mft ||
-                                    water_depth2[x, y + 1] < mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                                if (deltaX[dir] == -1 && deltaY[dir] == 1 &&
-                                    (water_depth2[x, y + 1] < mft ||
-                                    water_depth2[x - 1, y] < mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                            }
-                        }
-
-                        else if (n <= smoothing_times && edge[x2, y2] > -9999 && water_depth2[x2, y2] < mft)
-                        {
-                            //now to mean manhattan neighbours - only if they share a wet diagonal neighbour
-                            if ((Math.Abs(deltaX[dir]) + Math.Abs(deltaY[dir])) != 2)
-                            {
-                                if (deltaX[dir] == 1 && deltaY[dir] == 0 &&
-                                    (water_depth2[x + 1, y - 1] > mft ||
-                                    water_depth2[x + 1, y + 1] > mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                                if (deltaX[dir] == 0 && deltaY[dir] == 1 &&
-                                    (water_depth2[x + 1, y + 1] > mft ||
-                                    water_depth2[x - 1, y + 1] > mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                                if (deltaX[dir] == -1 && deltaY[dir] == 0 &&
-                                    (water_depth2[x - 1, y - 1] > mft ||
-                                    water_depth2[x - 1, y + 1] > mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                                if (deltaX[dir] == 0 && deltaY[dir] == -1 &&
-                                    (water_depth2[x - 1, y - 1] > mft ||
-                                    water_depth2[x + 1, y - 1] > mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                            }
-                            //now non manahttan neighbours, with concected by a dry cell checked..
-                            else
-                            {
-                                if (deltaX[dir] == -1 && deltaY[dir] == -1 &&
-                                    (water_depth2[x, y - 1] < mft ||
-                                    water_depth2[x - 1, y] < mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                                if (deltaX[dir] == 1 && deltaY[dir] == -1 &&
-                                    (water_depth2[x, y - 1] < mft ||
-                                    water_depth2[x + 1, y] < mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                                if (deltaX[dir] == 1 && deltaY[dir] == 1 &&
-                                    (water_depth2[x + 1, y] < mft ||
-                                    water_depth2[x, y + 1] < mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                                if (deltaX[dir] == -1 && deltaY[dir] == 1 &&
-                                    (water_depth2[x, y + 1] < mft ||
-                                    water_depth2[x - 1, y] < mft))
-                                {
-                                    mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
-                                    num++;
-                                }
-                            }
-                        }
-                    }
-                    if (mean != 0) edge_temp[x, y] = mean / num;
-
-                    // removes too many cells - islands etc..
-
-                    //if(num>5&&edge[x,y]>0)edge_temp[x,y]=0;
-                    //if(num+water_flag>7&&edge[x,y]>0)edge_temp[x,y]=0;
-
-                    //remove edge effects
-                    if (x < 3 || x > (xmax - 3)) edge_temp[x, y] = 0;
-                    if (y < 3 || y > (ymax - 3)) edge_temp[x, y] = 0;
-
-                }
-            }
-        });
-
-        Parallel.For(2, ymax, options, delegate (int y)
-        {
-            int inc = 1;
-            while (down_scan[y, inc] > 0)
-            {
-                int x = down_scan[y, inc];
-                //if (x == 1) x++;
-                //if (x == xmax) x--;
-                inc++;
-                if (edge[x, y] > -9999)
-                {
-                    edge[x, y] = edge_temp[x, y];
-                }
-            }
-        });
-    }
+                            double mean = 0;
+                            double num = 0;
+                            double water_flag = 0;
 
 
-    // trial line to remove too high inside bends,,
-    Parallel.For(1, ymax + 1, options, delegate (int y)
-    {
-        Parallel.For(1, xmax + 1, options, delegate (int x)
-        {
-            if (edge[x, y] > -9999)
-            {
-                if (edge[x, y] > 0) edge[x, y] = 0;
-                //if (edge[x, y] < -0.25) edge[x, y] = -0.25;
-                edge[x, y] = 0 - edge[x, y];
-                edge[x, y] = 1 / ((2.131 * Math.Pow(edge[x, y], -1.0794)) * DX);
-                //if (edge[x, y] > (1 / (DX * 3))) edge[x, y] = 1 / (DX * 3);
-                //edge[x, y] = 1 / edge[x, y];
-
-            }
-            if (water_depth[x, y] > water_depth_erosion_threshold && edge[x, y] == -9999) edge[x, y] = 0;
-        });
-    });
-
-    //// now smooth across the channel..
-    double tempdiff = 0;
-    double counter = 0;
-    do
-    {
-        counter++;
-        //var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount *  4 };
-        Parallel.For(2, ymax, options, delegate (int y)
-        {
-            int inc = 1;
-            while (down_scan[y, inc] > 0)
-            {
-                int x = down_scan[y, inc];
-
-                edge_temp[x, y] = 0;
-                if (x == 1) x++;
-                if (x == xmax) x--;
-                inc++;
-                if (water_depth2[x, y] > mft && edge[x, y] == -9999) edge[x, y] = 0;
-
-                if (edge[x, y] > -9999 && water_depth2[x, y] > mft)
-                {
-                    double mean = 0;
-                    int num = 0;
-                    for (int dir = 1; dir <= 8; dir += 2)
-                    {
-                        int x2, y2;
-                        x2 = x + deltaX[dir];
-                        y2 = y + deltaY[dir];
-
-                        if (water_depth2[x2, y2] > mft && edge[x2, y2] == -9999) edge[x2, y2] = 0;
-                        if (edge[x2, y2] > -9999)
-                        {
-                            mean += (edge[x2, y2]);
+                            // add in cell itself..
+                            mean += edge[x, y];
                             num++;
+
+
+                            for (int dir = 1; dir <= 8; dir++)
+                            {
+                                int x2, y2;
+                                x2 = x + deltaX[dir];
+                                y2 = y + deltaY[dir];
+                                if (water_depth2[x2, y2] > mft) water_flag++;
+
+                                if (n > smoothing_times && edge[x2, y2] > -9999 && water_depth2[x2, y2] < mft && mean_ws_elev(x2, y2) > mean_ws_elev(x, y))
+                                {
+                                    //now to mean manhattan neighbours - only if they share a wet diagonal neighbour
+                                    if ((Math.Abs(deltaX[dir]) + Math.Abs(deltaY[dir])) != 2)
+                                    {
+                                        if (deltaX[dir] == 1 && deltaY[dir] == 0 &&
+                                            (water_depth2[x + 1, y - 1] > mft ||
+                                            water_depth2[x + 1, y + 1] > mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                        if (deltaX[dir] == 0 && deltaY[dir] == 1 &&
+                                            (water_depth2[x + 1, y + 1] > mft ||
+                                            water_depth2[x - 1, y + 1] > mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                        if (deltaX[dir] == -1 && deltaY[dir] == 0 &&
+                                            (water_depth2[x - 1, y - 1] > mft ||
+                                            water_depth2[x - 1, y + 1] > mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                        if (deltaX[dir] == 0 && deltaY[dir] == -1 &&
+                                            (water_depth2[x - 1, y - 1] > mft ||
+                                            water_depth2[x + 1, y - 1] > mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                    }
+                                    //now non manahttan neighbours, with concected by a dry cell checked..
+                                    else
+                                    {
+                                        if (deltaX[dir] == -1 && deltaY[dir] == -1 &&
+                                            (water_depth2[x, y - 1] < mft ||
+                                            water_depth2[x - 1, y] < mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                        if (deltaX[dir] == 1 && deltaY[dir] == -1 &&
+                                            (water_depth2[x, y - 1] < mft ||
+                                            water_depth2[x + 1, y] < mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                        if (deltaX[dir] == 1 && deltaY[dir] == 1 &&
+                                            (water_depth2[x + 1, y] < mft ||
+                                            water_depth2[x, y + 1] < mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                        if (deltaX[dir] == -1 && deltaY[dir] == 1 &&
+                                            (water_depth2[x, y + 1] < mft ||
+                                            water_depth2[x - 1, y] < mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                    }
+                                }
+
+                                else if (n <= smoothing_times && edge[x2, y2] > -9999 && water_depth2[x2, y2] < mft)
+                                {
+                                    //now to mean manhattan neighbours - only if they share a wet diagonal neighbour
+                                    if ((Math.Abs(deltaX[dir]) + Math.Abs(deltaY[dir])) != 2)
+                                    {
+                                        if (deltaX[dir] == 1 && deltaY[dir] == 0 &&
+                                            (water_depth2[x + 1, y - 1] > mft ||
+                                            water_depth2[x + 1, y + 1] > mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                        if (deltaX[dir] == 0 && deltaY[dir] == 1 &&
+                                            (water_depth2[x + 1, y + 1] > mft ||
+                                            water_depth2[x - 1, y + 1] > mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                        if (deltaX[dir] == -1 && deltaY[dir] == 0 &&
+                                            (water_depth2[x - 1, y - 1] > mft ||
+                                            water_depth2[x - 1, y + 1] > mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                        if (deltaX[dir] == 0 && deltaY[dir] == -1 &&
+                                            (water_depth2[x - 1, y - 1] > mft ||
+                                            water_depth2[x + 1, y - 1] > mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                    }
+                                    //now non manahttan neighbours, with concected by a dry cell checked..
+                                    else
+                                    {
+                                        if (deltaX[dir] == -1 && deltaY[dir] == -1 &&
+                                            (water_depth2[x, y - 1] < mft ||
+                                            water_depth2[x - 1, y] < mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                        if (deltaX[dir] == 1 && deltaY[dir] == -1 &&
+                                            (water_depth2[x, y - 1] < mft ||
+                                            water_depth2[x + 1, y] < mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                        if (deltaX[dir] == 1 && deltaY[dir] == 1 &&
+                                            (water_depth2[x + 1, y] < mft ||
+                                            water_depth2[x, y + 1] < mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                        if (deltaX[dir] == -1 && deltaY[dir] == 1 &&
+                                            (water_depth2[x, y + 1] < mft ||
+                                            water_depth2[x - 1, y] < mft))
+                                        {
+                                            mean += (edge[x + deltaX[dir], y + deltaY[dir]]);
+                                            num++;
+                                        }
+                                    }
+                                }
+                            }
+                            if (mean != 0) edge_temp[x, y] = mean / num;
+
+                            // removes too many cells - islands etc..
+
+                            //if(num>5&&edge[x,y]>0)edge_temp[x,y]=0;
+                            //if(num+water_flag>7&&edge[x,y]>0)edge_temp[x,y]=0;
+
+                            //remove edge effects
+                            if (x < 3 || x > (xmax - 3)) edge_temp[x, y] = 0;
+                            if (y < 3 || y > (ymax - 3)) edge_temp[x, y] = 0;
+
                         }
                     }
-                    edge_temp[x, y] = mean / num;
-                }
-            }
-        });
+                });
 
-        tempdiff = 0;
-        //Parallel.For(2, ymax, options, delegate (int y)
-        //{
-
-        // reduction needed here:
-        for (int y = 2; y < ymax; y++)
-        {
-            int inc = 1;
-            while (down_scan[y, inc] > 0)
-            {
-                int x = down_scan[y, inc];
-                if (x == 1) x++;
-                if (x == xmax) x--;
-                inc++;
-                if (edge[x, y] > -9999 && water_depth2[x, y] > mft)
+                Parallel.For(2, ymax, options, delegate (int y)
                 {
-                    if (Math.Abs(edge[x, y] - edge_temp[x, y]) > tempdiff) tempdiff = Math.Abs(edge[x, y] - edge_temp[x, y]);
-                    edge[x, y] = edge_temp[x, y];
+                    int inc = 1;
+                    while (down_scan[y, inc] > 0)
+                    {
+                        int x = down_scan[y, inc];
+                        //if (x == 1) x++;
+                        //if (x == xmax) x--;
+                        inc++;
+                        if (edge[x, y] > -9999)
+                        {
+                            edge[x, y] = edge_temp[x, y];
+                        }
+                    }
+                });
+            }
+
+
+            // trial line to remove too high inside bends,,
+            Parallel.For(1, ymax + 1, options, delegate (int y)
+            {
+                Parallel.For(1, xmax + 1, options, delegate (int x)
+                {
+                    if (edge[x, y] > -9999)
+                    {
+                        if (edge[x, y] > 0) edge[x, y] = 0;
+                        //if (edge[x, y] < -0.25) edge[x, y] = -0.25;
+                        edge[x, y] = 0 - edge[x, y];
+                        edge[x, y] = 1 / ((2.131 * Math.Pow(edge[x, y], -1.0794)) * DX);
+                        //if (edge[x, y] > (1 / (DX * 3))) edge[x, y] = 1 / (DX * 3);
+                        //edge[x, y] = 1 / edge[x, y];
+
+                    }
+                    if (water_depth[x, y] > water_depth_erosion_threshold && edge[x, y] == -9999) edge[x, y] = 0;
+                });
+            });
+
+            //// now smooth across the channel..
+            double tempdiff = 0;
+            double counter = 0;
+            do
+            {
+                counter++;
+                //var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount *  4 };
+                Parallel.For(2, ymax, options, delegate (int y)
+                {
+                    int inc = 1;
+                    while (down_scan[y, inc] > 0)
+                    {
+                        int x = down_scan[y, inc];
+
+                        edge_temp[x, y] = 0;
+                        if (x == 1) x++;
+                        if (x == xmax) x--;
+                        inc++;
+                        if (water_depth2[x, y] > mft && edge[x, y] == -9999) edge[x, y] = 0;
+
+                        if (edge[x, y] > -9999 && water_depth2[x, y] > mft)
+                        {
+                            double mean = 0;
+                            int num = 0;
+                            for (int dir = 1; dir <= 8; dir += 2)
+                            {
+                                int x2, y2;
+                                x2 = x + deltaX[dir];
+                                y2 = y + deltaY[dir];
+
+                                if (water_depth2[x2, y2] > mft && edge[x2, y2] == -9999) edge[x2, y2] = 0;
+                                if (edge[x2, y2] > -9999)
+                                {
+                                    mean += (edge[x2, y2]);
+                                    num++;
+                                }
+                            }
+                            edge_temp[x, y] = mean / num;
+                        }
+                    }
+                });
+
+                tempdiff = 0;
+                //Parallel.For(2, ymax, options, delegate (int y)
+                //{
+
+                // reduction needed here:
+                for (int y = 2; y < ymax; y++)
+                {
+                    int inc = 1;
+                    while (down_scan[y, inc] > 0)
+                    {
+                        int x = down_scan[y, inc];
+                        if (x == 1) x++;
+                        if (x == xmax) x--;
+                        inc++;
+                        if (edge[x, y] > -9999 && water_depth2[x, y] > mft)
+                        {
+                            if (Math.Abs(edge[x, y] - edge_temp[x, y]) > tempdiff) tempdiff = Math.Abs(edge[x, y] - edge_temp[x, y]);
+                            edge[x, y] = edge_temp[x, y];
+                        }
+                    }
+                }
+                //});
+            } while (tempdiff > lateral_cross_channel_smoothing); //this makes it loop until the averaging across the stream stabilises
+                                                                  // so that the difference between the old and new values are < 0.0001
+                                                                  //tempStatusPanel.Text = Convert.ToString(counter);
+
+        }
+
+        void add_minewaste()
+        {
+            for (int n = 0; n <= minesitenumber; n++)
+            {
+                int x = (int)mine_inputs[n, 0];
+                int y = (int)mine_inputs[n, 1];
+                double amt = mine_inputs[n, 2] / (DX * DX);
+                int grainsizefraction = (int)mine_inputs[n, 3];
+                int tracerfraction = (int)mine_inputs[n, 4];
+
+                if (index[x, y] == -9999) addGS(x, y);
+                elev[x, y] += amt;
+                grain[index[x, y], grainsizefraction, tracerfraction] += amt;
+                sort_active(x, y); // maybe not needed here....
+            }
+
+        }
+
+        private void label125_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void Form1_Load(object sender, System.EventArgs e)
+        {
+
+            zoomPanImageBox1.Height = this.Height - 225;
+            zoomPanImageBox1.Width = this.Width - 20;
+            //googleToggle();
+
+            //HttpWebRequest req;
+            //HttpWebResponse res;
+            //try
+            //{
+            //    req = (HttpWebRequest) WebRequest.Create("http://www.coulthard.org.uk/");
+            //    res = (HttpWebResponse) req.GetResponse();
+            //}
+            //catch(Exception ex)
+            //{
+            //    /// do nothing.
+            //}
+
+            //JMW <20040929 -start>
+            this.Text = basetext;
+            //DoingGraphics = false;
+            //JMW <20040929 - end>
+
+
+            // comment out all of the below to run normally. Leave uncommented in order to run in batch mode.
+            ////////////////////////
+            //////////////////////////
+
+
+
+            ///// first load up xml file from command line:
+            /////
+            string temp_xml_name = " ";
+
+            int i = 0;
+            foreach (string arg in Environment.GetCommandLineArgs())
+            {
+                if (arg != "CAESAR.exe") temp_xml_name = arg;
+                if (i != 0)
+                {
+                    Console.WriteLine(arg);
+                }
+                i++;
+            }
+
+
+
+            ///// then load up .xml file
+            /////
+
+            //XmlTextReader xreader;
+            //String dum;
+
+            //if (1 > 0)
+            //{
+
+            //    xreader = new XmlTextReader(temp_xml_name);
+
+            //    //Read the file
+            //    if (xreader != null)
+            //    {
+            //        xreader.ReadStartElement("Parms");
+            //        xreader.ReadStartElement("General-Parms");
+            //        try
+            //        {
+            //            overrideheaderBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("headeroverride"));
+            //        }
+            //        catch
+            //        { };
+            //        xtextbox.Text = xreader.ReadElementString("x-coordinate");
+            //        ytextbox.Text = xreader.ReadElementString("y-coordinate");
+            //        initscansbox.Text = xreader.ReadElementString("initscans");
+            //        erodefactorbox.Text = xreader.ReadElementString("maxerodelimit");
+            //        dxbox.Text = xreader.ReadElementString("cellsize");
+            //        limitbox.Text = xreader.ReadElementString("memorylimit");
+            //        minqbox.Text = xreader.ReadElementString("minq");
+            //        creepratebox.Text = xreader.ReadElementString("creeprate");
+            //        lateralratebox.Text = xreader.ReadElementString("lateralerosionrate");
+            //        itermaxbox.Text = xreader.ReadElementString("maxiter");
+            //        textBox1.Text = xreader.ReadElementString("runstarttime");
+            //        cyclemaxbox.Text = xreader.ReadElementString("maxrunduration");
+            //        slopebox.Text = xreader.ReadElementString("slopefailurethreshold");
+            //        smoothbox.Text = xreader.ReadElementString("wssmoothingradius");
+            //        mvaluebox.Text = xreader.ReadElementString("mvalue");
+
+            //        grasstextbox.Text = xreader.ReadElementString("growgrasstime");
+            //        textBox2.Text = xreader.ReadElementString("initialq");
+            //        try
+            //        {
+            //            checkBox3.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("wssmoothing"));
+            //        }
+            //        catch
+            //        { };
+            //        grassbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("grass-sediment"));
+
+            //        try // MJ 24/01/05
+            //        {
+            //            textBox3.Text = xreader.ReadElementString("flowdistribution");
+            //            mintimestepbox.Text = xreader.ReadElementString("mintimestep");
+            //        }
+            //        catch
+            //        { };
+
+            //        try // MJ 15/03/05
+            //        {
+            //            k_evapBox.Text = xreader.ReadElementString("evaporation");
+            //        }
+            //        catch
+            //        { };
+
+            //        try // MJ 10/05/05
+            //        {
+            //            vegTauCritBox.Text = xreader.ReadElementString("vegcritshear");
+            //        }
+            //        catch
+            //        { };
+
+            //        try
+            //        {
+            //            bedslope_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("bedslope"));
+            //        }
+            //        catch
+            //        { };
+            //        try
+            //        {
+            //            bool dum_bool = XmlConvert.ToBoolean(xreader.ReadElementString("wsslope"));
+            //        }
+            //        catch
+            //        { };
+            //        try
+            //        {
+            //            veltaubox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("veltaubox"));
+            //        }
+            //        catch
+            //        { };
+            //        try
+            //        {
+            //            catchment_mode_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("catchment_mode"));
+            //        }
+            //        catch
+            //        { };
+            //        try
+            //        {
+            //            reach_mode_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("reach_mode"));
+            //        }
+            //        catch
+            //        { };
+            //        try
+            //        {
+            //            latbox1.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("lat1"));
+            //        }
+            //        catch
+            //        { };
+            //        try
+            //        {
+            //            latbox2.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("lat2"));
+            //        }
+            //        catch
+            //        { };
+            //        try
+            //        {
+            //            bool dum_bool = XmlConvert.ToBoolean(xreader.ReadElementString("lat3"));
+            //        }
+            //        catch
+            //        { };
+            //        try
+            //        {
+            //            string dum_string = xreader.ReadElementString("cross_stream_grad");
+            //        }
+            //        catch
+            //        { };
+            //        try
+            //        {
+            //            max_vel_box.Text = xreader.ReadElementString("max_vel");
+            //        }
+            //        catch { };
+
+
+            //        xreader.ReadStartElement("SaveOptions");
+            //        dum = xreader.ReadElementString("Option");
+            //        menuItem12.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("SaveOptions");
+            //        dum = xreader.ReadElementString("Option");
+            //        menuItem13.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("SaveOptions");
+            //        dum = xreader.ReadElementString("Option");
+            //        menuItem14.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("SaveOptions");
+            //        dum = xreader.ReadElementString("Option");
+            //        menuItem15.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("SaveOptions");
+            //        dum = xreader.ReadElementString("Option");
+            //        menuItem16.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("SaveOptions");
+            //        dum = xreader.ReadElementString("Option");
+            //        menuItem17.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("SaveOptions");
+            //        dum = xreader.ReadElementString("Option");
+            //        menuItem18.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("SaveOptions");
+            //        dum = xreader.ReadElementString("Option");
+            //        menuItem19.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("SaveOptions");
+            //        dum = xreader.ReadElementString("Option");
+            //        menuItem20.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("SaveOptions");
+            //        dum = xreader.ReadElementString("Option");
+            //        menuItem21.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("SaveOptions");
+            //        dum = xreader.ReadElementString("Option");
+            //        menuItem22.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("SaveOptions");
+            //        dum = xreader.ReadElementString("Option");
+            //        menuItem23.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("SaveOptions");
+            //        dum = xreader.ReadElementString("Option");
+            //        menuItem24.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("SaveOptions");
+            //        dum = xreader.ReadElementString("Option");
+            //        menuItem25.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //        xreader.ReadEndElement();
+            //        try
+            //        {
+            //            xreader.ReadStartElement("SaveOptions");
+            //            dum = xreader.ReadElementString("Option");
+            //            menuItem29.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //            xreader.ReadEndElement();
+            //            xreader.ReadStartElement("SaveOptions");
+            //            dum = xreader.ReadElementString("Option");
+            //            menuItem33.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //            xreader.ReadEndElement();
+            //            xreader.ReadStartElement("SaveOptions");
+            //            dum = xreader.ReadElementString("Option");
+            //            menuItem34.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+            //            xreader.ReadEndElement();
+            //        }
+            //        catch
+            //        { };
+            //        xreader.ReadEndElement();
+
+            //        xreader.ReadStartElement("Grain-Size");
+            //        g1box.Text = xreader.ReadElementString("gs");
+            //        gp1box.Text = xreader.ReadElementString("gp");
+            //        try
+            //        {
+            //            suspGS1box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+            //            fallGS1box.Text = xreader.ReadElementString("fv");
+            //        }
+            //        catch
+            //        { };
+            //        xreader.ReadEndElement();
+
+            //        xreader.ReadStartElement("Grain-Size");
+            //        g2box.Text = xreader.ReadElementString("gs");
+            //        gp2box.Text = xreader.ReadElementString("gp");
+            //        try
+            //        {
+            //            suspGS2box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+            //            fallGS2box.Text = xreader.ReadElementString("fv");
+            //        }
+            //        catch
+            //        { };
+            //        xreader.ReadEndElement();
+
+            //        xreader.ReadStartElement("Grain-Size");
+            //        g3box.Text = xreader.ReadElementString("gs");
+            //        gp3box.Text = xreader.ReadElementString("gp");
+            //        try
+            //        {
+            //            suspGS3box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+            //            fallGS3box.Text = xreader.ReadElementString("fv");
+            //        }
+            //        catch
+            //        { };
+            //        xreader.ReadEndElement();
+
+            //        xreader.ReadStartElement("Grain-Size");
+            //        g4box.Text = xreader.ReadElementString("gs");
+            //        gp4box.Text = xreader.ReadElementString("gp");
+            //        try
+            //        {
+            //            suspGS4box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+            //            fallGS4box.Text = xreader.ReadElementString("fv");
+            //        }
+            //        catch
+            //        { };
+            //        xreader.ReadEndElement();
+
+            //        xreader.ReadStartElement("Grain-Size");
+            //        g5box.Text = xreader.ReadElementString("gs");
+            //        gp5box.Text = xreader.ReadElementString("gp");
+            //        try
+            //        {
+            //            suspGS5box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+            //            fallGS5box.Text = xreader.ReadElementString("fv");
+            //        }
+            //        catch
+            //        { };
+            //        xreader.ReadEndElement();
+
+            //        xreader.ReadStartElement("Grain-Size");
+            //        g6box.Text = xreader.ReadElementString("gs");
+            //        gp6box.Text = xreader.ReadElementString("gp");
+            //        try
+            //        {
+            //            suspGS6box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+            //            fallGS6box.Text = xreader.ReadElementString("fv");
+            //        }
+            //        catch
+            //        { };
+            //        xreader.ReadEndElement();
+
+            //        xreader.ReadStartElement("Grain-Size");
+            //        g7box.Text = xreader.ReadElementString("gs");
+            //        gp7box.Text = xreader.ReadElementString("gp");
+            //        try
+            //        {
+            //            suspGS7box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+            //            fallGS7box.Text = xreader.ReadElementString("fv");
+            //        }
+            //        catch
+            //        { };
+            //        xreader.ReadEndElement();
+
+            //        xreader.ReadStartElement("Grain-Size");
+            //        g8box.Text = xreader.ReadElementString("gs");
+            //        gp8box.Text = xreader.ReadElementString("gp");
+            //        try
+            //        {
+            //            suspGS8box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+            //            fallGS8box.Text = xreader.ReadElementString("fv");
+            //        }
+            //        catch
+            //        { };
+            //        xreader.ReadEndElement();
+
+            //        try
+            //        {
+            //            xreader.ReadStartElement("Grain-Size");
+            //            g9box.Text = xreader.ReadElementString("gs");
+            //            gp9box.Text = xreader.ReadElementString("gp");
+            //            try
+            //            {
+            //                suspGS9box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+            //                fallGS9box.Text = xreader.ReadElementString("fv");
+            //            }
+            //            catch
+            //            { };
+            //            xreader.ReadEndElement();
+            //        }
+            //        catch
+            //        { };
+
+            //        xreader.ReadStartElement("File-Parms");
+
+            //        input_time_step_box.Text = xreader.ReadElementString("inputtimestep");
+            //        saveintervalbox.Text = xreader.ReadElementString("saveinterval");
+            //        outputfilesaveintervalbox.Text = xreader.ReadElementString("savetologfileinterval");
+            //        tracerbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("tracerrun"));
+            //        uniquefilecheck.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("uniquefilecheck"));
+
+            //        xreader.ReadStartElement("Filenames");
+            //        dum = xreader.ReadElementString("Desc");
+            //        openfiletextbox.Text = xreader.ReadElementString("Name");
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("Filenames");
+            //        dum = xreader.ReadElementString("Desc");
+            //        graindataloadbox.Text = xreader.ReadElementString("Name");
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("Filenames");
+            //        dum = xreader.ReadElementString("Desc");
+            //        bedrockbox.Text = xreader.ReadElementString("Name");
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("Filenames");
+            //        dum = xreader.ReadElementString("Desc");
+            //        raindataloadbox.Text = xreader.ReadElementString("Name");
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("Filenames");
+            //        dum = xreader.ReadElementString("Desc");
+            //        tracerfile.Text = xreader.ReadElementString("Name");
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("Filenames");
+            //        dum = xreader.ReadElementString("Desc");
+            //        tracerhydrofile.Text = xreader.ReadElementString("Name");
+            //        xreader.ReadEndElement();
+            //        xreader.ReadStartElement("Filenames");
+            //        dum = xreader.ReadElementString("Desc");
+            //        tracergrainbox.Text = xreader.ReadElementString("Name");
+            //        xreader.ReadEndElement();
+            //        try
+            //        {
+
+            //            xreader.ReadStartElement("Sources");
+            //            inbox1.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+            //            xbox1.Text = xreader.ReadElementString("X");
+            //            ybox1.Text = xreader.ReadElementString("Y");
+            //            infile1.Text = xreader.ReadElementString("Filename");
+            //            xreader.ReadEndElement();
+            //            xreader.ReadStartElement("Sources");
+            //            inbox2.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+            //            xbox2.Text = xreader.ReadElementString("X");
+            //            ybox2.Text = xreader.ReadElementString("Y");
+            //            infile2.Text = xreader.ReadElementString("Filename");
+            //            xreader.ReadEndElement();
+            //            xreader.ReadStartElement("Sources");
+            //            inbox3.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+            //            xbox3.Text = xreader.ReadElementString("X");
+            //            ybox3.Text = xreader.ReadElementString("Y");
+            //            infile3.Text = xreader.ReadElementString("Filename");
+            //            xreader.ReadEndElement();
+            //            xreader.ReadStartElement("Sources");
+            //            inbox4.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+            //            xbox4.Text = xreader.ReadElementString("X");
+            //            ybox4.Text = xreader.ReadElementString("Y");
+            //            infile4.Text = xreader.ReadElementString("Filename");
+            //            xreader.ReadEndElement();
+            //            xreader.ReadStartElement("Sources");
+            //            inbox5.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+            //            xbox5.Text = xreader.ReadElementString("X");
+            //            ybox5.Text = xreader.ReadElementString("Y");
+            //            infile5.Text = xreader.ReadElementString("Filename");
+            //            xreader.ReadEndElement();
+            //            xreader.ReadStartElement("Sources");
+            //            inbox6.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+            //            xbox6.Text = xreader.ReadElementString("X");
+            //            ybox6.Text = xreader.ReadElementString("Y");
+            //            infile6.Text = xreader.ReadElementString("Filename");
+            //            xreader.ReadEndElement();
+            //            xreader.ReadStartElement("Sources");
+            //            inbox7.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+            //            xbox7.Text = xreader.ReadElementString("X");
+            //            ybox7.Text = xreader.ReadElementString("Y");
+            //            infile7.Text = xreader.ReadElementString("Filename");
+            //            xreader.ReadEndElement();
+            //            xreader.ReadStartElement("Sources");
+            //            inbox8.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+            //            xbox8.Text = xreader.ReadElementString("X");
+            //            ybox8.Text = xreader.ReadElementString("Y");
+            //            infile8.Text = xreader.ReadElementString("Filename");
+            //            xreader.ReadEndElement();
+            //        }
+            //        catch
+            //        { };
+
+            //        xreader.ReadEndElement();
+
+            //        xreader.ReadStartElement("Description");
+            //        DescBox.Text = xreader.ReadElementString("S");
+            //        xreader.ReadEndElement();
+
+            //        //JMW 2004-11-11
+            //        try
+            //        {
+            //            xreader.ReadStartElement("OutputFile-Parms");
+            //            checkBoxGenerateAVIFile.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("generateavifile"));
+            //            textBoxAVIFile.Text = xreader.ReadElementString("avifile");
+            //            try
+            //            {
+            //                saveintervalbox.Text = xreader.ReadElementString("avifreq");
+            //                checkBoxGenerateTimeSeries.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("generatetimeseriesfile"));
+            //                TimeseriesOutBox.Text = xreader.ReadElementString("timeseriesfile");
+            //                outputfilesaveintervalbox.Text = xreader.ReadElementString("timeseriesfreq");
+            //                checkBoxGenerateIterations.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("generateiterationsfile"));
+            //                IterationOutbox.Text = xreader.ReadElementString("iterationsfile");
+            //            }
+            //            catch
+            //            { };
+            //            xreader.ReadEndElement();
+            //        }
+            //        catch
+            //        { };
+
+            //        try
+            //        {
+            //            xreader.ReadStartElement("Display");
+            //            // have to have dumpvariable here as window not displayed yet...
+            //            int dumpvarible = XmlConvert.ToInt16(xreader.ReadElementString("top"));
+            //            dumpvarible = XmlConvert.ToInt16(xreader.ReadElementString("left"));
+            //            dumpvarible = XmlConvert.ToInt16(xreader.ReadElementString("width"));
+            //            dumpvarible = XmlConvert.ToInt16(xreader.ReadElementString("height"));
+            //            xreader.ReadEndElement();
+            //        }
+            //        catch
+            //        { };
+
+            //        try
+            //        {
+            //            xreader.ReadStartElement("Lateral");
+            //            bool dum_bool = XmlConvert.ToBoolean(xreader.ReadElementString("oldlat"));
+            //            newlateral.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("newlat"));
+            //            xreader.ReadEndElement();
+            //        }
+            //        catch
+            //        { };
+            //        try
+            //        {
+            //            xreader.ReadStartElement("Add_Ons");
+            //            tracerOutcheckBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("tracer-out"));
+            //            tracerOutputtextBox.Text = xreader.ReadElementString("tracer-out-filename");
+            //            googleAnimationCheckbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("google_animation"));
+            //            googleAnimationTextBox.Text = xreader.ReadElementString("google_animation_file_name");
+            //            googleBeginDate.Text = xreader.ReadElementString("google_begin");
+            //            googAnimationSaveInterval.Text = xreader.ReadElementString("google_interval");
+            //            jmeaninputfilebox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("jMean"));
+            //            avge_smoothbox.Text = xreader.ReadElementString("edge_smoothing");
+            //            string dum_string = xreader.ReadElementString("displacement");
+            //            propremaining.Text = xreader.ReadElementString("prop_remain");
+            //            max_time_step_Box.Text = xreader.ReadElementString("max_time_step");
+            //            mine_checkBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("contam_input"));
+            //            mineX_textBox.Text = xreader.ReadElementString("mineX");
+            //            mineY_textBox.Text = xreader.ReadElementString("mineY");
+            //            mine_input_textBox.Text = xreader.ReadElementString("contam_input_file");
+            //            soil_ratebox.Text = xreader.ReadElementString("soil_rate");
+            //            SiberiaBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("siberia"));
+            //            Beta1Box.Text = xreader.ReadElementString("beta1");
+            //            Beta3Box.Text = xreader.ReadElementString("beta3");
+            //            m1Box.Text = xreader.ReadElementString("m1");
+            //            m3Box.Text = xreader.ReadElementString("m3");
+            //            n1Box.Text = xreader.ReadElementString("n1");
+            //            Q2box.Text = xreader.ReadElementString("W_depth_erosion_threshold");
+            //            dum_string = xreader.ReadElementString("fexp");
+            //            div_inputs_box.Text = xreader.ReadElementString("div_inputs");
+
+            //            init_depth_box.Text = xreader.ReadElementString("initial_sand_depth");
+            //            slab_depth_box.Text = xreader.ReadElementString("maxslabdepth");
+            //            shadow_angle_box.Text = xreader.ReadElementString("angle");
+            //            upstream_check_box.Text = xreader.ReadElementString("checkup");
+            //            depo_prob_box.Text = xreader.ReadElementString("dep_probability");
+            //            offset_box.Text = xreader.ReadElementString("downstream_offset");
+            //            dune_time_box.Text = xreader.ReadElementString("dune_timestep");
+            //            dune_grid_size_box.Text = xreader.ReadElementString("dune_gridsize");
+
+            //            wilcockbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("wilcock"));
+            //            einsteinbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("einstein"));
+            //            DuneBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("dune"));
+
+            //            UTMgridcheckbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("UTM"));
+            //            UTMsouthcheck.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("South"));
+            //            UTMzonebox.Text = xreader.ReadElementString("UTMzone");
+
+            //            raintimestepbox.Text = xreader.ReadElementString("raindatatimestep");
+            //            activebox.Text = xreader.ReadElementString("activelayerthickness");
+
+            //            xreader.ReadEndElement();
+            //            xreader.ReadEndElement();
+            //        }
+            //        catch
+            //        { };
+
+            //        xreader.Close();
+
+
+            //        this.Text = basetext + " (" + Path.GetFileName(cfgname) + ")";
+            //        button2.Enabled = true;
+            //        start_button.Enabled = false;
+            //        Panel1.Visible = false;
+            //        tabControl1.Visible = true;
+
+            //    }
+            //}
+
+            //////// then initialise
+
+            //int ok;
+            //ok = read_header();
+
+            //if (ok == 1)
+            //{
+            //    initialise();
+            //    zero_values();
+            //    load_data();
+
+            //    // nActualGridSize
+            //    // moved from initialse() to here MJ 29/03/05
+            //    int x, y;
+            //    nActualGridCells = 0;
+            //    for (x = 1; x <= xmax; x++)
+            //    {
+            //        for (y = 1; y <= ymax; y++)
+            //        {
+            //            if (elev[x, y] > -9999) nActualGridCells++;
+            //        }
+            //    }
+
+            //    tabControl1.Visible = false;
+            //    checkBox1.Checked = false;
+            //    zoomPanImageBox1.Visible = true;// MJ 14/01/05
+            //    Panel1.Visible = true;						// MJ 14/01/05
+            //    button2.Enabled = false;					// MJ 17/01/05
+            //    start_button.Enabled = true;				// MJ 17/01/05
+            //    groupBox2.Visible = true;
+            //    groupBox3.Visible = true;
+            //}
+
+            //// then run program
+
+            //main_loop(this, null);
+
+            ////
+            //// end of batch mode section
+            ////
+            ////
+        }
+
+        void button1_Click(object sender, System.EventArgs e)
+        {
+            //close google earth animation kml and make kmz
+            if (googleAnimationCheckbox.Checked == true)
+            {
+                StreamWriter kmlsr = File.AppendText(KML_FILE_NAME);
+                kml = "\n</Folder>"
+                      + "\n</kml>";
+                kmlsr.WriteLine(kml);
+                kmlsr.Close();
+            }
+
+            if (menuItem25.Checked == true) save_data(1, 0); // save waterdepths
+            if (menuItem13.Checked == true) save_data(2, 0); // save elevdiff
+            if (menuItem12.Checked == true) save_data(3, 0); // save elevations
+            if (menuItem14.Checked == true) save_data(4, 0); // save grainsize
+            if (menuItem29.Checked == true) save_data(15, 0); // save d50 top layer
+            if (menuItem33.Checked == true) save_data(16, 0); // save velocity	<JOE 20050605>
+            if (menuItem34.Checked == true) save_data(17, 0); // save soil_saturation	<JOE 20050605>
+            if (menuItem6.Checked == true) save_data(18, 0); // save water tracers - MDW 17-03-2016
+            if (menuItem15.Checked == true) save_data(19, 0); // save rain zone tracers - MDW 13-04-2016
+            if (menuItem16.Checked == true) save_data(6, 0);  // save tracer file <Jun 20200527>
+            if (menuItemSoluteTracer.Checked == true) save_data(20, 0);  // save solute tracers - MDW_V2
+            if (menuItemOilSpill.Checked == true) save_data(7, 0);  // save oildepth file OIL_V1_PDF
+
+            this.Close();
+        }
+        private void button2_Click(object sender, System.EventArgs e)
+        {
+            int ok;
+            ok = read_header();
+            int nnn;
+            double temp = -9999;
+
+            if (ok == 1)
+            {
+                //sourceIDs = new int[10]; // MDW_V2 - commented as array now expands as needed
+
+                initialise();
+                zero_values();
+                load_data();
+
+                // Additional initialisation for water source tracing - MDW 13/03/16
+                if (isTraceWater == true)
+                {
+                    //MDW_V2 : enable the water source GUI controls (disabled by default)
+                    this.label110.Enabled = true; // text label for water source tracing visibility
+                    this.label109.Enabled = true; // Red, label R
+                    this.label106.Enabled = true; // Green, label G
+                    this.label107.Enabled = true; // Blue, label B
+                    this.label108.Enabled = true; // Enhance text label
+                    this.comboBox4.Enabled = true; // Blue drop down box
+                    this.comboBox3.Enabled = true; // Green drop down box
+                    this.comboBox2.Enabled = true; // Red drop down box
+                    this.trackBar3.Enabled = true; // enhance slider tracker
+                    this.groupBox9.Enabled = true; // box around water source controls above
+                                                   //end
+
+
+                    //nSources = number_of_points + 2;
+                    if (sourceIDs.Length == 0) { nSources = sourceIndexAddition; } // MDW_V2 logic added as sourceIDs is now initialised at length zero
+                    else { nSources = sourceIDs.Length + sourceIndexAddition; } //sourceIDs.Max(); } // sources 1 and 2 are rainfall and stage inputs. The rest are hydrograph inputs.
+
+                    water_depth_prev = new double[xmax + 2, ymax + 2];
+                    watertracer = new double[xmax + 2, ymax + 2, nSources]; // MDW_V2 - no need for the additional empty layer
+                    watertracer_prev = new double[xmax + 2, ymax + 2, nSources]; // MDW_V2
+                    dhdt_x = new double[xmax + 2, ymax + 2];
+                    dhdt_y = new double[xmax + 2, ymax + 2];
+                    trace_rgb = new int[3];
+                    if (isTraceRainZonation == true)
+                    {
+                        this.checkBox12.Enabled = true; // MDW_V2 : Rain zones checkbox
+                        watertracerRainZone = new double[xmax + 2, ymax + 2, nRainZones]; // MDW_V2 - no need for the additional empty layer
+                        watertracerRainZone_prev = new double[xmax + 2, ymax + 2, nRainZones]; // MDW_V2
+                        tracerain_rgb = new int[3];
+                        tracerain_rgb[0] = -1; // set for initialisation
+                    }
+                    if (isTraceSolutes == true) // MDW_V2
+                    {
+                        this.checkBoxSoluteVis.Enabled = true;
+                        solutetracer = new double[xmax + 2, ymax + 2, nSolutes];
+                        solutetracer_prev = new double[xmax + 2, ymax + 2, nSolutes];
+                        tracesolute_rgb = new int[3];
+                        tracesolute_rgb[0] = -1;
+                    }
+
+                    // Add water sources to graphics control and assign default values: R=1, G=2, B=3
+                    comboBox2.Items.Add("0 : [none]"); // MDW_V2
+                    comboBox3.Items.Add("0 : [none]"); // MDW_V2
+                    comboBox4.Items.Add("0 : [none]"); // MDW_V2
+
+                    for (int z = 0; z < nSources; z++) // MDW_V2 updated to zero index
+                    {
+                        // MDW_V2 - source selector box string generation, updated indices
+                        string comboText = "";
+                        if (z == 0) // tide source
+                        {
+                            if (checkBox3.Checked == true)
+                            {
+                                comboText = Convert.ToString(z + 1) + " : Stage";
+                            }
+                            else
+                            {
+                                comboText = Convert.ToString(z + 1) + " : Stage [not active]";
+                            }
+                        }
+                        else if (z == 1) // rain source
+                        {
+                            if (catchment_mode_box.Checked == true)
+                            {
+                                comboText = Convert.ToString(z + 1) + " : Rain";
+                            }
+                            else
+                            {
+                                comboText = Convert.ToString(z + 1) + " : Rain [not active]";
+                            }
+                        }
+                        else if (z >= 2) // hydro sources
+                        {
+                            comboText = Convert.ToString(z + 1) + " : " + inputfilenames[z - sourceIndexAddition];
+                        }
+                        comboBox2.Items.Add(comboText);
+                        comboBox3.Items.Add(comboText);
+                        comboBox4.Items.Add(comboText);
+                    }
+                    // MDW_V2 updated default selections
+                    if (nSources >= 3) { comboBox2.SelectedIndex = 3; trace_rgb[0] = 3; }
+                    else { comboBox2.SelectedIndex = 0; trace_rgb[0] = 0; }
+                    if (nSources >= 4) { comboBox3.SelectedIndex = 4; trace_rgb[1] = 4; }
+                    else { comboBox3.SelectedIndex = 1; trace_rgb[1] = 1; }
+                    if (nSources >= 5) { comboBox4.SelectedIndex = 5; trace_rgb[2] = 5; }
+                    else { comboBox4.SelectedIndex = 0; trace_rgb[2] = 0; }
+
+
+
+                }
+
+                // OIL_V1
+                if (isOilSimulation == true) initialise_oil_simulation();
+
+                // nActualGridSize
+                // moved from initialse() to here MJ 29/03/05
+                int x, y;
+                //nActualGridCells = 0;
+                for (int ii = 1; ii <= rfnum; ii++) nActualGridCells[ii] = 0;
+
+                for (x = 1; x <= xmax; x++)
+                {
+                    for (y = 1; y <= ymax; y++)
+                    {
+                        if (elev[x, y] > -9999) nActualGridCells[rfarea[x, y]]++;
+                        if (tracer_area[x, y] == 1) addGS(x, y);
+                    }
+                }
+
+
+
+                tabControl1.Visible = false;
+                checkBox1.Checked = false;
+                zoomPanImageBox1.Visible = true;// MJ 14/01/05
+                Panel1.Visible = true;                      // MJ 14/01/05
+                button2.Enabled = false;                    // MJ 17/01/05
+                start_button.Enabled = true;                // MJ 17/01/05
+                groupBox2.Visible = true;
+                groupBox3.Visible = true;
+            }
+
+            string message = "Variables check:";
+            if ((xmax * ymax) > 250000) message += "\n\nWarning, number of cells is greater than 250 000 - this may result in slow model operation";
+            if (MIN_Q < (DX / 120)) message += "\n\nWarning, Min_Q may be set too low - suitable value is normally cell size / 100";
+            if (MIN_Q > (DX / 80)) message += "\n\nWarning, Min_Q may be set too high - suitable value is normally cell size / 100";
+            if (reach_mode_box.Checked == true && inbox1.Checked == false) message += "\n\nWarning, model set to run in reach mode, but no point inputs selected (Hydrology tab)";
+            if (reach_mode_box.Checked == true && div_inputs < 0) message += "\n\nWarning, model set to run in reach mode, but divide inputs box (Hydrology tab) set to 0\nit must be 1 or greater";
+            if (max_time_step > 3600)
+            {
+                message += "\n\nMax time step (numerical tab) is set to greater than 3600 - if running in catchment mode\nthis must be smaller than 3600";
+
+            }
+            if (water_depth_erosion_threshold > 0.02)
+            {
+                message += "\n\nWarning, Min depth for erosion threshold (numerical tab) may be set too high";
+                message += "\nthis could result in erosion not happening in cells where water depths are low try a value of 0.02 or lower";
+            }
+            if (water_depth_erosion_threshold < 0.005)
+            {
+                message += "\n\nWarning, Min depth for erosion threshold (numerical tab) may be set too low";
+                message += "\nthis may lead to slow operation as the model tries to erode where very shallow depths ";
+            }
+            if (d1 > d2 || d2 > d3 || d3 > d4) message += "\n\nWarning, sediment sizes (sediment tab) must be entered in ASCENDING order of size";
+            //if (M > 0.1 || M < 0.001) message += "\n\nWarning, M value is unusually high or low. Typical values range from 0.005 to 0.02";
+
+            //check for -9999's on RH edge of DEM
+            for (nnn = 1; nnn <= ymax; nnn++)
+            {
+                if (elev[xmax, nnn] > temp) temp = elev[xmax, nnn];
+            }
+            if (temp < -10)
+            {
+                message += "\n\nDEM ERROR: CAESAR will not function properly, as the right hand column of the DEM is all nodata (-9999) values. This will prevent any water or sediment from leaving the Rh edge of the model/dem";
+            }
+            if (edgeslope > 0.01) message += "\nThe edge slope (slope at exit cells for hydraulic model) is probably set too high.. normal values are 0.01 to 0.001";
+            //if (bed_proportion > 0.05) message += "\nThe proportion of bedslope erosion is set high - please check";
+            //if (bed_proportion > 1) message += "\nProportion of bedlsope erosion is greater than 1 - this must be reduced or the model will not function correctly";
+            if (courant_number > 0.7) message += "\nThe courant number is set too high, numerical instabilities are highly likely, it is best set to < 0.5";
+            if (courant_number >= 0.4 && DX <= 25) message += "\nThe courant number may be set a little to high for this resolution - consider changing to below 0.4";
+            if (courant_number >= 0.3 && DX <= 10) message += "\nThe courant number may be set a little to high for this resolution - consider changing to below 0.3";
+            //if (min_time_step <= 0) message += "\nConsider using a minimum time step (e.g. 1 sec or greater) as low time steps can lead to excessive scour during the first few min of model operation";
+            if (in_out_difference != 0) message += "\n\nYou have set the input/output difference to be greater than zero, which means the model will speed up/run in steady state  when the difference between water input and output is less than this value";
+
+            message += "\n\nAll other variables are OK";
+            MessageBox.Show(message);
+
+            //main_loop(this, null);
+
+        }
+        private void buttonOutDir_Click(object sender, System.EventArgs e) // MDW_V2
+        {
+            // Show the FolderBrowserDialog to select output directory
+            DialogResult result = folderBrowserOutDir.ShowDialog();
+            if (result == DialogResult.OK)
+            {
+                textBoxOutDir.Text = folderBrowserOutDir.SelectedPath;
+            }
+        }
+        private void textBoxOutDir_TextChanged(object sender, System.EventArgs e) // MDW_V2
+        {
+            //outDirCheck();
+        }
+        private void checkboxOutDirDateTime_CheckChanged(object sender, System.EventArgs e) // MDW_V2
+        {
+            outdirDateTime = checkboxOutDirDateTime.Checked;
+        }
+        private void outDirCheck()
+        {
+            try
+            {
+                outdir = textBoxOutDir.Text;
+                outdirDateTime = checkboxOutDirDateTime.Checked;
+
+                if (string.IsNullOrEmpty(outdir) == true && outdirDateTime == false)
+                {
+                    outdir = "";
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(outdir) == false && Directory.Exists(outdir) == false)
+                {
+                    Directory.CreateDirectory(outdir);
+                }
+
+                if (outdirDateTime == true)
+                {
+                    DateTime currentDateTime = DateTime.Now;
+                    string formattedDateTime = currentDateTime.ToString("yyyy-MM-ddTHH-mm-ss");
+                    outdir = Path.Combine(outdir, formattedDateTime);
+                    Directory.CreateDirectory(outdir);
+                }
+
+                //MessageBox.Show("Output directory set to : " + outdir);
+            }
+            catch
+            {
+                MessageBox.Show("Error with output folder : " + textBoxOutDir.Text + "/nFalling back to using current directory for outputs");
+                outdir = "";
+            }
+
+        }
+        private void textBox2_TextChanged(object sender, System.EventArgs e)
+        {
+
+        }
+        private void contextMenu1_Popup(object sender, System.EventArgs e)
+        {
+
+        }
+        private void popComboBox1()
+        {
+            if (comboBox1.Items.Count == 1)
+            {
+                comboBox1.Text = "water depth";
+                comboBox1.Text = "erosion/dep";
+                comboBox1.Text = "Bed sheer stress";
+                comboBox1.Text = "grainsize";
+                comboBox1.Text = "tracer";
+                comboBox1.Text = "susp conc";
+                comboBox1.Text = "soil depth";
+                comboBox1.Text = "flow velocity";
+            }
+        }
+        private void menuItem3_Click(object sender, System.EventArgs e)
+        {
+            menuItem3.Checked = (!menuItem3.Checked);
+            if (menuItem3.Checked == true)
+            {
+                comboBox1.Items.Add("water depth");
+            }
+            else
+            {
+                comboBox1.Items.Remove("water depth");
+            }
+            popComboBox1();
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+
+        }
+        private void menuItem4_Click(object sender, System.EventArgs e)
+        {
+            menuItem4.Checked = (!menuItem4.Checked);
+            if (menuItem4.Checked == true)
+            {
+                comboBox1.Items.Add("erosion/dep");
+            }
+            else
+            {
+                comboBox1.Items.Remove("erosion/dep");
+            }
+            popComboBox1();
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+        private void menuItem5_Click(object sender, System.EventArgs e)
+        {
+            menuItem5.Checked = (!menuItem5.Checked);
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+        private void menuItem7_Click(object sender, System.EventArgs e)
+        {
+            menuItem7.Checked = (!menuItem7.Checked);
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+        private void menuItem8_Click(object sender, System.EventArgs e)
+        {
+            menuItem8.Checked = (!menuItem8.Checked);
+            if (menuItem8.Checked == true)
+            {
+                comboBox1.Items.Add("Bed sheer stress");
+            }
+            else
+            {
+                comboBox1.Items.Remove("Bed sheer stress");
+            }
+            popComboBox1();
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+        private void menuItem9_Click(object sender, System.EventArgs e)
+        {
+            menuItem9.Checked = (!menuItem9.Checked);
+            if (menuItem9.Checked == true)
+            {
+                comboBox1.Items.Add("grainsize");
+            }
+            else
+            {
+                comboBox1.Items.Remove("grainsize");
+            }
+            popComboBox1();
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+        private void menuItem12_Click(object sender, System.EventArgs e)
+        {
+            menuItem12.Checked = (!menuItem12.Checked);
+        }
+        private void menuItem13_Click(object sender, System.EventArgs e)
+        {
+            menuItem13.Checked = (!menuItem13.Checked);
+        }
+        private void menuItem14_Click(object sender, System.EventArgs e)
+        {
+            menuItem14.Checked = (!menuItem14.Checked);
+        }
+        private void menuItem25_Click(object sender, System.EventArgs e)
+        {
+            menuItem25.Checked = (!menuItem25.Checked);
+        }
+        private void menuItem26_Click(object sender, System.EventArgs e)
+        {
+            menuItem26.Checked = (!menuItem26.Checked);
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+        private void menuItem27_Click(object sender, System.EventArgs e)
+        {
+            menuItem27.Checked = (!menuItem27.Checked);
+            if (menuItem27.Checked == true)
+            {
+                comboBox1.Items.Add("susp conc");
+            }
+            else
+            {
+                comboBox1.Items.Remove("susp conc");
+            }
+            popComboBox1();
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+        private void menuItem28_Click(object sender, System.EventArgs e)
+        {
+            menuItem28.Checked = (!menuItem28.Checked);
+            if (menuItem28.Checked == true)
+            {
+                comboBox1.Items.Add("soil depth");
+            }
+            else
+            {
+                comboBox1.Items.Remove("soil depth");
+            }
+            popComboBox1();
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+        private void menuItem29_Click(object sender, System.EventArgs e)
+        {
+            menuItem29.Checked = (!menuItem29.Checked);
+        }
+        private void menuItem30_Click(object sender, System.EventArgs e)
+        {
+            menuItem30.Checked = (!menuItem30.Checked);
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+        private void menuItem31_Click(object sender, System.EventArgs e)
+        {
+            menuItem31.Checked = (!menuItem31.Checked);
+            if (menuItem31.Checked == true)
+            {
+                comboBox1.Items.Add("flow velocity");
+            }
+            else
+            {
+                comboBox1.Items.Remove("flow velocity");
+            }
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+        private void menuItem33_Click(object sender, System.EventArgs e)
+        {
+            menuItem33.Checked = (!menuItem33.Checked);
+        }
+        private void menuItem34_Click(object sender, System.EventArgs e)
+        {
+            menuItem34.Checked = (!menuItem34.Checked);
+        }
+        private void menuItemSoluteTracer_Click(object sender, System.EventArgs e) // MDW_V2
+        {
+            menuItemSoluteTracer.Checked = (!menuItemSoluteTracer.Checked);
+        }
+        private void menuItemOilSpill_Click(object sender, System.EventArgs e)
+        {
+            menuItemOilSpill.Checked = (!menuItemOilSpill.Checked);
+        }
+        private void menuItem6_Click(object sender, System.EventArgs e) // MDW
+        {
+            menuItem6.Checked = (!menuItem6.Checked);
+        }
+        private void menuItem15_Click(object sender, System.EventArgs e) // MDW
+        {
+            menuItem15.Checked = (!menuItem15.Checked);
+        }
+        private void button3_Click(object sender, System.EventArgs e)
+        {
+            grow_grass(1);
+        }
+        private void menuItemConfigFileOpen_Click(object sender, System.EventArgs e)
+        {
+            XmlTextReader xreader;
+            String dum;
+
+            OpenFileDialog openFileDialog1 = new OpenFileDialog();
+
+            openFileDialog1.InitialDirectory = workdir;
+            openFileDialog1.Filter = "cfg files (*.xml)|*.xml|All files (*.*)|*.*";
+            openFileDialog1.FilterIndex = 1;
+            openFileDialog1.RestoreDirectory = false;
+
+            if (openFileDialog1.ShowDialog() == DialogResult.OK)
+            {
+                cfgname = openFileDialog1.FileName;
+
+                xreader = new XmlTextReader(cfgname);
+
+                //Read the file
+                if (xreader != null)
+                {
+                    xreader.ReadStartElement("Parms");
+                    xreader.ReadStartElement("General-Parms");
+                    try
+                    {
+                        overrideheaderBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("headeroverride"));
+                    }
+                    catch
+                    { };
+                    xtextbox.Text = xreader.ReadElementString("x-coordinate");
+                    ytextbox.Text = xreader.ReadElementString("y-coordinate");
+                    initscansbox.Text = xreader.ReadElementString("initscans");
+                    erodefactorbox.Text = xreader.ReadElementString("maxerodelimit");
+                    dxbox.Text = xreader.ReadElementString("cellsize");
+                    limitbox.Text = xreader.ReadElementString("memorylimit");
+                    minqbox.Text = xreader.ReadElementString("minq");
+                    creepratebox.Text = xreader.ReadElementString("creeprate");
+                    lateralratebox.Text = xreader.ReadElementString("lateralerosionrate");
+                    itermaxbox.Text = xreader.ReadElementString("maxiter");
+                    textBox1.Text = xreader.ReadElementString("runstarttime");
+                    cyclemaxbox.Text = xreader.ReadElementString("maxrunduration");
+                    slopebox.Text = xreader.ReadElementString("slopefailurethreshold");
+                    smoothbox.Text = xreader.ReadElementString("wssmoothingradius");
+                    mvaluebox.Text = xreader.ReadElementString("mvalue");
+
+                    grasstextbox.Text = xreader.ReadElementString("growgrasstime");
+                    textBox2.Text = xreader.ReadElementString("initialq");
+                    try
+                    {
+                        bool dummy6 = XmlConvert.ToBoolean(xreader.ReadElementString("wssmoothing"));
+                    }
+                    catch
+                    { };
+                    flowonlybox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("grass-sediment"));
+
+                    try // MJ 24/01/05
+                    {
+                        textBox3.Text = xreader.ReadElementString("flowdistribution");
+                        mintimestepbox.Text = xreader.ReadElementString("mintimestep");
+                    }
+                    catch
+                    { };
+
+                    try // MJ 15/03/05
+                    {
+                        k_evapBox.Text = xreader.ReadElementString("evaporation");
+                    }
+                    catch
+                    { };
+
+                    try // MJ 10/05/05
+                    {
+                        vegTauCritBox.Text = xreader.ReadElementString("vegcritshear");
+                    }
+                    catch
+                    { };
+
+                    try
+                    {
+                        bedslope_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("bedslope"));
+                    }
+                    catch
+                    { };
+                    try
+                    {
+                        bool dum_bool = XmlConvert.ToBoolean(xreader.ReadElementString("wsslope"));
+                    }
+                    catch
+                    { };
+                    try
+                    {
+                        veltaubox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("veltaubox"));
+                    }
+                    catch
+                    { };
+                    try
+                    {
+                        catchment_mode_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("catchment_mode"));
+                    }
+                    catch
+                    { };
+                    try
+                    {
+                        reach_mode_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("reach_mode"));
+                    }
+                    catch
+                    { };
+                    try
+                    {
+                        bool dum_bool2 = XmlConvert.ToBoolean(xreader.ReadElementString("lat1"));
+                    }
+                    catch
+                    { };
+                    try
+                    {
+                        bool dum_bool2 = XmlConvert.ToBoolean(xreader.ReadElementString("lat2"));
+                    }
+                    catch
+                    { };
+                    try
+                    {
+                        bool dum_bool = XmlConvert.ToBoolean(xreader.ReadElementString("lat3"));
+                    }
+                    catch
+                    { };
+                    try
+                    {
+                        string dum_string = xreader.ReadElementString("cross_stream_grad");
+                    }
+                    catch
+                    { };
+                    try
+                    {
+                        max_vel_box.Text = xreader.ReadElementString("max_vel");
+                    }
+                    catch { };
+
+
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    menuItem12.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    menuItem13.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    menuItem14.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    menuItem6.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    bool dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");
+                    dum = xreader.ReadElementString("Option");
+                    menuItem25.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions");  // MDW_V2
+                    dum = xreader.ReadElementString("Option");
+                    menuItemSoluteTracer.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions"); // OIL_V1_PDF
+                    dum = xreader.ReadElementString("Option");
+                    menuItemOilSpill.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    try
+                    {
+                        xreader.ReadStartElement("SaveOptions");
+                        dum = xreader.ReadElementString("Option");
+                        menuItem29.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("SaveOptions");
+                        dum = xreader.ReadElementString("Option");
+                        menuItem33.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("SaveOptions");
+                        dum = xreader.ReadElementString("Option");
+                        menuItem34.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                        xreader.ReadEndElement();
+                    }
+                    catch
+                    { };
+                    xreader.ReadEndElement();
+
+                    xreader.ReadStartElement("Grain-Size");
+                    g1box.Text = xreader.ReadElementString("gs");
+                    gp1box.Text = xreader.ReadElementString("gp");
+                    try
+                    {
+                        suspGS1box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+                        fallGS1box.Text = xreader.ReadElementString("fv");
+                    }
+                    catch
+                    { };
+                    xreader.ReadEndElement();
+
+                    xreader.ReadStartElement("Grain-Size");
+                    g2box.Text = xreader.ReadElementString("gs");
+                    gp2box.Text = xreader.ReadElementString("gp");
+                    try
+                    {
+                        suspGS2box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+                        fallGS2box.Text = xreader.ReadElementString("fv");
+                    }
+                    catch
+                    { };
+                    xreader.ReadEndElement();
+
+                    xreader.ReadStartElement("Grain-Size");
+                    g3box.Text = xreader.ReadElementString("gs");
+                    gp3box.Text = xreader.ReadElementString("gp");
+                    try
+                    {
+                        suspGS3box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+                        fallGS3box.Text = xreader.ReadElementString("fv");
+                    }
+                    catch
+                    { };
+                    xreader.ReadEndElement();
+
+                    xreader.ReadStartElement("Grain-Size");
+                    g4box.Text = xreader.ReadElementString("gs");
+                    gp4box.Text = xreader.ReadElementString("gp");
+                    try
+                    {
+                        suspGS4box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+                        fallGS4box.Text = xreader.ReadElementString("fv");
+                    }
+                    catch
+                    { };
+                    xreader.ReadEndElement();
+
+                    xreader.ReadStartElement("Grain-Size");
+                    g5box.Text = xreader.ReadElementString("gs");
+                    gp5box.Text = xreader.ReadElementString("gp");
+                    try
+                    {
+                        suspGS5box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+                        fallGS5box.Text = xreader.ReadElementString("fv");
+                    }
+                    catch
+                    { };
+                    xreader.ReadEndElement();
+
+                    xreader.ReadStartElement("Grain-Size");
+                    g6box.Text = xreader.ReadElementString("gs");
+                    gp6box.Text = xreader.ReadElementString("gp");
+                    try
+                    {
+                        suspGS6box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+                        fallGS6box.Text = xreader.ReadElementString("fv");
+                    }
+                    catch
+                    { };
+                    xreader.ReadEndElement();
+
+                    xreader.ReadStartElement("Grain-Size");
+                    g7box.Text = xreader.ReadElementString("gs");
+                    gp7box.Text = xreader.ReadElementString("gp");
+                    try
+                    {
+                        suspGS7box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+                        fallGS7box.Text = xreader.ReadElementString("fv");
+                    }
+                    catch
+                    { };
+                    xreader.ReadEndElement();
+
+                    xreader.ReadStartElement("Grain-Size");
+                    g8box.Text = xreader.ReadElementString("gs");
+                    gp8box.Text = xreader.ReadElementString("gp");
+                    try
+                    {
+                        suspGS8box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+                        fallGS8box.Text = xreader.ReadElementString("fv");
+                    }
+                    catch
+                    { };
+                    xreader.ReadEndElement();
+
+                    try
+                    {
+                        xreader.ReadStartElement("Grain-Size");
+                        g9box.Text = xreader.ReadElementString("gs");
+                        gp9box.Text = xreader.ReadElementString("gp");
+                        try
+                        {
+                            suspGS9box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
+                            fallGS9box.Text = xreader.ReadElementString("fv");
+                        }
+                        catch
+                        { };
+                        xreader.ReadEndElement();
+                    }
+                    catch
+                    { };
+
+                    try
+                    {
+                        xreader.ReadStartElement("Grain-Size");
+                        g1_box.Text = xreader.ReadElementString("gs");
+                        gp1_box.Text = xreader.ReadElementString("gp");
+                        xreader.ReadEndElement();
+
+                        xreader.ReadStartElement("Grain-Size");
+                        g2_box.Text = xreader.ReadElementString("gs");
+                        gp2_box.Text = xreader.ReadElementString("gp");
+                        xreader.ReadEndElement();
+
+                        xreader.ReadStartElement("Grain-Size");
+                        g3_box.Text = xreader.ReadElementString("gs");
+                        gp3_box.Text = xreader.ReadElementString("gp");
+                        xreader.ReadEndElement();
+
+                        xreader.ReadStartElement("Grain-Size");
+                        g4_box.Text = xreader.ReadElementString("gs");
+                        gp4_box.Text = xreader.ReadElementString("gp");
+                        xreader.ReadEndElement();
+
+                        xreader.ReadStartElement("Grain-Size");
+                        g5_box.Text = xreader.ReadElementString("gs");
+                        gp5_box.Text = xreader.ReadElementString("gp");
+                        xreader.ReadEndElement();
+
+                        xreader.ReadStartElement("Grain-Size");
+                        g6_box.Text = xreader.ReadElementString("gs");
+                        gp6_box.Text = xreader.ReadElementString("gp");
+                        xreader.ReadEndElement();
+
+                        xreader.ReadStartElement("Grain-Size");
+                        g7_box.Text = xreader.ReadElementString("gs");
+                        gp7_box.Text = xreader.ReadElementString("gp");
+                        xreader.ReadEndElement();
+
+                        xreader.ReadStartElement("Grain-Size");
+                        g8_box.Text = xreader.ReadElementString("gs");
+                        gp8_box.Text = xreader.ReadElementString("gp");
+                        xreader.ReadEndElement();
+
+                        xreader.ReadStartElement("Grain-Size");
+                        g9_box.Text = xreader.ReadElementString("gs");
+                        gp9_box.Text = xreader.ReadElementString("gp");
+                        xreader.ReadEndElement();
+                    }
+                    catch
+                    { };
+
+                    try
+                    {
+                        xreader.ReadStartElement("File-Parms");
+
+                        input_time_step_box.Text = xreader.ReadElementString("inputtimestep");
+                        saveintervalbox.Text = xreader.ReadElementString("saveinterval");
+                        outputfilesaveintervalbox.Text = xreader.ReadElementString("savetologfileinterval");
+                        tracerbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("tracerrun"));
+                        uniquefilecheck.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("uniquefilecheck"));
+
+                        xreader.ReadStartElement("Filenames");
+                        dum = xreader.ReadElementString("Desc");
+                        openfiletextbox.Text = xreader.ReadElementString("Name");
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("Filenames");
+                        dum = xreader.ReadElementString("Desc");
+                        graindataloadbox.Text = xreader.ReadElementString("Name");
+                        xreader.ReadEndElement();
+
+                        xreader.ReadStartElement("Filenames");
+                        dum = xreader.ReadElementString("Desc");
+                        bedrockbox.Text = xreader.ReadElementString("Name");
+                        xreader.ReadEndElement();
+
+                        xreader.ReadStartElement("Filenames");
+                        dum = xreader.ReadElementString("Desc");
+                        raindataloadbox.Text = xreader.ReadElementString("Name");
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("Filenames");
+                        dum = xreader.ReadElementString("Desc");
+                        mine_input_textBox.Text = xreader.ReadElementString("Name");
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("Filenames");
+                        dum = xreader.ReadElementString("Desc");
+                        tracerhydrofile.Text = xreader.ReadElementString("Name");
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("Filenames");
+                        dum = xreader.ReadElementString("Desc");
+                        string dummystring4 = xreader.ReadElementString("Name");
+                        xreader.ReadEndElement();
+                    }
+                    catch
+                    { };
+
+                    try
+                    {
+
+                        xreader.ReadStartElement("Sources");
+                        inbox1.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+                        xbox1.Text = xreader.ReadElementString("X");
+                        ybox1.Text = xreader.ReadElementString("Y");
+                        infile1.Text = xreader.ReadElementString("Filename");
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("Sources");
+                        inbox2.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+                        xbox2.Text = xreader.ReadElementString("X");
+                        ybox2.Text = xreader.ReadElementString("Y");
+                        infile2.Text = xreader.ReadElementString("Filename");
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("Sources");
+                        inbox3.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+                        xbox3.Text = xreader.ReadElementString("X");
+                        ybox3.Text = xreader.ReadElementString("Y");
+                        infile3.Text = xreader.ReadElementString("Filename");
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("Sources");
+                        inbox4.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+                        xbox4.Text = xreader.ReadElementString("X");
+                        ybox4.Text = xreader.ReadElementString("Y");
+                        infile4.Text = xreader.ReadElementString("Filename");
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("Sources");
+                        inbox5.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+                        xbox5.Text = xreader.ReadElementString("X");
+                        ybox5.Text = xreader.ReadElementString("Y");
+                        infile5.Text = xreader.ReadElementString("Filename");
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("Sources");
+                        inbox6.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+                        xbox6.Text = xreader.ReadElementString("X");
+                        ybox6.Text = xreader.ReadElementString("Y");
+                        infile6.Text = xreader.ReadElementString("Filename");
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("Sources");
+                        inbox7.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+                        xbox7.Text = xreader.ReadElementString("X");
+                        ybox7.Text = xreader.ReadElementString("Y");
+                        infile7.Text = xreader.ReadElementString("Filename");
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("Sources");
+                        inbox8.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
+                        xbox8.Text = xreader.ReadElementString("X");
+                        ybox8.Text = xreader.ReadElementString("Y");
+                        infile8.Text = xreader.ReadElementString("Filename");
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("ExtraSources");                                       //MDW_V2
+                        inboxExtra.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));  //
+                        infileExtra.Text = xreader.ReadElementString("Filename");                       //
+                        xreader.ReadEndElement();                                                       //
+
+                    }
+                    catch
+                    { };
+
+                    xreader.ReadEndElement();
+
+                    xreader.ReadStartElement("Description");
+                    DescBox.Text = xreader.ReadElementString("S");
+                    xreader.ReadEndElement();
+
+                    //JMW 2004-11-11
+                    try
+                    {
+                        xreader.ReadStartElement("OutputFile-Parms");
+                        try
+                        {
+                            bool a124 = XmlConvert.ToBoolean(xreader.ReadElementString("generateavifile"));
+                            string a123 = xreader.ReadElementString("avifile");
+
+                        }
+                        catch { };
+                        try
+                        {
+                            saveintervalbox.Text = xreader.ReadElementString("avifreq");
+                            checkBoxGenerateTimeSeries.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("generatetimeseriesfile"));
+                            TimeseriesOutBox.Text = xreader.ReadElementString("timeseriesfile");
+                            outputfilesaveintervalbox.Text = xreader.ReadElementString("timeseriesfreq");
+                            checkBoxGenerateIterations.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("generateiterationsfile"));
+                            IterationOutbox.Text = xreader.ReadElementString("iterationsfile");
+                        }
+                        catch
+                        { };
+                        xreader.ReadEndElement();
+                    }
+                    catch
+                    { };
+
+                    try
+                    {
+                        xreader.ReadStartElement("Display");
+                        Form1.ActiveForm.Top = XmlConvert.ToInt16(xreader.ReadElementString("top"));
+                        Form1.ActiveForm.Left = XmlConvert.ToInt16(xreader.ReadElementString("left"));
+                        Form1.ActiveForm.Width = XmlConvert.ToInt16(xreader.ReadElementString("width"));
+                        Form1.ActiveForm.Height = XmlConvert.ToInt16(xreader.ReadElementString("height"));
+
+                        xreader.ReadEndElement();
+                    }
+                    catch
+                    { };
+
+                    try
+                    {
+                        xreader.ReadStartElement("Lateral");
+                        bool dum_bool = XmlConvert.ToBoolean(xreader.ReadElementString("oldlat"));
+                        newlateral.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("newlat"));
+                        xreader.ReadEndElement();
+                    }
+                    catch
+                    { };
+                    try
+                    {
+                        xreader.ReadStartElement("Add_Ons");
+                        tracerOutcheckBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("tracer-out"));
+                        tracerOutputtextBox.Text = xreader.ReadElementString("tracer-out-filename");
+                        googleAnimationCheckbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("google_animation"));
+                        googleAnimationTextBox.Text = xreader.ReadElementString("google_animation_file_name");
+                        googleBeginDate.Text = xreader.ReadElementString("google_begin");
+                        googAnimationSaveInterval.Text = xreader.ReadElementString("google_interval");
+                        jmeaninputfilebox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("jMean"));
+                        avge_smoothbox.Text = xreader.ReadElementString("edge_smoothing");
+                        string dum_string = xreader.ReadElementString("displacement");
+                        propremaining.Text = xreader.ReadElementString("prop_remain");
+                        max_time_step_Box.Text = xreader.ReadElementString("max_time_step");
+                        bool dummy1 = XmlConvert.ToBoolean(xreader.ReadElementString("contam_input"));
+                        string dummystring1 = xreader.ReadElementString("mineX");
+                        string dummystring2 = xreader.ReadElementString("mineY");
+                        string dummystring3 = xreader.ReadElementString("contam_input_file");
+                        soil_ratebox.Text = xreader.ReadElementString("soil_rate");
+                        SiberiaBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("siberia"));
+                        Beta1Box.Text = xreader.ReadElementString("beta1");
+                        Beta3Box.Text = xreader.ReadElementString("beta3");
+                        m1Box.Text = xreader.ReadElementString("m1");
+                        m3Box.Text = xreader.ReadElementString("m3");
+                        n1Box.Text = xreader.ReadElementString("n1");
+                        Q2box.Text = xreader.ReadElementString("W_depth_erosion_threshold");
+                        dum_string = xreader.ReadElementString("fexp");
+                        div_inputs_box.Text = xreader.ReadElementString("div_inputs");
+
+                        init_depth_box.Text = xreader.ReadElementString("initial_sand_depth");
+                        slab_depth_box.Text = xreader.ReadElementString("maxslabdepth");
+                        shadow_angle_box.Text = xreader.ReadElementString("angle");
+                        upstream_check_box.Text = xreader.ReadElementString("checkup");
+                        depo_prob_box.Text = xreader.ReadElementString("dep_probability");
+                        offset_box.Text = xreader.ReadElementString("downstream_offset");
+                        dune_time_box.Text = xreader.ReadElementString("dune_timestep");
+                        dune_grid_size_box.Text = xreader.ReadElementString("dune_gridsize");
+
+                        wilcockbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("wilcock"));
+                        einsteinbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("einstein"));
+                        DuneBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("dune"));
+
+                        UTMgridcheckbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("UTM"));
+                        UTMsouthcheck.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("South"));
+                        UTMzonebox.Text = xreader.ReadElementString("UTMzone");
+
+
+                        raintimestepbox.Text = xreader.ReadElementString("raindatatimestep");
+                        activebox.Text = xreader.ReadElementString("activelayerthickness");
+
+                        // more add on's  21/5/2012
+                        downstreamshiftbox.Text = xreader.ReadElementString("downstreamshift");
+                        courantbox.Text = xreader.ReadElementString("courantnumber");
+                        textBox4.Text = xreader.ReadElementString("hflow");
+                        textBox7.Text = xreader.ReadElementString("lateralsmoothing");
+                        textBox8.Text = xreader.ReadElementString("froude_limit");
+                        textBox9.Text = xreader.ReadElementString("mannings");
+
+                        checkBox3.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("TidalorStage"));
+                        MinQmaxvalue.Text = xreader.ReadElementString("MinQmaxvalue");
+                        TidalXmin.Text = xreader.ReadElementString("TidalXmin");
+                        TidalXmax.Text = xreader.ReadElementString("TidalXmax");
+                        TidalYmin.Text = xreader.ReadElementString("TidalYmin");
+                        TidalYmax.Text = xreader.ReadElementString("TidalYmax");
+                        TidalFileName.Text = xreader.ReadElementString("TidalFileName");
+                        TidalInputStep.Text = xreader.ReadElementString("TidalInputStep");
+
+                        // more add ons for bedrock erosion 19/1/14
+                        bedrock_erosion_threshold_box.Text = xreader.ReadElementString("bedrock_erosion_threshold");
+                        bedrock_erosion_rate_box.Text = xreader.ReadElementString("bedrock_erosion_rate");
+
+                        // more add ons for spatially variable rainfall
+                        rfnumBox.Text = xreader.ReadElementString("rfnum");
+                        hydroindexBox.Text = xreader.ReadElementString("hydroindex");
+                        checkBox7.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("MultiRainfall"));
+
+                        // more addons for soil development and spatially variable mannings 28/8/2015
+                        soildevbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("soildevbox"));
+                        checkBox4.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("bedrocklowering"));
+                        checkBox5.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("physicalweathering"));
+                        checkBox6.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("chemicalweathering"));
+                        textBox11.Text = xreader.ReadElementString("P1");
+                        textBox12.Text = xreader.ReadElementString("b1");
+                        textBox13.Text = xreader.ReadElementString("k1");
+                        textBox14.Text = xreader.ReadElementString("c1");
+                        textBox15.Text = xreader.ReadElementString("c2");
+                        textBox16.Text = xreader.ReadElementString("k2");
+                        textBox17.Text = xreader.ReadElementString("c3");
+                        textBox18.Text = xreader.ReadElementString("c4");
+
+                        SpatVarManningsCheckbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("SpatVarManningsCheckbox"));
+                        textBox19.Text = xreader.ReadElementString("spatvarmanningsfilename");
+                        mfiletimestepbox.Text = xreader.ReadElementString("mfiletimestepbox");
+                        mvalueloadbox.Text = xreader.ReadElementString("mvalueloadbox");
+
+                        // 5/12/16
+                        meyerbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("meyer"));
+
+                        //18/7/18
+                        checkBox8.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("all_nine_grainsizes"));
+
+                        // 11/9/18
+                        radioButton1.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("oldveg"));
+                        radioButton2.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("newveg"));
+
+                        // add ons from MDW
+                        //spatialmanningsBox.Text = xreader.ReadElementString("manningfile");
+                        //checkBox9.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("SpatialFriction"));
+                        checkBox10.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("TraceWater"));
+                        checkBox11.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("TraceRainZonation"));
+                        textBox20.Text = xreader.ReadElementString("TraceRainZonationMapfile"); // MDW_V2 bug fix - corrected reference
+                        checkBoxSoluteTracer.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("TraceSolutes")); // MDW_V2
+
+                        textBoxOutDir.Text = xreader.ReadElementString("OutputDirectory"); // MDW_V2
+                        checkboxOutDirDateTime.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("OutDirDateTime")); // MDW_V2
+
+                        // OIL_V1
+                        OilTab_checkBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("OilSimulation"));
+                        OilYmin.Text = xreader.ReadElementString("OilYmin");
+                        OilYmax.Text = xreader.ReadElementString("OilYmax");
+                        OilXmin.Text = xreader.ReadElementString("OilXmin");
+                        OilXmax.Text = xreader.ReadElementString("OilXmax");
+                        OilTimeMin.Text = xreader.ReadElementString("OilTimeMin");
+                        OilDepthStart.Text = xreader.ReadElementString("OilDepthStart");
+                        OilVolume.Text = xreader.ReadElementString("OilVolume");
+                        OilSpillDuration.Text = xreader.ReadElementString("OilSpillDuration");
+
+                        //MDW
+                        xreader.ReadStartElement("SaveOptions");
+                        dum = xreader.ReadElementString("Option");
+                        menuItem6.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("SaveOptions");
+                        dum = xreader.ReadElementString("Option");
+                        menuItem15.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("SaveOptions"); //MDW_V2
+                        dum = xreader.ReadElementString("Option");
+                        menuItemSoluteTracer.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked")); // MDW_V2
+                        xreader.ReadEndElement();
+                        //
+
+                        // Jun LS tracing
+                        xreader.ReadStartElement("Filenames");
+                        dum = xreader.ReadElementString("Desc");
+                        angle_thresholdbox.Text = xreader.ReadElementString("Name");
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("Filenames");
+                        dum = xreader.ReadElementString("Desc");
+                        grain_index_file.Text = xreader.ReadElementString("Name");
+                        xreader.ReadEndElement();
+                        // more add ons for spatially variable tracer
+                        tracer_num.Text = xreader.ReadElementString("tracer");
+                        tracer_file.Text = xreader.ReadElementString("tracerindex");
+                        checkBox_tracer.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("MultiTracer"));
+                        // more add ons for spatially variable grainsize
+                        landslide_grainsize.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("MultiGrain"));
+
+                        xreader.ReadEndElement();
+                        xreader.ReadEndElement();
+                    }
+                    catch
+                    { };
+
+
+                    xreader.Close();
+
+
+                    this.Text = basetext + " (" + Path.GetFileName(cfgname) + ")";
+                    button2.Enabled = true;
+                    start_button.Enabled = false;
+                    Panel1.Visible = false;
+                    tabControl1.Visible = true;
+
                 }
             }
         }
-        //});
-    } while (tempdiff > lateral_cross_channel_smoothing); //this makes it loop until the averaging across the stream stabilises
-                                                          // so that the difference between the old and new values are < 0.0001
-                                                          //tempStatusPanel.Text = Convert.ToString(counter);
-
-}
-
-void add_minewaste()
-{
-    for (int n = 0; n <= minesitenumber; n++)
-    {
-        int x = (int)mine_inputs[n, 0];
-        int y = (int)mine_inputs[n, 1];
-        double amt = mine_inputs[n, 2] / (DX * DX);
-        int grainsizefraction = (int)mine_inputs[n, 3];
-        int tracerfraction = (int)mine_inputs[n, 4];
-
-        if (index[x, y] == -9999) addGS(x, y);
-        elev[x, y] += amt;
-        grain[index[x, y], grainsizefraction, tracerfraction] += amt;
-        sort_active(x, y); // maybe not needed here....
-    }
-
-}
-
-private void label125_Click(object sender, EventArgs e)
-{
-
-}
-
-private void Form1_Load(object sender, System.EventArgs e)
-{
-
-    zoomPanImageBox1.Height = this.Height - 225;
-    zoomPanImageBox1.Width = this.Width - 20;
-    //googleToggle();
-
-    //HttpWebRequest req;
-    //HttpWebResponse res;
-    //try
-    //{
-    //    req = (HttpWebRequest) WebRequest.Create("http://www.coulthard.org.uk/");
-    //    res = (HttpWebResponse) req.GetResponse();
-    //}
-    //catch(Exception ex)
-    //{
-    //    /// do nothing.
-    //}
-
-    //JMW <20040929 -start>
-    this.Text = basetext;
-    //DoingGraphics = false;
-    //JMW <20040929 - end>
-
-
-    // comment out all of the below to run normally. Leave uncommented in order to run in batch mode.
-    ////////////////////////
-    //////////////////////////
-
-
-
-    ///// first load up xml file from command line:
-    /////
-    string temp_xml_name = " ";
-
-    int i = 0;
-    foreach (string arg in Environment.GetCommandLineArgs())
-    {
-        if (arg != "CAESAR.exe") temp_xml_name = arg;
-        if (i != 0)
+        // JMW - Config File Save & SaveAs Event Handler
+        private void menuItemConfigFileSave_Click(object sender, System.EventArgs e)
         {
-            Console.WriteLine(arg);
+            XmlTextWriter xwriter;
+
+            if ((sender == menuItemConfigFileSaveAs) || (cfgname == null))
+            {
+
+                SaveFileDialog saveFileDialog1 = new SaveFileDialog();
+
+                saveFileDialog1.InitialDirectory = workdir;
+                saveFileDialog1.Filter = "cfg files (*.xml)|*.xml|All files (*.*)|*.*";
+                saveFileDialog1.FilterIndex = 1;
+                saveFileDialog1.RestoreDirectory = false;
+
+                if (saveFileDialog1.ShowDialog() == DialogResult.OK)
+                {
+                    cfgname = saveFileDialog1.FileName;
+                }
+
+            }
+
+            if (cfgname != null)
+            {
+
+                //Create a new XmlTextWriter.
+                xwriter = new XmlTextWriter(cfgname, System.Text.Encoding.UTF8);
+                //Write the beginning of the document including the
+                //document declaration. Standalone is true.
+                //Use indentation for readability.
+                xwriter.Formatting = Formatting.Indented;
+                xwriter.Indentation = 4;
+
+
+                xwriter.WriteStartDocument(true);
+
+                //Write the beginning of the "data" element. This is
+                //the opening tag to our data
+                xwriter.WriteStartElement("Parms");
+                xwriter.WriteStartElement("General-Parms");
+                xwriter.WriteElementString("headeroverride", XmlConvert.ToString(overrideheaderBox.Checked));
+                xwriter.WriteElementString("x-coordinate", xtextbox.Text);
+                xwriter.WriteElementString("y-coordinate", ytextbox.Text);
+                xwriter.WriteElementString("initscans", initscansbox.Text);
+                xwriter.WriteElementString("maxerodelimit", erodefactorbox.Text);
+                xwriter.WriteElementString("cellsize", dxbox.Text);
+                xwriter.WriteElementString("memorylimit", limitbox.Text);
+                xwriter.WriteElementString("minq", minqbox.Text);
+                xwriter.WriteElementString("creeprate", creepratebox.Text);
+                xwriter.WriteElementString("lateralerosionrate", lateralratebox.Text);
+                xwriter.WriteElementString("maxiter", itermaxbox.Text);
+                xwriter.WriteElementString("runstarttime", textBox1.Text);
+                xwriter.WriteElementString("maxrunduration", cyclemaxbox.Text);
+                xwriter.WriteElementString("slopefailurethreshold", slopebox.Text);
+                xwriter.WriteElementString("wssmoothingradius", smoothbox.Text);
+                xwriter.WriteElementString("mvalue", mvaluebox.Text);
+                xwriter.WriteElementString("growgrasstime", grasstextbox.Text);
+                xwriter.WriteElementString("initialq", textBox2.Text);
+                xwriter.WriteElementString("wssmoothing", "false");
+                xwriter.WriteElementString("grass-sediment", XmlConvert.ToString(flowonlybox.Checked));
+                xwriter.WriteElementString("flowdistribution", textBox3.Text); // MJ 24/01/05
+                xwriter.WriteElementString("mintimestep", mintimestepbox.Text); // MJ 24/01/05
+                xwriter.WriteElementString("evaporation", k_evapBox.Text); // MJ 15/03/05
+                xwriter.WriteElementString("vegcritshear", vegTauCritBox.Text); // MJ 10/05/05
+                xwriter.WriteElementString("bedslope", XmlConvert.ToString(bedslope_box.Checked));
+                xwriter.WriteElementString("wsslope", XmlConvert.ToString(false));
+                xwriter.WriteElementString("veltaubox", XmlConvert.ToString(veltaubox.Checked));
+                xwriter.WriteElementString("catchment_mode", XmlConvert.ToString(catchment_mode_box.Checked));
+                xwriter.WriteElementString("reach_mode", XmlConvert.ToString(reach_mode_box.Checked));
+                xwriter.WriteElementString("lat1", XmlConvert.ToString(false));
+                xwriter.WriteElementString("lat2", XmlConvert.ToString(false));
+                xwriter.WriteElementString("lat3", XmlConvert.ToString(false));
+                xwriter.WriteElementString("cross_stream_grad", XmlConvert.ToString(0));
+                xwriter.WriteElementString("max_vel", max_vel_box.Text);
+
+
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "elevations");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem12.Checked));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "elevdiff");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem13.Checked));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "grainsize");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem14.Checked));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "total tracer g/s");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "tracer layer 1");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "tracer layer 2");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "tracer layer 3");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "tracer layer 4");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "tracer layer 5");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "tracer layer 6");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "tracer layer 7");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "tracer layer 8");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "tracer layer 9");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "water depth");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem25.Checked));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "d50");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem29.Checked));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "flow velocity");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem33.Checked));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "soil saturation");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem34.Checked));
+                xwriter.WriteEndElement();
+
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g1box.Text);
+                xwriter.WriteElementString("gp", gp1box.Text);
+                xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS1box.Checked));
+                xwriter.WriteElementString("fv", fallGS1box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g2box.Text);
+                xwriter.WriteElementString("gp", gp2box.Text);
+                xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS2box.Checked));
+                xwriter.WriteElementString("fv", fallGS2box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g3box.Text);
+                xwriter.WriteElementString("gp", gp3box.Text);
+                xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS3box.Checked));
+                xwriter.WriteElementString("fv", fallGS3box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g4box.Text);
+                xwriter.WriteElementString("gp", gp4box.Text);
+                xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS4box.Checked));
+                xwriter.WriteElementString("fv", fallGS4box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g5box.Text);
+                xwriter.WriteElementString("gp", gp5box.Text);
+                xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS5box.Checked));
+                xwriter.WriteElementString("fv", fallGS5box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g6box.Text);
+                xwriter.WriteElementString("gp", gp6box.Text);
+                xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS6box.Checked));
+                xwriter.WriteElementString("fv", fallGS6box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g7box.Text);
+                xwriter.WriteElementString("gp", gp7box.Text);
+                xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS7box.Checked));
+                xwriter.WriteElementString("fv", fallGS7box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g8box.Text);
+                xwriter.WriteElementString("gp", gp8box.Text);
+                xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS8box.Checked));
+                xwriter.WriteElementString("fv", fallGS8box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g9box.Text);
+                xwriter.WriteElementString("gp", gp9box.Text);
+                xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS9box.Checked));
+                xwriter.WriteElementString("fv", fallGS9box.Text);
+                xwriter.WriteEndElement();
+
+                // additional landslide grainsize
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g1_box.Text);
+                xwriter.WriteElementString("gp", gp1_box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g2_box.Text);
+                xwriter.WriteElementString("gp", gp2_box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g3_box.Text);
+                xwriter.WriteElementString("gp", gp3_box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g4_box.Text);
+                xwriter.WriteElementString("gp", gp4_box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g5_box.Text);
+                xwriter.WriteElementString("gp", gp5_box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g6_box.Text);
+                xwriter.WriteElementString("gp", gp6_box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g7_box.Text);
+                xwriter.WriteElementString("gp", gp7_box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g8_box.Text);
+                xwriter.WriteElementString("gp", gp8_box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Grain-Size");
+                xwriter.WriteElementString("gs", g9_box.Text);
+                xwriter.WriteElementString("gp", gp9_box.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("File-Parms");
+
+                xwriter.WriteElementString("inputtimestep", input_time_step_box.Text);
+                xwriter.WriteElementString("saveinterval", saveintervalbox.Text);
+                xwriter.WriteElementString("savetologfileinterval", outputfilesaveintervalbox.Text);
+                xwriter.WriteElementString("tracerrun", XmlConvert.ToString(tracerbox.Checked));
+                xwriter.WriteElementString("uniquefilecheck", XmlConvert.ToString(uniquefilecheck.Checked));
+
+
+                xwriter.WriteStartElement("Filenames");
+                xwriter.WriteElementString("Desc", "DEM Data File");
+                xwriter.WriteElementString("Name", openfiletextbox.Text);
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("Filenames");
+                xwriter.WriteElementString("Desc", "Grain Data File");
+                xwriter.WriteElementString("Name", graindataloadbox.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Filenames");
+                xwriter.WriteElementString("Desc", "Bedrock Data File");
+                xwriter.WriteElementString("Name", bedrockbox.Text);
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Filenames");
+                xwriter.WriteElementString("Desc", "Rain Data File");
+                xwriter.WriteElementString("Name", raindataloadbox.Text);
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("Filenames");
+                xwriter.WriteElementString("Desc", "Tracer File");
+                xwriter.WriteElementString("Name", mine_input_textBox.Text);
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("Filenames");
+                xwriter.WriteElementString("Desc", "Tracer Sed Vol File");
+                xwriter.WriteElementString("Name", tracerhydrofile.Text);
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("Filenames");
+                xwriter.WriteElementString("Desc", "Tracer Grain Size Data File");
+                xwriter.WriteElementString("Name", "null");
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("Sources");
+                xwriter.WriteElementString("input", XmlConvert.ToString(inbox1.Checked));
+                xwriter.WriteElementString("X", xbox1.Text);
+                xwriter.WriteElementString("Y", ybox1.Text);
+                xwriter.WriteElementString("Filename", infile1.Text);
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("Sources");
+                xwriter.WriteElementString("input", XmlConvert.ToString(inbox2.Checked));
+                xwriter.WriteElementString("X", xbox2.Text);
+                xwriter.WriteElementString("Y", ybox2.Text);
+                xwriter.WriteElementString("Filename", infile2.Text);
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("Sources");
+                xwriter.WriteElementString("input", XmlConvert.ToString(inbox3.Checked));
+                xwriter.WriteElementString("X", xbox3.Text);
+                xwriter.WriteElementString("Y", ybox3.Text);
+                xwriter.WriteElementString("Filename", infile3.Text);
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("Sources");
+                xwriter.WriteElementString("input", XmlConvert.ToString(inbox4.Checked));
+                xwriter.WriteElementString("X", xbox4.Text);
+                xwriter.WriteElementString("Y", ybox4.Text);
+                xwriter.WriteElementString("Filename", infile4.Text);
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("Sources");
+                xwriter.WriteElementString("input", XmlConvert.ToString(inbox5.Checked));
+                xwriter.WriteElementString("X", xbox5.Text);
+                xwriter.WriteElementString("Y", ybox5.Text);
+                xwriter.WriteElementString("Filename", infile5.Text);
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("Sources");
+                xwriter.WriteElementString("input", XmlConvert.ToString(inbox6.Checked));
+                xwriter.WriteElementString("X", xbox6.Text);
+                xwriter.WriteElementString("Y", ybox6.Text);
+                xwriter.WriteElementString("Filename", infile6.Text);
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("Sources");
+                xwriter.WriteElementString("input", XmlConvert.ToString(inbox7.Checked));
+                xwriter.WriteElementString("X", xbox7.Text);
+                xwriter.WriteElementString("Y", ybox7.Text);
+                xwriter.WriteElementString("Filename", infile7.Text);
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("Sources");
+                xwriter.WriteElementString("input", XmlConvert.ToString(inbox8.Checked));
+                xwriter.WriteElementString("X", xbox8.Text);
+                xwriter.WriteElementString("Y", ybox8.Text);
+                xwriter.WriteElementString("Filename", infile8.Text);
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("ExtraSources");                                      //MDW_V2
+                xwriter.WriteElementString("input", XmlConvert.ToString(inboxExtra.Checked));   //
+                xwriter.WriteElementString("Filename", infileExtra.Text);                       //
+                xwriter.WriteEndElement();                                                      //
+                xwriter.WriteEndElement();
+
+
+                xwriter.WriteStartElement("Description");
+                xwriter.WriteElementString("S", DescBox.Text);
+                xwriter.WriteEndElement();
+
+                //JMW 2004-11-11; updated MJ 24/01/05
+                xwriter.WriteStartElement("OutputFile-Parms");
+                xwriter.WriteElementString("generateavifile", "false");
+                xwriter.WriteElementString("avifile", "novalue");
+                xwriter.WriteElementString("avifreq", saveintervalbox.Text);
+                xwriter.WriteElementString("generatetimeseriesfile", XmlConvert.ToString(checkBoxGenerateTimeSeries.Checked));
+                xwriter.WriteElementString("timeseriesfile", TimeseriesOutBox.Text);
+                xwriter.WriteElementString("timeseriesfreq", outputfilesaveintervalbox.Text);
+                xwriter.WriteElementString("generateiterationsfile", XmlConvert.ToString(checkBoxGenerateIterations.Checked));
+                xwriter.WriteElementString("iterationsfile", IterationOutbox.Text);
+                xwriter.WriteEndElement();
+
+
+                xwriter.WriteStartElement("Display");
+                xwriter.WriteElementString("top", string.Format(" {0}", Form1.ActiveForm.Top));
+                xwriter.WriteElementString("left", string.Format(" {0}", Form1.ActiveForm.Left));
+                xwriter.WriteElementString("width", string.Format(" {0}", Form1.ActiveForm.Width));
+                xwriter.WriteElementString("height", string.Format(" {0}", Form1.ActiveForm.Height));
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Lateral");
+                xwriter.WriteElementString("oldlat", XmlConvert.ToString(false));
+                xwriter.WriteElementString("newlat", XmlConvert.ToString(newlateral.Checked));
+                xwriter.WriteEndElement();
+
+                xwriter.WriteStartElement("Add_Ons");
+                xwriter.WriteElementString("tracer-out", XmlConvert.ToString(tracerOutcheckBox.Checked));
+                xwriter.WriteElementString("tracer-out-filename", tracerOutputtextBox.Text);
+                xwriter.WriteElementString("google_animation", XmlConvert.ToString(googleAnimationCheckbox.Checked));
+                xwriter.WriteElementString("google_animation_file_name", googleAnimationTextBox.Text);
+                xwriter.WriteElementString("google_begin", googleBeginDate.Text);
+                xwriter.WriteElementString("google_interval", googAnimationSaveInterval.Text);
+                xwriter.WriteElementString("jMean", XmlConvert.ToString(jmeaninputfilebox.Checked));
+                xwriter.WriteElementString("edge_smoothing", avge_smoothbox.Text);
+                xwriter.WriteElementString("displacement", XmlConvert.ToString(false));
+                xwriter.WriteElementString("prop_remain", propremaining.Text);
+                xwriter.WriteElementString("max_time_step", max_time_step_Box.Text);
+                xwriter.WriteElementString("contam_input", XmlConvert.ToString(false));
+                xwriter.WriteElementString("mineX", "null");
+                xwriter.WriteElementString("mineY", "null");
+                xwriter.WriteElementString("contam_input_file", "null");
+                xwriter.WriteElementString("soil_rate", soil_ratebox.Text);
+                xwriter.WriteElementString("siberia", XmlConvert.ToString(SiberiaBox.Checked));
+                xwriter.WriteElementString("beta1", Beta1Box.Text);
+                xwriter.WriteElementString("beta3", Beta3Box.Text);
+                xwriter.WriteElementString("m1", m1Box.Text);
+                xwriter.WriteElementString("m3", m3Box.Text);
+                xwriter.WriteElementString("n1", n1Box.Text);
+                xwriter.WriteElementString("W_depth_erosion_threshold", Q2box.Text);
+                xwriter.WriteElementString("fexp", XmlConvert.ToString(1));
+                xwriter.WriteElementString("div_inputs", div_inputs_box.Text);
+                xwriter.WriteElementString("initial_sand_depth", init_depth_box.Text);
+                xwriter.WriteElementString("maxslabdepth", slab_depth_box.Text);
+                xwriter.WriteElementString("angle", shadow_angle_box.Text);
+                xwriter.WriteElementString("checkup", upstream_check_box.Text);
+                xwriter.WriteElementString("dep_probability", depo_prob_box.Text);
+                xwriter.WriteElementString("downstream_offset", offset_box.Text);
+                xwriter.WriteElementString("dune_timestep", dune_time_box.Text);
+                xwriter.WriteElementString("dune_gridsize", dune_grid_size_box.Text);
+                xwriter.WriteElementString("wilcock", XmlConvert.ToString(wilcockbox.Checked));
+                xwriter.WriteElementString("einstein", XmlConvert.ToString(einsteinbox.Checked));
+                xwriter.WriteElementString("dune", XmlConvert.ToString(DuneBox.Checked));
+                // three UTM interface elements
+                xwriter.WriteElementString("UTM", XmlConvert.ToString(UTMgridcheckbox.Checked));
+                xwriter.WriteElementString("South", XmlConvert.ToString(UTMsouthcheck.Checked));
+                xwriter.WriteElementString("UTMzone", UTMzonebox.Text);
+
+                xwriter.WriteElementString("raindatatimestep", raintimestepbox.Text);
+                xwriter.WriteElementString("activelayerthickness", activebox.Text);
+
+                // more add on's  21/5/2012
+
+                xwriter.WriteElementString("downstreamshift", downstreamshiftbox.Text);
+                xwriter.WriteElementString("courantnumber", courantbox.Text);
+                xwriter.WriteElementString("hflow", textBox4.Text);
+                xwriter.WriteElementString("lateralsmoothing", textBox7.Text);
+                xwriter.WriteElementString("froude_limit", textBox8.Text);
+                xwriter.WriteElementString("mannings", textBox9.Text);
+
+                // more add on's 4/7/13
+                xwriter.WriteElementString("TidalorStage", XmlConvert.ToString(checkBox3.Checked));
+                xwriter.WriteElementString("MinQmaxvalue", MinQmaxvalue.Text);
+                xwriter.WriteElementString("TidalXmin", TidalXmin.Text);
+                xwriter.WriteElementString("TidalXmax", TidalXmax.Text);
+                xwriter.WriteElementString("TidalYmin", TidalYmin.Text);
+                xwriter.WriteElementString("TidalYmax", TidalYmax.Text);
+                xwriter.WriteElementString("TidalFileName", TidalFileName.Text);
+                xwriter.WriteElementString("TidalInputStep", TidalInputStep.Text);
+
+                // more add ons for bedrock erosion 19/1/14
+                xwriter.WriteElementString("bedrock_erosion_threshold", bedrock_erosion_threshold_box.Text);
+                xwriter.WriteElementString("bedrock_erosion_rate", bedrock_erosion_rate_box.Text);
+
+                // more add ons for spatially variable rainfall
+                xwriter.WriteElementString("rfnum", rfnumBox.Text);
+                xwriter.WriteElementString("hydroindex", hydroindexBox.Text);
+                xwriter.WriteElementString("MultiRainfall", XmlConvert.ToString(checkBox7.Checked));
+
+                // more addons for soil development and spatially variable mannings 28/8/2015
+                xwriter.WriteElementString("soildevbox", XmlConvert.ToString(soildevbox.Checked));
+                xwriter.WriteElementString("bedrocklowering", XmlConvert.ToString(checkBox4.Checked));
+                xwriter.WriteElementString("physicalweathering", XmlConvert.ToString(checkBox5.Checked));
+                xwriter.WriteElementString("chemicalweathering", XmlConvert.ToString(checkBox6.Checked));
+                xwriter.WriteElementString("P1", textBox11.Text);
+                xwriter.WriteElementString("b1", textBox12.Text);
+                xwriter.WriteElementString("k1", textBox13.Text);
+                xwriter.WriteElementString("c1", textBox14.Text);
+                xwriter.WriteElementString("c2", textBox15.Text);
+                xwriter.WriteElementString("k2", textBox16.Text);
+                xwriter.WriteElementString("c3", textBox17.Text);
+                xwriter.WriteElementString("c4", textBox18.Text);
+
+                xwriter.WriteElementString("SpatVarManningsCheckbox", XmlConvert.ToString(SpatVarManningsCheckbox.Checked));
+                xwriter.WriteElementString("spatvarmanningsfilename", textBox19.Text);
+
+                // 4/10/15 spat variable mannings box
+                xwriter.WriteElementString("mfiletimestepbox", mfiletimestepbox.Text);
+                xwriter.WriteElementString("mvalueloadbox", mvalueloadbox.Text);
+
+                // 5/12/16
+                xwriter.WriteElementString("meyer", XmlConvert.ToString(meyerbox.Checked));
+                //18/7/18
+                xwriter.WriteElementString("all_nine_grainsizes", XmlConvert.ToString(checkBox8.Checked));
+                // 11/9/18
+                xwriter.WriteElementString("oldveg", XmlConvert.ToString(radioButton1.Checked));
+                xwriter.WriteElementString("newveg", XmlConvert.ToString(radioButton2.Checked));
+
+                // add ons from MDW
+                //xwriter.WriteElementString("manningfile", spatialmanningsBox.Text);
+                //xwriter.WriteElementString("SpatialFriction", XmlConvert.ToString(checkBox9.Checked));
+                xwriter.WriteElementString("TraceWater", XmlConvert.ToString(checkBox10.Checked));
+                xwriter.WriteElementString("TraceRainZonation", XmlConvert.ToString(checkBox11.Checked));
+                xwriter.WriteElementString("TraceRainZonationMapfile", textBox20.Text); // MDW_V2 bug fix - corrected reference
+                xwriter.WriteElementString("TraceSolutes", XmlConvert.ToString(checkBoxSoluteTracer.Checked));
+
+                xwriter.WriteElementString("OutputDirectory", textBoxOutDir.Text); // MDW_V2
+                xwriter.WriteElementString("OutDirDateTime", XmlConvert.ToString(checkboxOutDirDateTime.Checked)); // MDW_V2
+
+                // OIL_V1
+                xwriter.WriteElementString("OilSimulation", XmlConvert.ToString(OilTab_checkBox.Checked));
+                xwriter.WriteElementString("OilYmin", OilYmin.Text);
+                xwriter.WriteElementString("OilYmax", OilYmax.Text);
+                xwriter.WriteElementString("OilXmin", OilXmin.Text);
+                xwriter.WriteElementString("OilXmax", OilXmax.Text);
+                xwriter.WriteElementString("OilTimeMin", OilTimeMin.Text);
+                xwriter.WriteElementString("OilDepthStart", OilDepthStart.Text);
+                xwriter.WriteElementString("OilVolume", OilVolume.Text);
+                xwriter.WriteElementString("OilSpillDuration", OilSpillDuration.Text);
+
+                //MDW
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "water tracers");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem6.Checked));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "rain zone tracers");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem15.Checked));
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "solute tracers");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItemSoluteTracer.Checked));
+                xwriter.WriteEndElement();
+                //
+                //xwriter.WriteElementString();
+
+                //PDF
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "oil depth");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItemOilSpill.Checked));
+                xwriter.WriteEndElement();
+                //
+
+                //additional from Jun LS tracing
+                xwriter.WriteStartElement("Filenames");
+                xwriter.WriteElementString("Desc", "Angle Data File");
+                xwriter.WriteElementString("Name", angle_thresholdbox.Text);
+                xwriter.WriteEndElement();
+                xwriter.WriteStartElement("Filenames");
+                xwriter.WriteElementString("Desc", "Grain index Data File");
+                xwriter.WriteElementString("Name", grain_index_file.Text);
+                xwriter.WriteEndElement();
+                xwriter.WriteElementString("tracer", tracer_num.Text);
+                xwriter.WriteElementString("tracerindex", tracer_file.Text);
+                xwriter.WriteElementString("MultiTracer", XmlConvert.ToString(checkBox_tracer.Checked));
+                // more add ons for spatially variable grainsize
+                xwriter.WriteElementString("MultiGrain", XmlConvert.ToString(landslide_grainsize.Checked));
+
+                xwriter.WriteEndElement();
+                xwriter.WriteEndElement();
+
+
+                //End the document
+                xwriter.WriteEndDocument();
+
+                //Flush the xml document to the underlying stream and
+                //close the underlying stream. The data will not be
+                //written out to the stream until either the Flush()
+                //method is called or the Close() method is called.
+                xwriter.Close();
+
+                this.Text = basetext + " (" + Path.GetFileName(cfgname) + ")";
+            }
         }
-        i++;
-    }
-
-
-
-    ///// then load up .xml file
-    /////
-
-    //XmlTextReader xreader;
-    //String dum;
-
-    //if (1 > 0)
-    //{
-
-    //    xreader = new XmlTextReader(temp_xml_name);
-
-    //    //Read the file
-    //    if (xreader != null)
-    //    {
-    //        xreader.ReadStartElement("Parms");
-    //        xreader.ReadStartElement("General-Parms");
-    //        try
-    //        {
-    //            overrideheaderBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("headeroverride"));
-    //        }
-    //        catch
-    //        { };
-    //        xtextbox.Text = xreader.ReadElementString("x-coordinate");
-    //        ytextbox.Text = xreader.ReadElementString("y-coordinate");
-    //        initscansbox.Text = xreader.ReadElementString("initscans");
-    //        erodefactorbox.Text = xreader.ReadElementString("maxerodelimit");
-    //        dxbox.Text = xreader.ReadElementString("cellsize");
-    //        limitbox.Text = xreader.ReadElementString("memorylimit");
-    //        minqbox.Text = xreader.ReadElementString("minq");
-    //        creepratebox.Text = xreader.ReadElementString("creeprate");
-    //        lateralratebox.Text = xreader.ReadElementString("lateralerosionrate");
-    //        itermaxbox.Text = xreader.ReadElementString("maxiter");
-    //        textBox1.Text = xreader.ReadElementString("runstarttime");
-    //        cyclemaxbox.Text = xreader.ReadElementString("maxrunduration");
-    //        slopebox.Text = xreader.ReadElementString("slopefailurethreshold");
-    //        smoothbox.Text = xreader.ReadElementString("wssmoothingradius");
-    //        mvaluebox.Text = xreader.ReadElementString("mvalue");
-
-    //        grasstextbox.Text = xreader.ReadElementString("growgrasstime");
-    //        textBox2.Text = xreader.ReadElementString("initialq");
-    //        try
-    //        {
-    //            checkBox3.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("wssmoothing"));
-    //        }
-    //        catch
-    //        { };
-    //        grassbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("grass-sediment"));
-
-    //        try // MJ 24/01/05
-    //        {
-    //            textBox3.Text = xreader.ReadElementString("flowdistribution");
-    //            mintimestepbox.Text = xreader.ReadElementString("mintimestep");
-    //        }
-    //        catch
-    //        { };
-
-    //        try // MJ 15/03/05
-    //        {
-    //            k_evapBox.Text = xreader.ReadElementString("evaporation");
-    //        }
-    //        catch
-    //        { };
-
-    //        try // MJ 10/05/05
-    //        {
-    //            vegTauCritBox.Text = xreader.ReadElementString("vegcritshear");
-    //        }
-    //        catch
-    //        { };
-
-    //        try
-    //        {
-    //            bedslope_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("bedslope"));
-    //        }
-    //        catch
-    //        { };
-    //        try
-    //        {
-    //            bool dum_bool = XmlConvert.ToBoolean(xreader.ReadElementString("wsslope"));
-    //        }
-    //        catch
-    //        { };
-    //        try
-    //        {
-    //            veltaubox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("veltaubox"));
-    //        }
-    //        catch
-    //        { };
-    //        try
-    //        {
-    //            catchment_mode_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("catchment_mode"));
-    //        }
-    //        catch
-    //        { };
-    //        try
-    //        {
-    //            reach_mode_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("reach_mode"));
-    //        }
-    //        catch
-    //        { };
-    //        try
-    //        {
-    //            latbox1.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("lat1"));
-    //        }
-    //        catch
-    //        { };
-    //        try
-    //        {
-    //            latbox2.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("lat2"));
-    //        }
-    //        catch
-    //        { };
-    //        try
-    //        {
-    //            bool dum_bool = XmlConvert.ToBoolean(xreader.ReadElementString("lat3"));
-    //        }
-    //        catch
-    //        { };
-    //        try
-    //        {
-    //            string dum_string = xreader.ReadElementString("cross_stream_grad");
-    //        }
-    //        catch
-    //        { };
-    //        try
-    //        {
-    //            max_vel_box.Text = xreader.ReadElementString("max_vel");
-    //        }
-    //        catch { };
-
-
-    //        xreader.ReadStartElement("SaveOptions");
-    //        dum = xreader.ReadElementString("Option");
-    //        menuItem12.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("SaveOptions");
-    //        dum = xreader.ReadElementString("Option");
-    //        menuItem13.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("SaveOptions");
-    //        dum = xreader.ReadElementString("Option");
-    //        menuItem14.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("SaveOptions");
-    //        dum = xreader.ReadElementString("Option");
-    //        menuItem15.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("SaveOptions");
-    //        dum = xreader.ReadElementString("Option");
-    //        menuItem16.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("SaveOptions");
-    //        dum = xreader.ReadElementString("Option");
-    //        menuItem17.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("SaveOptions");
-    //        dum = xreader.ReadElementString("Option");
-    //        menuItem18.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("SaveOptions");
-    //        dum = xreader.ReadElementString("Option");
-    //        menuItem19.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("SaveOptions");
-    //        dum = xreader.ReadElementString("Option");
-    //        menuItem20.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("SaveOptions");
-    //        dum = xreader.ReadElementString("Option");
-    //        menuItem21.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("SaveOptions");
-    //        dum = xreader.ReadElementString("Option");
-    //        menuItem22.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("SaveOptions");
-    //        dum = xreader.ReadElementString("Option");
-    //        menuItem23.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("SaveOptions");
-    //        dum = xreader.ReadElementString("Option");
-    //        menuItem24.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("SaveOptions");
-    //        dum = xreader.ReadElementString("Option");
-    //        menuItem25.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //        xreader.ReadEndElement();
-    //        try
-    //        {
-    //            xreader.ReadStartElement("SaveOptions");
-    //            dum = xreader.ReadElementString("Option");
-    //            menuItem29.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //            xreader.ReadEndElement();
-    //            xreader.ReadStartElement("SaveOptions");
-    //            dum = xreader.ReadElementString("Option");
-    //            menuItem33.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //            xreader.ReadEndElement();
-    //            xreader.ReadStartElement("SaveOptions");
-    //            dum = xreader.ReadElementString("Option");
-    //            menuItem34.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-    //            xreader.ReadEndElement();
-    //        }
-    //        catch
-    //        { };
-    //        xreader.ReadEndElement();
-
-    //        xreader.ReadStartElement("Grain-Size");
-    //        g1box.Text = xreader.ReadElementString("gs");
-    //        gp1box.Text = xreader.ReadElementString("gp");
-    //        try
-    //        {
-    //            suspGS1box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-    //            fallGS1box.Text = xreader.ReadElementString("fv");
-    //        }
-    //        catch
-    //        { };
-    //        xreader.ReadEndElement();
-
-    //        xreader.ReadStartElement("Grain-Size");
-    //        g2box.Text = xreader.ReadElementString("gs");
-    //        gp2box.Text = xreader.ReadElementString("gp");
-    //        try
-    //        {
-    //            suspGS2box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-    //            fallGS2box.Text = xreader.ReadElementString("fv");
-    //        }
-    //        catch
-    //        { };
-    //        xreader.ReadEndElement();
-
-    //        xreader.ReadStartElement("Grain-Size");
-    //        g3box.Text = xreader.ReadElementString("gs");
-    //        gp3box.Text = xreader.ReadElementString("gp");
-    //        try
-    //        {
-    //            suspGS3box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-    //            fallGS3box.Text = xreader.ReadElementString("fv");
-    //        }
-    //        catch
-    //        { };
-    //        xreader.ReadEndElement();
-
-    //        xreader.ReadStartElement("Grain-Size");
-    //        g4box.Text = xreader.ReadElementString("gs");
-    //        gp4box.Text = xreader.ReadElementString("gp");
-    //        try
-    //        {
-    //            suspGS4box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-    //            fallGS4box.Text = xreader.ReadElementString("fv");
-    //        }
-    //        catch
-    //        { };
-    //        xreader.ReadEndElement();
-
-    //        xreader.ReadStartElement("Grain-Size");
-    //        g5box.Text = xreader.ReadElementString("gs");
-    //        gp5box.Text = xreader.ReadElementString("gp");
-    //        try
-    //        {
-    //            suspGS5box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-    //            fallGS5box.Text = xreader.ReadElementString("fv");
-    //        }
-    //        catch
-    //        { };
-    //        xreader.ReadEndElement();
-
-    //        xreader.ReadStartElement("Grain-Size");
-    //        g6box.Text = xreader.ReadElementString("gs");
-    //        gp6box.Text = xreader.ReadElementString("gp");
-    //        try
-    //        {
-    //            suspGS6box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-    //            fallGS6box.Text = xreader.ReadElementString("fv");
-    //        }
-    //        catch
-    //        { };
-    //        xreader.ReadEndElement();
-
-    //        xreader.ReadStartElement("Grain-Size");
-    //        g7box.Text = xreader.ReadElementString("gs");
-    //        gp7box.Text = xreader.ReadElementString("gp");
-    //        try
-    //        {
-    //            suspGS7box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-    //            fallGS7box.Text = xreader.ReadElementString("fv");
-    //        }
-    //        catch
-    //        { };
-    //        xreader.ReadEndElement();
-
-    //        xreader.ReadStartElement("Grain-Size");
-    //        g8box.Text = xreader.ReadElementString("gs");
-    //        gp8box.Text = xreader.ReadElementString("gp");
-    //        try
-    //        {
-    //            suspGS8box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-    //            fallGS8box.Text = xreader.ReadElementString("fv");
-    //        }
-    //        catch
-    //        { };
-    //        xreader.ReadEndElement();
-
-    //        try
-    //        {
-    //            xreader.ReadStartElement("Grain-Size");
-    //            g9box.Text = xreader.ReadElementString("gs");
-    //            gp9box.Text = xreader.ReadElementString("gp");
-    //            try
-    //            {
-    //                suspGS9box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-    //                fallGS9box.Text = xreader.ReadElementString("fv");
-    //            }
-    //            catch
-    //            { };
-    //            xreader.ReadEndElement();
-    //        }
-    //        catch
-    //        { };
-
-    //        xreader.ReadStartElement("File-Parms");
-
-    //        input_time_step_box.Text = xreader.ReadElementString("inputtimestep");
-    //        saveintervalbox.Text = xreader.ReadElementString("saveinterval");
-    //        outputfilesaveintervalbox.Text = xreader.ReadElementString("savetologfileinterval");
-    //        tracerbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("tracerrun"));
-    //        uniquefilecheck.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("uniquefilecheck"));
-
-    //        xreader.ReadStartElement("Filenames");
-    //        dum = xreader.ReadElementString("Desc");
-    //        openfiletextbox.Text = xreader.ReadElementString("Name");
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("Filenames");
-    //        dum = xreader.ReadElementString("Desc");
-    //        graindataloadbox.Text = xreader.ReadElementString("Name");
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("Filenames");
-    //        dum = xreader.ReadElementString("Desc");
-    //        bedrockbox.Text = xreader.ReadElementString("Name");
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("Filenames");
-    //        dum = xreader.ReadElementString("Desc");
-    //        raindataloadbox.Text = xreader.ReadElementString("Name");
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("Filenames");
-    //        dum = xreader.ReadElementString("Desc");
-    //        tracerfile.Text = xreader.ReadElementString("Name");
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("Filenames");
-    //        dum = xreader.ReadElementString("Desc");
-    //        tracerhydrofile.Text = xreader.ReadElementString("Name");
-    //        xreader.ReadEndElement();
-    //        xreader.ReadStartElement("Filenames");
-    //        dum = xreader.ReadElementString("Desc");
-    //        tracergrainbox.Text = xreader.ReadElementString("Name");
-    //        xreader.ReadEndElement();
-    //        try
-    //        {
-
-    //            xreader.ReadStartElement("Sources");
-    //            inbox1.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-    //            xbox1.Text = xreader.ReadElementString("X");
-    //            ybox1.Text = xreader.ReadElementString("Y");
-    //            infile1.Text = xreader.ReadElementString("Filename");
-    //            xreader.ReadEndElement();
-    //            xreader.ReadStartElement("Sources");
-    //            inbox2.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-    //            xbox2.Text = xreader.ReadElementString("X");
-    //            ybox2.Text = xreader.ReadElementString("Y");
-    //            infile2.Text = xreader.ReadElementString("Filename");
-    //            xreader.ReadEndElement();
-    //            xreader.ReadStartElement("Sources");
-    //            inbox3.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-    //            xbox3.Text = xreader.ReadElementString("X");
-    //            ybox3.Text = xreader.ReadElementString("Y");
-    //            infile3.Text = xreader.ReadElementString("Filename");
-    //            xreader.ReadEndElement();
-    //            xreader.ReadStartElement("Sources");
-    //            inbox4.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-    //            xbox4.Text = xreader.ReadElementString("X");
-    //            ybox4.Text = xreader.ReadElementString("Y");
-    //            infile4.Text = xreader.ReadElementString("Filename");
-    //            xreader.ReadEndElement();
-    //            xreader.ReadStartElement("Sources");
-    //            inbox5.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-    //            xbox5.Text = xreader.ReadElementString("X");
-    //            ybox5.Text = xreader.ReadElementString("Y");
-    //            infile5.Text = xreader.ReadElementString("Filename");
-    //            xreader.ReadEndElement();
-    //            xreader.ReadStartElement("Sources");
-    //            inbox6.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-    //            xbox6.Text = xreader.ReadElementString("X");
-    //            ybox6.Text = xreader.ReadElementString("Y");
-    //            infile6.Text = xreader.ReadElementString("Filename");
-    //            xreader.ReadEndElement();
-    //            xreader.ReadStartElement("Sources");
-    //            inbox7.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-    //            xbox7.Text = xreader.ReadElementString("X");
-    //            ybox7.Text = xreader.ReadElementString("Y");
-    //            infile7.Text = xreader.ReadElementString("Filename");
-    //            xreader.ReadEndElement();
-    //            xreader.ReadStartElement("Sources");
-    //            inbox8.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-    //            xbox8.Text = xreader.ReadElementString("X");
-    //            ybox8.Text = xreader.ReadElementString("Y");
-    //            infile8.Text = xreader.ReadElementString("Filename");
-    //            xreader.ReadEndElement();
-    //        }
-    //        catch
-    //        { };
-
-    //        xreader.ReadEndElement();
-
-    //        xreader.ReadStartElement("Description");
-    //        DescBox.Text = xreader.ReadElementString("S");
-    //        xreader.ReadEndElement();
-
-    //        //JMW 2004-11-11
-    //        try
-    //        {
-    //            xreader.ReadStartElement("OutputFile-Parms");
-    //            checkBoxGenerateAVIFile.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("generateavifile"));
-    //            textBoxAVIFile.Text = xreader.ReadElementString("avifile");
-    //            try
-    //            {
-    //                saveintervalbox.Text = xreader.ReadElementString("avifreq");
-    //                checkBoxGenerateTimeSeries.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("generatetimeseriesfile"));
-    //                TimeseriesOutBox.Text = xreader.ReadElementString("timeseriesfile");
-    //                outputfilesaveintervalbox.Text = xreader.ReadElementString("timeseriesfreq");
-    //                checkBoxGenerateIterations.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("generateiterationsfile"));
-    //                IterationOutbox.Text = xreader.ReadElementString("iterationsfile");
-    //            }
-    //            catch
-    //            { };
-    //            xreader.ReadEndElement();
-    //        }
-    //        catch
-    //        { };
-
-    //        try
-    //        {
-    //            xreader.ReadStartElement("Display");
-    //            // have to have dumpvariable here as window not displayed yet...
-    //            int dumpvarible = XmlConvert.ToInt16(xreader.ReadElementString("top"));
-    //            dumpvarible = XmlConvert.ToInt16(xreader.ReadElementString("left"));
-    //            dumpvarible = XmlConvert.ToInt16(xreader.ReadElementString("width"));
-    //            dumpvarible = XmlConvert.ToInt16(xreader.ReadElementString("height"));
-    //            xreader.ReadEndElement();
-    //        }
-    //        catch
-    //        { };
-
-    //        try
-    //        {
-    //            xreader.ReadStartElement("Lateral");
-    //            bool dum_bool = XmlConvert.ToBoolean(xreader.ReadElementString("oldlat"));
-    //            newlateral.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("newlat"));
-    //            xreader.ReadEndElement();
-    //        }
-    //        catch
-    //        { };
-    //        try
-    //        {
-    //            xreader.ReadStartElement("Add_Ons");
-    //            tracerOutcheckBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("tracer-out"));
-    //            tracerOutputtextBox.Text = xreader.ReadElementString("tracer-out-filename");
-    //            googleAnimationCheckbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("google_animation"));
-    //            googleAnimationTextBox.Text = xreader.ReadElementString("google_animation_file_name");
-    //            googleBeginDate.Text = xreader.ReadElementString("google_begin");
-    //            googAnimationSaveInterval.Text = xreader.ReadElementString("google_interval");
-    //            jmeaninputfilebox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("jMean"));
-    //            avge_smoothbox.Text = xreader.ReadElementString("edge_smoothing");
-    //            string dum_string = xreader.ReadElementString("displacement");
-    //            propremaining.Text = xreader.ReadElementString("prop_remain");
-    //            max_time_step_Box.Text = xreader.ReadElementString("max_time_step");
-    //            mine_checkBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("contam_input"));
-    //            mineX_textBox.Text = xreader.ReadElementString("mineX");
-    //            mineY_textBox.Text = xreader.ReadElementString("mineY");
-    //            mine_input_textBox.Text = xreader.ReadElementString("contam_input_file");
-    //            soil_ratebox.Text = xreader.ReadElementString("soil_rate");
-    //            SiberiaBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("siberia"));
-    //            Beta1Box.Text = xreader.ReadElementString("beta1");
-    //            Beta3Box.Text = xreader.ReadElementString("beta3");
-    //            m1Box.Text = xreader.ReadElementString("m1");
-    //            m3Box.Text = xreader.ReadElementString("m3");
-    //            n1Box.Text = xreader.ReadElementString("n1");
-    //            Q2box.Text = xreader.ReadElementString("W_depth_erosion_threshold");
-    //            dum_string = xreader.ReadElementString("fexp");
-    //            div_inputs_box.Text = xreader.ReadElementString("div_inputs");
-
-    //            init_depth_box.Text = xreader.ReadElementString("initial_sand_depth");
-    //            slab_depth_box.Text = xreader.ReadElementString("maxslabdepth");
-    //            shadow_angle_box.Text = xreader.ReadElementString("angle");
-    //            upstream_check_box.Text = xreader.ReadElementString("checkup");
-    //            depo_prob_box.Text = xreader.ReadElementString("dep_probability");
-    //            offset_box.Text = xreader.ReadElementString("downstream_offset");
-    //            dune_time_box.Text = xreader.ReadElementString("dune_timestep");
-    //            dune_grid_size_box.Text = xreader.ReadElementString("dune_gridsize");
-
-    //            wilcockbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("wilcock"));
-    //            einsteinbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("einstein"));
-    //            DuneBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("dune"));
-
-    //            UTMgridcheckbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("UTM"));
-    //            UTMsouthcheck.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("South"));
-    //            UTMzonebox.Text = xreader.ReadElementString("UTMzone");
-
-    //            raintimestepbox.Text = xreader.ReadElementString("raindatatimestep");
-    //            activebox.Text = xreader.ReadElementString("activelayerthickness");
-
-    //            xreader.ReadEndElement();
-    //            xreader.ReadEndElement();
-    //        }
-    //        catch
-    //        { };
-
-    //        xreader.Close();
-
-
-    //        this.Text = basetext + " (" + Path.GetFileName(cfgname) + ")";
-    //        button2.Enabled = true;
-    //        start_button.Enabled = false;
-    //        Panel1.Visible = false;
-    //        tabControl1.Visible = true;
-
-    //    }
-    //}
-
-    //////// then initialise
-
-    //int ok;
-    //ok = read_header();
-
-    //if (ok == 1)
-    //{
-    //    initialise();
-    //    zero_values();
-    //    load_data();
-
-    //    // nActualGridSize
-    //    // moved from initialse() to here MJ 29/03/05
-    //    int x, y;
-    //    nActualGridCells = 0;
-    //    for (x = 1; x <= xmax; x++)
-    //    {
-    //        for (y = 1; y <= ymax; y++)
-    //        {
-    //            if (elev[x, y] > -9999) nActualGridCells++;
-    //        }
-    //    }
-
-    //    tabControl1.Visible = false;
-    //    checkBox1.Checked = false;
-    //    zoomPanImageBox1.Visible = true;// MJ 14/01/05
-    //    Panel1.Visible = true;						// MJ 14/01/05
-    //    button2.Enabled = false;					// MJ 17/01/05
-    //    start_button.Enabled = true;				// MJ 17/01/05
-    //    groupBox2.Visible = true;
-    //    groupBox3.Visible = true;
-    //}
-
-    //// then run program
-
-    //main_loop(this, null);
-
-    ////
-    //// end of batch mode section
-    ////
-    ////
-}
-
-void button1_Click(object sender, System.EventArgs e)
-{
-    //close google earth animation kml and make kmz
-    if (googleAnimationCheckbox.Checked == true)
-    {
-        StreamWriter kmlsr = File.AppendText(KML_FILE_NAME);
-        kml = "\n</Folder>"
-              + "\n</kml>";
-        kmlsr.WriteLine(kml);
-        kmlsr.Close();
-    }
-
-    if (menuItem25.Checked == true) save_data(1, 0); // save waterdepths
-    if (menuItem13.Checked == true) save_data(2, 0); // save elevdiff
-    if (menuItem12.Checked == true) save_data(3, 0); // save elevations
-    if (menuItem14.Checked == true) save_data(4, 0); // save grainsize
-    if (menuItem29.Checked == true) save_data(15, 0); // save d50 top layer
-    if (menuItem33.Checked == true) save_data(16, 0); // save velocity	<JOE 20050605>
-    if (menuItem34.Checked == true) save_data(17, 0); // save soil_saturation	<JOE 20050605>
-    if (menuItem6.Checked == true) save_data(18, 0); // save water tracers - MDW 17-03-2016
-    if (menuItem15.Checked == true) save_data(19, 0); // save rain zone tracers - MDW 13-04-2016
-    if (menuItem16.Checked == true) save_data(6, 0);  // save tracer file <Jun 20200527>
-    if (menuItemSoluteTracer.Checked == true) save_data(20, 0);  // save solute tracers - MDW_V2
-    if (menuItemOilSpill.Checked == true) save_data(7, 0);  // save oildepth file OIL_V1_PDF
-
-    this.Close();
-}
-private void button2_Click(object sender, System.EventArgs e)
-{
-    int ok;
-    ok = read_header();
-    int nnn;
-    double temp = -9999;
-
-    if (ok == 1)
-    {
-        //sourceIDs = new int[10]; // MDW_V2 - commented as array now expands as needed
-
-        initialise();
-        zero_values();
-        load_data();
-
-        // Additional initialisation for water source tracing - MDW 13/03/16
-        if (isTraceWater == true)
+        private void suspCheckedChange(object sender, System.EventArgs e)
         {
-            //MDW_V2 : enable the water source GUI controls (disabled by default)
-            this.label110.Enabled = true; // text label for water source tracing visibility
-            this.label109.Enabled = true; // Red, label R
-            this.label106.Enabled = true; // Green, label G
-            this.label107.Enabled = true; // Blue, label B
-            this.label108.Enabled = true; // Enhance text label
-            this.comboBox4.Enabled = true; // Blue drop down box
-            this.comboBox3.Enabled = true; // Green drop down box
-            this.comboBox2.Enabled = true; // Red drop down box
-            this.trackBar3.Enabled = true; // enhance slider tracker
-            this.groupBox9.Enabled = true; // box around water source controls above
-                                           //end
+            fallGS1box.Enabled = suspGS1box.Checked;
+            fallGS2box.Enabled = suspGS2box.Checked;
+            fallGS3box.Enabled = suspGS3box.Checked;
+            fallGS4box.Enabled = suspGS4box.Checked;
+            fallGS5box.Enabled = suspGS5box.Checked;
+            fallGS6box.Enabled = suspGS6box.Checked;
+            fallGS7box.Enabled = suspGS7box.Checked;
+            fallGS8box.Enabled = suspGS8box.Checked;
+            fallGS9box.Enabled = suspGS9box.Checked;
+        }
+        private void fracGSchanged(object sender, System.EventArgs e)
+        {
+            double sum;
 
+            sum = 0.0;
+            if (gp1box.Text != "") sum += double.Parse(gp1box.Text);
+            if (gp2box.Text != "") sum += double.Parse(gp2box.Text);
+            if (gp3box.Text != "") sum += double.Parse(gp3box.Text);
+            if (gp4box.Text != "") sum += double.Parse(gp4box.Text);
+            if (gp5box.Text != "") sum += double.Parse(gp5box.Text);
+            if (gp6box.Text != "") sum += double.Parse(gp6box.Text);
+            if (gp7box.Text != "") sum += double.Parse(gp7box.Text);
+            if (gp8box.Text != "") sum += double.Parse(gp8box.Text);
+            if (gp9box.Text != "") sum += double.Parse(gp9box.Text);
 
-            //nSources = number_of_points + 2;
-            if (sourceIDs.Length == 0) { nSources = sourceIndexAddition; } // MDW_V2 logic added as sourceIDs is now initialised at length zero
-            else { nSources = sourceIDs.Length + sourceIndexAddition; } //sourceIDs.Max(); } // sources 1 and 2 are rainfall and stage inputs. The rest are hydrograph inputs.
-
-            water_depth_prev = new double[xmax + 2, ymax + 2];
-            watertracer = new double[xmax + 2, ymax + 2, nSources]; // MDW_V2 - no need for the additional empty layer
-            watertracer_prev = new double[xmax + 2, ymax + 2, nSources]; // MDW_V2
-            dhdt_x = new double[xmax + 2, ymax + 2];
-            dhdt_y = new double[xmax + 2, ymax + 2];
-            trace_rgb = new int[3];
-            if (isTraceRainZonation == true)
+            if (Math.Abs(sum - 1.0) < 0.000000001)
             {
-                this.checkBox12.Enabled = true; // MDW_V2 : Rain zones checkbox
-                watertracerRainZone = new double[xmax + 2, ymax + 2, nRainZones]; // MDW_V2 - no need for the additional empty layer
-                watertracerRainZone_prev = new double[xmax + 2, ymax + 2, nRainZones]; // MDW_V2
-                tracerain_rgb = new int[3];
-                tracerain_rgb[0] = -1; // set for initialisation
+                gpSumLabel.Text = "OK";
+                gpSumLabel.ForeColor = Color.Black;
+                gpSumLabel2.ForeColor = Color.Black;
             }
-            if (isTraceSolutes == true) // MDW_V2
+            else
             {
-                this.checkBoxSoluteVis.Enabled = true;
-                solutetracer = new double[xmax + 2, ymax + 2, nSolutes];
-                solutetracer_prev = new double[xmax + 2, ymax + 2, nSolutes];
-                tracesolute_rgb = new int[3];
-                tracesolute_rgb[0] = -1;
+                gpSumLabel.Text = string.Format("{0:F8}", sum);
+                gpSumLabel.ForeColor = Color.Red;
+                gpSumLabel2.ForeColor = Color.Red;
+            }
+        }
+        private void button4_Click_1(object sender, System.EventArgs e)
+        {
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+        private void overrideheaderBox_CheckedChanged(object sender, System.EventArgs e)
+        {
+            label1.Enabled = overrideheaderBox.Checked;
+            label2.Enabled = overrideheaderBox.Checked;
+            label11.Enabled = overrideheaderBox.Checked;
+            xtextbox.Enabled = overrideheaderBox.Checked;
+            ytextbox.Enabled = overrideheaderBox.Checked;
+            dxbox.Enabled = overrideheaderBox.Checked;
+        }
+        private void checkBox1_CheckedChanged(object sender, System.EventArgs e)
+        {
+
+        }
+        private void bedslope_box_CheckedChanged(object sender, System.EventArgs e)
+        {
+            if (bedslope_box.Checked == true)
+            {
+                veltaubox.Checked = false;
+                bedslopebox2.Checked = false;
+            }
+        }
+        private void newlateral_CheckedChanged(object sender, System.EventArgs e)
+        {
+
+            if (newlateral.Checked == true) nolateral.Checked = false;
+        }
+        private void label54_Click(object sender, System.EventArgs e)
+        {
+
+        }
+        private void button5_Click(object sender, System.EventArgs e)
+        {
+            Form1.ActiveForm.Show();
+        }
+        private void button5_Click_1(object sender, System.EventArgs e)
+        {
+            get_area();
+        }
+        private void veltaubox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (veltaubox.Checked == true)
+            {
+
+                bedslope_box.Checked = false;
+                bedslopebox2.Checked = false;
+            }
+        }
+        private void backgroundWorker1_DoWork(object sender, DoWorkEventArgs e)
+        {
+            erodedepo();
+        }
+        private void nolateral_CheckedChanged(object sender, EventArgs e)
+        {
+
+            if (nolateral.Checked == true) newlateral.Checked = false;
+        }
+        private void Form1_Resize(object sender, EventArgs e)
+        {
+            zoomPanImageBox1.Height = this.Height - 225;
+            zoomPanImageBox1.Width = this.Width - 20;
+        }
+        private void zoomPanImageBox1_Load(object sender, EventArgs e)
+        {
+
+        }
+        private void trackBar1_Scroll(object sender, EventArgs e)
+        {
+            contrastMultiplier = contrastFactor[trackBar1.Value];
+            drawwater(mygraphics);
+        }
+        private void trackBar2_Scroll(object sender, EventArgs e)
+        {
+            magnifyValue = zoomFactor[this.trackBar2.Value];
+            zoomPanImageBox1.setZoom();
+        }
+        private void trackBar3_Scroll(object sender, EventArgs e)
+        {
+            enhanceValue = enhanceFactor[this.trackBar3.Value];
+            drawwater(mygraphics);
+        }
+        private void comboBox1_SelectedValueChanged(object sender, EventArgs e)
+        {
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+
+        // Water tracer controls - MDW
+        private void comboBox2_SelectedValueChanged(object sender, EventArgs e)
+        {
+            updateClick = 1;
+            if (checkBox12.Checked == true) tracerain_rgb[0] = comboBox2.SelectedIndex;
+            else if (checkBoxSoluteVis.Checked == true) tracesolute_rgb[0] = comboBox2.SelectedIndex;
+            else trace_rgb[0] = comboBox2.SelectedIndex;
+            if (tracergb_initialising == false)
+            {
+                this.Refresh();
+                drawwater(mygraphics);
+            }
+        }
+        private void comboBox3_SelectedValueChanged(object sender, EventArgs e)
+        {
+            updateClick = 1;
+            if (checkBox12.Checked == true) tracerain_rgb[1] = comboBox3.SelectedIndex;
+            else if (checkBoxSoluteVis.Checked == true) tracesolute_rgb[1] = comboBox3.SelectedIndex;
+            else trace_rgb[1] = comboBox3.SelectedIndex;
+            if (tracergb_initialising == false)
+            {
+                this.Refresh();
+                drawwater(mygraphics);
+            }
+        }
+        private void comboBox4_SelectedValueChanged(object sender, EventArgs e)
+        {
+            updateClick = 1;
+            if (checkBox12.Checked == true) tracerain_rgb[2] = comboBox4.SelectedIndex;
+            else if (checkBoxSoluteVis.Checked == true) tracesolute_rgb[2] = comboBox4.SelectedIndex;
+            else trace_rgb[2] = comboBox4.SelectedIndex;
+            if (tracergb_initialising == false)
+            {
+                this.Refresh();
+                drawwater(mygraphics);
+            }
+        }
+
+        private void n1Box_TextChanged(object sender, EventArgs e)
+        {
+
+        }
+        private void graphicToGoogleEarthButton_Click(object sender, EventArgs e)
+        {
+            if (coordinateDone == 0)
+            {
+                //transfrom coordinates
+                point testPoint = new point(xll, yll);
+                if (UTMgridcheckbox.Checked)
+                {
+                    testPoint.UTMzone = System.Convert.ToInt32(UTMzonebox.Text);
+                    testPoint.south = System.Convert.ToBoolean(UTMsouthcheck.Checked);
+                    testPoint.transformUTMPoint();
+                }
+                else
+                {
+                    testPoint.transformPoint();
+                }
+                yurcorner = yll + (System.Convert.ToDouble(ymax) * System.Convert.ToDouble(DX));
+                xurcorner = xll + (System.Convert.ToDouble(xmax) * System.Convert.ToDouble(DX));
+                point testPoint2 = new point(xurcorner, yurcorner);
+                if (UTMgridcheckbox.Checked)
+                {
+                    testPoint2.UTMzone = System.Convert.ToInt32(UTMzonebox.Text);
+                    testPoint2.south = System.Convert.ToBoolean(UTMsouthcheck.Checked);
+                    testPoint2.transformUTMPoint();
+                }
+                else
+                {
+                    testPoint2.transformPoint();
+                }
+
+
+
+                urfinalLati = testPoint2.ycoord;
+                urfinalLongi = testPoint2.xcoord;
+                llfinalLati = testPoint.ycoord;
+                llfinalLongi = testPoint.xcoord;
+                coordinateDone = 1;
             }
 
-            // Add water sources to graphics control and assign default values: R=1, G=2, B=3
+            //Save image
+            m_objDrawingSurface.MakeTransparent();
+            m_objDrawingSurface.Save(Path.Combine(googleAnimationDir, @"mysavedimage" + imageCount + ".png"), // MDW_V2
+                                     System.Drawing.Imaging.ImageFormat.Png);
+            //m_objDrawingSurface.Save(@"mysavedimage" + imageCount + ".png", System.Drawing.Imaging.ImageFormat.Png);
+            //create kml file for image
+            string kml_file_name = "image" + imageCount + ".kml";
+            StreamWriter kmlsr = File.CreateText(kml_file_name);
+            string kml = @"<?xml version=""1.0"" encoding=""UTF-8""?>
+                                 <kml xmlns=""http://earth.google.com/kml/2.1"">
+                                 <GroundOverlay>
+                                 	<name>Untitled Image Overlay</name>";
+            kml = kml + "\n<Icon>"
+                   + "\n<href>mySavedImage" + imageCount + ".png</href>"
+                   + "\n</Icon>"
+                   + "\n<LatLonBox>";
+            kml = kml + "\n<north>" + urfinalLati + "</north>"
+                      + "\n<south>" + llfinalLati + "</south>"
+                      + "\n<east>" + urfinalLongi + "</east>"
+                      + "\n<west>" + llfinalLongi + "</west>\n";
+            kml = kml + @"</LatLonBox>
+                                 </GroundOverlay>
+                                 </kml>
+                                             ";
+            kmlsr.Write(kml);
+            kmlsr.Close();
+            imageCount++;
+        }
+        private void einsteinbox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (wilcockbox.Checked == true) wilcockbox.Checked = false;
+            if (meyerbox.Checked == true) meyerbox.Checked = false;
+        }
+        private void wilcockbox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (einsteinbox.Checked == true) einsteinbox.Checked = false;
+            if (meyerbox.Checked == true) meyerbox.Checked = false;
+        }
+        private void HydrologyTab_Click(object sender, EventArgs e)
+        {
+
+        }
+        private void OilTab_Click(object sender, EventArgs e) // OIL_V1
+        {
+
+        }
+
+        private void button6_Click(object sender, EventArgs e)
+        {
+            int x, y;
+            for (x = 1; x <= xmax; x++)
+            {
+                for (y = 1; y <= ymax; y++)
+                {
+                    if (x > 0 && x <= 200) elev[x, y] += 1;
+                }
+            }
+        }
+        private void checkBox1_CheckedChanged_1(object sender, EventArgs e)
+        {
+            if (checkBox1.Checked == false) tabControl1.Visible = false;
+            if (checkBox1.Checked == true) tabControl1.Visible = true;
+        }
+        private void tabPage5_Click(object sender, EventArgs e)
+        {
+
+        }
+        private void label88_Click(object sender, EventArgs e)
+        {
+
+        }
+        private void textBox12_TextChanged(object sender, EventArgs e)
+        {
+
+        }
+        private void label58_Click(object sender, EventArgs e)
+        {
+
+        }
+        private void checkBox4_CheckedChanged(object sender, EventArgs e)
+        {
+            if (UTMgridcheckbox.Checked)
+            {
+                UTMzonebox.Visible = true;
+                textBox6.Visible = true;
+                UTMsouthcheck.Visible = true;
+                groupBox4.Visible = true;
+            }
+        }
+        private void bedslopebox2_CheckedChanged(object sender, EventArgs e)
+        {
+            if (bedslopebox2.Checked == true)
+            {
+                veltaubox.Checked = false;
+                bedslope_box.Checked = false;
+
+
+            }
+        }
+        private void UTMgridcheckbox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (UTMgridcheckbox.Checked)
+            {
+                UTMzonebox.Visible = true;
+                textBox6.Visible = true;
+                UTMsouthcheck.Visible = true;
+                groupBox4.Visible = true;
+            }
+
+        }
+        private void mouseclick2(object sender, MouseEventArgs e)
+        {
+
+        }
+
+        private void checkBox2_CheckedChanged(object sender, EventArgs e)
+        {
+
+            if (checkBox2.Checked == true)
+            {
+                CAESAR_lisflood_1._0.Form2 secondForm = new CAESAR_lisflood_1._0.Form2();
+                secondForm.Show();
+
+            }
+
+        }
+
+        private void checkBox7_CheckedChanged(object sender, EventArgs e)
+        {
+            if (checkBox7.Checked == true)
+            {
+                rfnumBox.Enabled = true; // MDW_V2 changed each to Enable rather than visible
+                hydroindexBox.Enabled = true;
+                label102.Enabled = true;
+                label103.Enabled = true;
+            }
+            else // MDW_V2 added to disable when unchecked
+            {
+                rfnumBox.Enabled = false;
+                hydroindexBox.Enabled = false;
+                label102.Enabled = false;
+                label103.Enabled = false;
+            }
+        }
+
+        private void SpatVarManningsCheckbox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (SpatVarManningsCheckbox.Checked == true)
+            {
+                textBox19.Visible = true;
+                label104.Visible = true;
+
+            }
+        }
+
+        private void meyerbox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (wilcockbox.Checked == true) wilcockbox.Checked = false;
+            if (einsteinbox.Checked == true) einsteinbox.Checked = false;
+        }
+
+        private void checkBox10_CheckedChanged(object sender, EventArgs e)
+        {
+            if (checkBox10.Checked == true)
+            {
+                isTraceWater = true;
+                checkBox11.Enabled = true; //MDW_V2 changed from visible, so it shows greyed out by default
+                textBox20.Enabled = true;  //
+                checkBoxSoluteTracer.Enabled = true; //MDW_V2
+                                                     //labelSoluteNumber.Enabled = true;
+            }
+            else
+            {
+                isTraceWater = false;
+                checkBox11.Enabled = false; //MDW_V2 changed from visible, so it shows greyed out by default
+                textBox20.Enabled = false;  //
+                checkBoxSoluteTracer.Enabled = false; //MDW_V2
+                                                      //labelSoluteNumber.Enabled = false;
+            }
+        }
+
+        private void checkBox11_CheckedChanged(object sender, EventArgs e)
+        {
+            if (checkBox11.Checked == true)
+            {
+                isTraceRainZonation = true;
+                checkBox12.Enabled = true; // graphics
+            }
+            else
+            {
+                isTraceRainZonation = false;
+                checkBox12.Enabled = false; // graphics
+            }
+        }
+
+        private void checkBoxSoluteTracer_CheckedChanged(object sender, EventArgs e)
+        {
+            if (checkBoxSoluteTracer.Checked == true)
+            {
+                isTraceSolutes = true;
+                //checkBoxSoluteView.Enabled = true;
+            }
+            else
+            {
+                isTraceSolutes = false;
+                //checkBoxSoluteView.Enabled = false;
+            }
+        }
+
+        private void checkBox12_CheckedChanged(object sender, EventArgs e)
+        {
+            tracergb_initialising = true;
+
+            comboBox2.Items.Clear();
+            comboBox3.Items.Clear();
+            comboBox4.Items.Clear();
+            //comboBox2.Items.Add(" ");
+            //comboBox3.Items.Add(" ");
+            //comboBox4.Items.Add(" ");
             comboBox2.Items.Add("0 : [none]"); // MDW_V2
             comboBox3.Items.Add("0 : [none]"); // MDW_V2
             comboBox4.Items.Add("0 : [none]"); // MDW_V2
 
-            for (int z = 0; z < nSources; z++) // MDW_V2 updated to zero index
+            if (checkBox12.Checked == true)
             {
-                // MDW_V2 - source selector box string generation, updated indices
-                string comboText = "";
-                if (z == 0) // tide source
+
+                if (checkBoxSoluteVis.Checked == true) // MDW_V2 - both can't be active simultaneously
                 {
-                    if (checkBox3.Checked == true)
-                    {
-                        comboText = Convert.ToString(z + 1) + " : Stage";
-                    }
-                    else
-                    {
-                        comboText = Convert.ToString(z + 1) + " : Stage [not active]";
-                    }
+                    checkBoxSoluteVis.Checked = false;
                 }
-                else if (z == 1) // rain source
+
+                // Add rain zones to the lists
+                for (int z = 0; z < nRainZones; z++) // MDW_V2 updated index and string below
                 {
-                    if (catchment_mode_box.Checked == true)
-                    {
-                        comboText = Convert.ToString(z + 1) + " : Rain";
-                    }
-                    else
-                    {
-                        comboText = Convert.ToString(z + 1) + " : Rain [not active]";
-                    }
+                    comboBox2.Items.Add(Convert.ToString(z + 1) + " : rain zone " + Convert.ToString(rainZones[z]));
+                    comboBox3.Items.Add(Convert.ToString(z + 1) + " : rain zone " + Convert.ToString(rainZones[z]));
+                    comboBox4.Items.Add(Convert.ToString(z + 1) + " : rain zone " + Convert.ToString(rainZones[z]));
                 }
-                else if (z >= 2) // hydro sources
+                // Assign selected layer for first time
+                if (tracerain_rgb[0] == -1)
                 {
-                    comboText = Convert.ToString(z + 1) + " : " + inputfilenames[z - sourceIndexAddition];
-                }
-                comboBox2.Items.Add(comboText);
-                comboBox3.Items.Add(comboText);
-                comboBox4.Items.Add(comboText);
-            }
-            // MDW_V2 updated default selections
-            if (nSources >= 3) { comboBox2.SelectedIndex = 3; trace_rgb[0] = 3; }
-            else { comboBox2.SelectedIndex = 0; trace_rgb[0] = 0; }
-            if (nSources >= 4) { comboBox3.SelectedIndex = 4; trace_rgb[1] = 4; }
-            else { comboBox3.SelectedIndex = 1; trace_rgb[1] = 1; }
-            if (nSources >= 5) { comboBox4.SelectedIndex = 5; trace_rgb[2] = 5; }
-            else { comboBox4.SelectedIndex = 0; trace_rgb[2] = 0; }
-
-
-
-        }
-
-        // OIL_V1
-        if (isOilSimulation == true) initialise_oil_simulation();
-
-        // nActualGridSize
-        // moved from initialse() to here MJ 29/03/05
-        int x, y;
-        //nActualGridCells = 0;
-        for (int ii = 1; ii <= rfnum; ii++) nActualGridCells[ii] = 0;
-
-        for (x = 1; x <= xmax; x++)
-        {
-            for (y = 1; y <= ymax; y++)
-            {
-                if (elev[x, y] > -9999) nActualGridCells[rfarea[x, y]]++;
-                if (tracer_area[x, y] == 1) addGS(x, y);
-            }
-        }
-
-
-
-        tabControl1.Visible = false;
-        checkBox1.Checked = false;
-        zoomPanImageBox1.Visible = true;// MJ 14/01/05
-        Panel1.Visible = true;                      // MJ 14/01/05
-        button2.Enabled = false;                    // MJ 17/01/05
-        start_button.Enabled = true;                // MJ 17/01/05
-        groupBox2.Visible = true;
-        groupBox3.Visible = true;
-    }
-
-    string message = "Variables check:";
-    if ((xmax * ymax) > 250000) message += "\n\nWarning, number of cells is greater than 250 000 - this may result in slow model operation";
-    if (MIN_Q < (DX / 120)) message += "\n\nWarning, Min_Q may be set too low - suitable value is normally cell size / 100";
-    if (MIN_Q > (DX / 80)) message += "\n\nWarning, Min_Q may be set too high - suitable value is normally cell size / 100";
-    if (reach_mode_box.Checked == true && inbox1.Checked == false) message += "\n\nWarning, model set to run in reach mode, but no point inputs selected (Hydrology tab)";
-    if (reach_mode_box.Checked == true && div_inputs < 0) message += "\n\nWarning, model set to run in reach mode, but divide inputs box (Hydrology tab) set to 0\nit must be 1 or greater";
-    if (max_time_step > 3600)
-    {
-        message += "\n\nMax time step (numerical tab) is set to greater than 3600 - if running in catchment mode\nthis must be smaller than 3600";
-
-    }
-    if (water_depth_erosion_threshold > 0.02)
-    {
-        message += "\n\nWarning, Min depth for erosion threshold (numerical tab) may be set too high";
-        message += "\nthis could result in erosion not happening in cells where water depths are low try a value of 0.02 or lower";
-    }
-    if (water_depth_erosion_threshold < 0.005)
-    {
-        message += "\n\nWarning, Min depth for erosion threshold (numerical tab) may be set too low";
-        message += "\nthis may lead to slow operation as the model tries to erode where very shallow depths ";
-    }
-    if (d1 > d2 || d2 > d3 || d3 > d4) message += "\n\nWarning, sediment sizes (sediment tab) must be entered in ASCENDING order of size";
-    //if (M > 0.1 || M < 0.001) message += "\n\nWarning, M value is unusually high or low. Typical values range from 0.005 to 0.02";
-
-    //check for -9999's on RH edge of DEM
-    for (nnn = 1; nnn <= ymax; nnn++)
-    {
-        if (elev[xmax, nnn] > temp) temp = elev[xmax, nnn];
-    }
-    if (temp < -10)
-    {
-        message += "\n\nDEM ERROR: CAESAR will not function properly, as the right hand column of the DEM is all nodata (-9999) values. This will prevent any water or sediment from leaving the Rh edge of the model/dem";
-    }
-    if (edgeslope > 0.01) message += "\nThe edge slope (slope at exit cells for hydraulic model) is probably set too high.. normal values are 0.01 to 0.001";
-    //if (bed_proportion > 0.05) message += "\nThe proportion of bedslope erosion is set high - please check";
-    //if (bed_proportion > 1) message += "\nProportion of bedlsope erosion is greater than 1 - this must be reduced or the model will not function correctly";
-    if (courant_number > 0.7) message += "\nThe courant number is set too high, numerical instabilities are highly likely, it is best set to < 0.5";
-    if (courant_number >= 0.4 && DX <= 25) message += "\nThe courant number may be set a little to high for this resolution - consider changing to below 0.4";
-    if (courant_number >= 0.3 && DX <= 10) message += "\nThe courant number may be set a little to high for this resolution - consider changing to below 0.3";
-    //if (min_time_step <= 0) message += "\nConsider using a minimum time step (e.g. 1 sec or greater) as low time steps can lead to excessive scour during the first few min of model operation";
-    if (in_out_difference != 0) message += "\n\nYou have set the input/output difference to be greater than zero, which means the model will speed up/run in steady state  when the difference between water input and output is less than this value";
-
-    message += "\n\nAll other variables are OK";
-    MessageBox.Show(message);
-
-    //main_loop(this, null);
-
-}
-private void buttonOutDir_Click(object sender, System.EventArgs e) // MDW_V2
-{
-    // Show the FolderBrowserDialog to select output directory
-    DialogResult result = folderBrowserOutDir.ShowDialog();
-    if (result == DialogResult.OK)
-    {
-        textBoxOutDir.Text = folderBrowserOutDir.SelectedPath;
-    }
-}
-private void textBoxOutDir_TextChanged(object sender, System.EventArgs e) // MDW_V2
-{
-    //outDirCheck();
-}
-private void checkboxOutDirDateTime_CheckChanged(object sender, System.EventArgs e) // MDW_V2
-{
-    outdirDateTime = checkboxOutDirDateTime.Checked;
-}
-private void outDirCheck()
-{
-    try
-    {
-        outdir = textBoxOutDir.Text;
-        outdirDateTime = checkboxOutDirDateTime.Checked;
-
-        if (string.IsNullOrEmpty(outdir) == true && outdirDateTime == false)
-        {
-            outdir = "";
-            return;
-        }
-
-        if (string.IsNullOrEmpty(outdir) == false && Directory.Exists(outdir) == false)
-        {
-            Directory.CreateDirectory(outdir);
-        }
-
-        if (outdirDateTime == true)
-        {
-            DateTime currentDateTime = DateTime.Now;
-            string formattedDateTime = currentDateTime.ToString("yyyy-MM-ddTHH-mm-ss");
-            outdir = Path.Combine(outdir, formattedDateTime);
-            Directory.CreateDirectory(outdir);
-        }
-
-        //MessageBox.Show("Output directory set to : " + outdir);
-    }
-    catch
-    {
-        MessageBox.Show("Error with output folder : " + textBoxOutDir.Text + "/nFalling back to using current directory for outputs");
-        outdir = "";
-    }
-
-}
-private void textBox2_TextChanged(object sender, System.EventArgs e)
-{
-
-}
-private void contextMenu1_Popup(object sender, System.EventArgs e)
-{
-
-}
-private void popComboBox1()
-{
-    if (comboBox1.Items.Count == 1)
-    {
-        comboBox1.Text = "water depth";
-        comboBox1.Text = "erosion/dep";
-        comboBox1.Text = "Bed sheer stress";
-        comboBox1.Text = "grainsize";
-        comboBox1.Text = "tracer";
-        comboBox1.Text = "susp conc";
-        comboBox1.Text = "soil depth";
-        comboBox1.Text = "flow velocity";
-    }
-}
-private void menuItem3_Click(object sender, System.EventArgs e)
-{
-    menuItem3.Checked = (!menuItem3.Checked);
-    if (menuItem3.Checked == true)
-    {
-        comboBox1.Items.Add("water depth");
-    }
-    else
-    {
-        comboBox1.Items.Remove("water depth");
-    }
-    popComboBox1();
-    updateClick = 1;
-    this.Refresh();
-    drawwater(mygraphics);
-
-}
-private void menuItem4_Click(object sender, System.EventArgs e)
-{
-    menuItem4.Checked = (!menuItem4.Checked);
-    if (menuItem4.Checked == true)
-    {
-        comboBox1.Items.Add("erosion/dep");
-    }
-    else
-    {
-        comboBox1.Items.Remove("erosion/dep");
-    }
-    popComboBox1();
-    updateClick = 1;
-    this.Refresh();
-    drawwater(mygraphics);
-}
-private void menuItem5_Click(object sender, System.EventArgs e)
-{
-    menuItem5.Checked = (!menuItem5.Checked);
-    updateClick = 1;
-    this.Refresh();
-    drawwater(mygraphics);
-}
-private void menuItem7_Click(object sender, System.EventArgs e)
-{
-    menuItem7.Checked = (!menuItem7.Checked);
-    updateClick = 1;
-    this.Refresh();
-    drawwater(mygraphics);
-}
-private void menuItem8_Click(object sender, System.EventArgs e)
-{
-    menuItem8.Checked = (!menuItem8.Checked);
-    if (menuItem8.Checked == true)
-    {
-        comboBox1.Items.Add("Bed sheer stress");
-    }
-    else
-    {
-        comboBox1.Items.Remove("Bed sheer stress");
-    }
-    popComboBox1();
-    updateClick = 1;
-    this.Refresh();
-    drawwater(mygraphics);
-}
-private void menuItem9_Click(object sender, System.EventArgs e)
-{
-    menuItem9.Checked = (!menuItem9.Checked);
-    if (menuItem9.Checked == true)
-    {
-        comboBox1.Items.Add("grainsize");
-    }
-    else
-    {
-        comboBox1.Items.Remove("grainsize");
-    }
-    popComboBox1();
-    updateClick = 1;
-    this.Refresh();
-    drawwater(mygraphics);
-}
-private void menuItem12_Click(object sender, System.EventArgs e)
-{
-    menuItem12.Checked = (!menuItem12.Checked);
-}
-private void menuItem13_Click(object sender, System.EventArgs e)
-{
-    menuItem13.Checked = (!menuItem13.Checked);
-}
-private void menuItem14_Click(object sender, System.EventArgs e)
-{
-    menuItem14.Checked = (!menuItem14.Checked);
-}
-private void menuItem25_Click(object sender, System.EventArgs e)
-{
-    menuItem25.Checked = (!menuItem25.Checked);
-}
-private void menuItem26_Click(object sender, System.EventArgs e)
-{
-    menuItem26.Checked = (!menuItem26.Checked);
-    updateClick = 1;
-    this.Refresh();
-    drawwater(mygraphics);
-}
-private void menuItem27_Click(object sender, System.EventArgs e)
-{
-    menuItem27.Checked = (!menuItem27.Checked);
-    if (menuItem27.Checked == true)
-    {
-        comboBox1.Items.Add("susp conc");
-    }
-    else
-    {
-        comboBox1.Items.Remove("susp conc");
-    }
-    popComboBox1();
-    updateClick = 1;
-    this.Refresh();
-    drawwater(mygraphics);
-}
-private void menuItem28_Click(object sender, System.EventArgs e)
-{
-    menuItem28.Checked = (!menuItem28.Checked);
-    if (menuItem28.Checked == true)
-    {
-        comboBox1.Items.Add("soil depth");
-    }
-    else
-    {
-        comboBox1.Items.Remove("soil depth");
-    }
-    popComboBox1();
-    updateClick = 1;
-    this.Refresh();
-    drawwater(mygraphics);
-}
-private void menuItem29_Click(object sender, System.EventArgs e)
-{
-    menuItem29.Checked = (!menuItem29.Checked);
-}
-private void menuItem30_Click(object sender, System.EventArgs e)
-{
-    menuItem30.Checked = (!menuItem30.Checked);
-    updateClick = 1;
-    this.Refresh();
-    drawwater(mygraphics);
-}
-private void menuItem31_Click(object sender, System.EventArgs e)
-{
-    menuItem31.Checked = (!menuItem31.Checked);
-    if (menuItem31.Checked == true)
-    {
-        comboBox1.Items.Add("flow velocity");
-    }
-    else
-    {
-        comboBox1.Items.Remove("flow velocity");
-    }
-    updateClick = 1;
-    this.Refresh();
-    drawwater(mygraphics);
-}
-private void menuItem33_Click(object sender, System.EventArgs e)
-{
-    menuItem33.Checked = (!menuItem33.Checked);
-}
-private void menuItem34_Click(object sender, System.EventArgs e)
-{
-    menuItem34.Checked = (!menuItem34.Checked);
-}
-private void menuItemSoluteTracer_Click(object sender, System.EventArgs e) // MDW_V2
-{
-    menuItemSoluteTracer.Checked = (!menuItemSoluteTracer.Checked);
-}
-private void menuItemOilSpill_Click(object sender, System.EventArgs e)
-{
-    menuItemOilSpill.Checked = (!menuItemOilSpill.Checked);
-}
-private void menuItem6_Click(object sender, System.EventArgs e) // MDW
-{
-    menuItem6.Checked = (!menuItem6.Checked);
-}
-private void menuItem15_Click(object sender, System.EventArgs e) // MDW
-{
-    menuItem15.Checked = (!menuItem15.Checked);
-}
-private void button3_Click(object sender, System.EventArgs e)
-{
-    grow_grass(1);
-}
-private void menuItemConfigFileOpen_Click(object sender, System.EventArgs e)
-{
-    XmlTextReader xreader;
-    String dum;
-
-    OpenFileDialog openFileDialog1 = new OpenFileDialog();
-
-    openFileDialog1.InitialDirectory = workdir;
-    openFileDialog1.Filter = "cfg files (*.xml)|*.xml|All files (*.*)|*.*";
-    openFileDialog1.FilterIndex = 1;
-    openFileDialog1.RestoreDirectory = false;
-
-    if (openFileDialog1.ShowDialog() == DialogResult.OK)
-    {
-        cfgname = openFileDialog1.FileName;
-
-        xreader = new XmlTextReader(cfgname);
-
-        //Read the file
-        if (xreader != null)
-        {
-            xreader.ReadStartElement("Parms");
-            xreader.ReadStartElement("General-Parms");
-            try
-            {
-                overrideheaderBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("headeroverride"));
-            }
-            catch
-            { };
-            xtextbox.Text = xreader.ReadElementString("x-coordinate");
-            ytextbox.Text = xreader.ReadElementString("y-coordinate");
-            initscansbox.Text = xreader.ReadElementString("initscans");
-            erodefactorbox.Text = xreader.ReadElementString("maxerodelimit");
-            dxbox.Text = xreader.ReadElementString("cellsize");
-            limitbox.Text = xreader.ReadElementString("memorylimit");
-            minqbox.Text = xreader.ReadElementString("minq");
-            creepratebox.Text = xreader.ReadElementString("creeprate");
-            lateralratebox.Text = xreader.ReadElementString("lateralerosionrate");
-            itermaxbox.Text = xreader.ReadElementString("maxiter");
-            textBox1.Text = xreader.ReadElementString("runstarttime");
-            cyclemaxbox.Text = xreader.ReadElementString("maxrunduration");
-            slopebox.Text = xreader.ReadElementString("slopefailurethreshold");
-            smoothbox.Text = xreader.ReadElementString("wssmoothingradius");
-            mvaluebox.Text = xreader.ReadElementString("mvalue");
-
-            grasstextbox.Text = xreader.ReadElementString("growgrasstime");
-            textBox2.Text = xreader.ReadElementString("initialq");
-            try
-            {
-                bool dummy6 = XmlConvert.ToBoolean(xreader.ReadElementString("wssmoothing"));
-            }
-            catch
-            { };
-            flowonlybox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("grass-sediment"));
-
-            try // MJ 24/01/05
-            {
-                textBox3.Text = xreader.ReadElementString("flowdistribution");
-                mintimestepbox.Text = xreader.ReadElementString("mintimestep");
-            }
-            catch
-            { };
-
-            try // MJ 15/03/05
-            {
-                k_evapBox.Text = xreader.ReadElementString("evaporation");
-            }
-            catch
-            { };
-
-            try // MJ 10/05/05
-            {
-                vegTauCritBox.Text = xreader.ReadElementString("vegcritshear");
-            }
-            catch
-            { };
-
-            try
-            {
-                bedslope_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("bedslope"));
-            }
-            catch
-            { };
-            try
-            {
-                bool dum_bool = XmlConvert.ToBoolean(xreader.ReadElementString("wsslope"));
-            }
-            catch
-            { };
-            try
-            {
-                veltaubox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("veltaubox"));
-            }
-            catch
-            { };
-            try
-            {
-                catchment_mode_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("catchment_mode"));
-            }
-            catch
-            { };
-            try
-            {
-                reach_mode_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("reach_mode"));
-            }
-            catch
-            { };
-            try
-            {
-                bool dum_bool2 = XmlConvert.ToBoolean(xreader.ReadElementString("lat1"));
-            }
-            catch
-            { };
-            try
-            {
-                bool dum_bool2 = XmlConvert.ToBoolean(xreader.ReadElementString("lat2"));
-            }
-            catch
-            { };
-            try
-            {
-                bool dum_bool = XmlConvert.ToBoolean(xreader.ReadElementString("lat3"));
-            }
-            catch
-            { };
-            try
-            {
-                string dum_string = xreader.ReadElementString("cross_stream_grad");
-            }
-            catch
-            { };
-            try
-            {
-                max_vel_box.Text = xreader.ReadElementString("max_vel");
-            }
-            catch { };
-
-
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            menuItem12.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            menuItem13.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            menuItem14.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            menuItem6.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            bool dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            dummy4 = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");
-            dum = xreader.ReadElementString("Option");
-            menuItem25.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions");  // MDW_V2
-            dum = xreader.ReadElementString("Option");
-            menuItemSoluteTracer.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            xreader.ReadStartElement("SaveOptions"); // OIL_V1_PDF
-            dum = xreader.ReadElementString("Option");
-            menuItemOilSpill.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-            xreader.ReadEndElement();
-            try
-            {
-                xreader.ReadStartElement("SaveOptions");
-                dum = xreader.ReadElementString("Option");
-                menuItem29.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("SaveOptions");
-                dum = xreader.ReadElementString("Option");
-                menuItem33.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("SaveOptions");
-                dum = xreader.ReadElementString("Option");
-                menuItem34.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-                xreader.ReadEndElement();
-            }
-            catch
-            { };
-            xreader.ReadEndElement();
-
-            xreader.ReadStartElement("Grain-Size");
-            g1box.Text = xreader.ReadElementString("gs");
-            gp1box.Text = xreader.ReadElementString("gp");
-            try
-            {
-                suspGS1box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-                fallGS1box.Text = xreader.ReadElementString("fv");
-            }
-            catch
-            { };
-            xreader.ReadEndElement();
-
-            xreader.ReadStartElement("Grain-Size");
-            g2box.Text = xreader.ReadElementString("gs");
-            gp2box.Text = xreader.ReadElementString("gp");
-            try
-            {
-                suspGS2box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-                fallGS2box.Text = xreader.ReadElementString("fv");
-            }
-            catch
-            { };
-            xreader.ReadEndElement();
-
-            xreader.ReadStartElement("Grain-Size");
-            g3box.Text = xreader.ReadElementString("gs");
-            gp3box.Text = xreader.ReadElementString("gp");
-            try
-            {
-                suspGS3box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-                fallGS3box.Text = xreader.ReadElementString("fv");
-            }
-            catch
-            { };
-            xreader.ReadEndElement();
-
-            xreader.ReadStartElement("Grain-Size");
-            g4box.Text = xreader.ReadElementString("gs");
-            gp4box.Text = xreader.ReadElementString("gp");
-            try
-            {
-                suspGS4box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-                fallGS4box.Text = xreader.ReadElementString("fv");
-            }
-            catch
-            { };
-            xreader.ReadEndElement();
-
-            xreader.ReadStartElement("Grain-Size");
-            g5box.Text = xreader.ReadElementString("gs");
-            gp5box.Text = xreader.ReadElementString("gp");
-            try
-            {
-                suspGS5box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-                fallGS5box.Text = xreader.ReadElementString("fv");
-            }
-            catch
-            { };
-            xreader.ReadEndElement();
-
-            xreader.ReadStartElement("Grain-Size");
-            g6box.Text = xreader.ReadElementString("gs");
-            gp6box.Text = xreader.ReadElementString("gp");
-            try
-            {
-                suspGS6box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-                fallGS6box.Text = xreader.ReadElementString("fv");
-            }
-            catch
-            { };
-            xreader.ReadEndElement();
-
-            xreader.ReadStartElement("Grain-Size");
-            g7box.Text = xreader.ReadElementString("gs");
-            gp7box.Text = xreader.ReadElementString("gp");
-            try
-            {
-                suspGS7box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-                fallGS7box.Text = xreader.ReadElementString("fv");
-            }
-            catch
-            { };
-            xreader.ReadEndElement();
-
-            xreader.ReadStartElement("Grain-Size");
-            g8box.Text = xreader.ReadElementString("gs");
-            gp8box.Text = xreader.ReadElementString("gp");
-            try
-            {
-                suspGS8box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-                fallGS8box.Text = xreader.ReadElementString("fv");
-            }
-            catch
-            { };
-            xreader.ReadEndElement();
-
-            try
-            {
-                xreader.ReadStartElement("Grain-Size");
-                g9box.Text = xreader.ReadElementString("gs");
-                gp9box.Text = xreader.ReadElementString("gp");
-                try
-                {
-                    suspGS9box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("ss"));
-                    fallGS9box.Text = xreader.ReadElementString("fv");
-                }
-                catch
-                { };
-                xreader.ReadEndElement();
-            }
-            catch
-            { };
-
-            try
-            {
-                xreader.ReadStartElement("Grain-Size");
-                g1_box.Text = xreader.ReadElementString("gs");
-                gp1_box.Text = xreader.ReadElementString("gp");
-                xreader.ReadEndElement();
-
-                xreader.ReadStartElement("Grain-Size");
-                g2_box.Text = xreader.ReadElementString("gs");
-                gp2_box.Text = xreader.ReadElementString("gp");
-                xreader.ReadEndElement();
-
-                xreader.ReadStartElement("Grain-Size");
-                g3_box.Text = xreader.ReadElementString("gs");
-                gp3_box.Text = xreader.ReadElementString("gp");
-                xreader.ReadEndElement();
-
-                xreader.ReadStartElement("Grain-Size");
-                g4_box.Text = xreader.ReadElementString("gs");
-                gp4_box.Text = xreader.ReadElementString("gp");
-                xreader.ReadEndElement();
-
-                xreader.ReadStartElement("Grain-Size");
-                g5_box.Text = xreader.ReadElementString("gs");
-                gp5_box.Text = xreader.ReadElementString("gp");
-                xreader.ReadEndElement();
-
-                xreader.ReadStartElement("Grain-Size");
-                g6_box.Text = xreader.ReadElementString("gs");
-                gp6_box.Text = xreader.ReadElementString("gp");
-                xreader.ReadEndElement();
-
-                xreader.ReadStartElement("Grain-Size");
-                g7_box.Text = xreader.ReadElementString("gs");
-                gp7_box.Text = xreader.ReadElementString("gp");
-                xreader.ReadEndElement();
-
-                xreader.ReadStartElement("Grain-Size");
-                g8_box.Text = xreader.ReadElementString("gs");
-                gp8_box.Text = xreader.ReadElementString("gp");
-                xreader.ReadEndElement();
-
-                xreader.ReadStartElement("Grain-Size");
-                g9_box.Text = xreader.ReadElementString("gs");
-                gp9_box.Text = xreader.ReadElementString("gp");
-                xreader.ReadEndElement();
-            }
-            catch
-            { };
-
-            try
-            {
-                xreader.ReadStartElement("File-Parms");
-
-                input_time_step_box.Text = xreader.ReadElementString("inputtimestep");
-                saveintervalbox.Text = xreader.ReadElementString("saveinterval");
-                outputfilesaveintervalbox.Text = xreader.ReadElementString("savetologfileinterval");
-                tracerbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("tracerrun"));
-                uniquefilecheck.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("uniquefilecheck"));
-
-                xreader.ReadStartElement("Filenames");
-                dum = xreader.ReadElementString("Desc");
-                openfiletextbox.Text = xreader.ReadElementString("Name");
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("Filenames");
-                dum = xreader.ReadElementString("Desc");
-                graindataloadbox.Text = xreader.ReadElementString("Name");
-                xreader.ReadEndElement();
-
-                xreader.ReadStartElement("Filenames");
-                dum = xreader.ReadElementString("Desc");
-                bedrockbox.Text = xreader.ReadElementString("Name");
-                xreader.ReadEndElement();
-
-                xreader.ReadStartElement("Filenames");
-                dum = xreader.ReadElementString("Desc");
-                raindataloadbox.Text = xreader.ReadElementString("Name");
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("Filenames");
-                dum = xreader.ReadElementString("Desc");
-                mine_input_textBox.Text = xreader.ReadElementString("Name");
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("Filenames");
-                dum = xreader.ReadElementString("Desc");
-                tracerhydrofile.Text = xreader.ReadElementString("Name");
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("Filenames");
-                dum = xreader.ReadElementString("Desc");
-                string dummystring4 = xreader.ReadElementString("Name");
-                xreader.ReadEndElement();
-            }
-            catch
-            { };
-
-            try
-            {
-
-                xreader.ReadStartElement("Sources");
-                inbox1.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-                xbox1.Text = xreader.ReadElementString("X");
-                ybox1.Text = xreader.ReadElementString("Y");
-                infile1.Text = xreader.ReadElementString("Filename");
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("Sources");
-                inbox2.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-                xbox2.Text = xreader.ReadElementString("X");
-                ybox2.Text = xreader.ReadElementString("Y");
-                infile2.Text = xreader.ReadElementString("Filename");
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("Sources");
-                inbox3.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-                xbox3.Text = xreader.ReadElementString("X");
-                ybox3.Text = xreader.ReadElementString("Y");
-                infile3.Text = xreader.ReadElementString("Filename");
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("Sources");
-                inbox4.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-                xbox4.Text = xreader.ReadElementString("X");
-                ybox4.Text = xreader.ReadElementString("Y");
-                infile4.Text = xreader.ReadElementString("Filename");
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("Sources");
-                inbox5.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-                xbox5.Text = xreader.ReadElementString("X");
-                ybox5.Text = xreader.ReadElementString("Y");
-                infile5.Text = xreader.ReadElementString("Filename");
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("Sources");
-                inbox6.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-                xbox6.Text = xreader.ReadElementString("X");
-                ybox6.Text = xreader.ReadElementString("Y");
-                infile6.Text = xreader.ReadElementString("Filename");
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("Sources");
-                inbox7.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-                xbox7.Text = xreader.ReadElementString("X");
-                ybox7.Text = xreader.ReadElementString("Y");
-                infile7.Text = xreader.ReadElementString("Filename");
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("Sources");
-                inbox8.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));
-                xbox8.Text = xreader.ReadElementString("X");
-                ybox8.Text = xreader.ReadElementString("Y");
-                infile8.Text = xreader.ReadElementString("Filename");
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("ExtraSources");                                       //MDW_V2
-                inboxExtra.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("input"));  //
-                infileExtra.Text = xreader.ReadElementString("Filename");                       //
-                xreader.ReadEndElement();                                                       //
-
-            }
-            catch
-            { };
-
-            xreader.ReadEndElement();
-
-            xreader.ReadStartElement("Description");
-            DescBox.Text = xreader.ReadElementString("S");
-            xreader.ReadEndElement();
-
-            //JMW 2004-11-11
-            try
-            {
-                xreader.ReadStartElement("OutputFile-Parms");
-                try
-                {
-                    bool a124 = XmlConvert.ToBoolean(xreader.ReadElementString("generateavifile"));
-                    string a123 = xreader.ReadElementString("avifile");
+                    comboBox2.SelectedIndex = 1; tracerain_rgb[0] = 1;
+                    if (nRainZones > 1) { comboBox3.SelectedIndex = 2; tracerain_rgb[1] = 2; } // does not default to zero if not loaded
+                    else { comboBox3.SelectedIndex = 0; tracerain_rgb[1] = 0; }
+                    if (nRainZones > 2) { comboBox4.SelectedIndex = 3; tracerain_rgb[2] = 3; } // does not default to zero if not loaded
+                    else { comboBox4.SelectedIndex = 0; tracerain_rgb[2] = 0; }
 
                 }
-                catch { };
-                try
-                {
-                    saveintervalbox.Text = xreader.ReadElementString("avifreq");
-                    checkBoxGenerateTimeSeries.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("generatetimeseriesfile"));
-                    TimeseriesOutBox.Text = xreader.ReadElementString("timeseriesfile");
-                    outputfilesaveintervalbox.Text = xreader.ReadElementString("timeseriesfreq");
-                    checkBoxGenerateIterations.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("generateiterationsfile"));
-                    IterationOutbox.Text = xreader.ReadElementString("iterationsfile");
-                }
-                catch
-                { };
-                xreader.ReadEndElement();
-            }
-            catch
-            { };
-
-            try
-            {
-                xreader.ReadStartElement("Display");
-                Form1.ActiveForm.Top = XmlConvert.ToInt16(xreader.ReadElementString("top"));
-                Form1.ActiveForm.Left = XmlConvert.ToInt16(xreader.ReadElementString("left"));
-                Form1.ActiveForm.Width = XmlConvert.ToInt16(xreader.ReadElementString("width"));
-                Form1.ActiveForm.Height = XmlConvert.ToInt16(xreader.ReadElementString("height"));
-
-                xreader.ReadEndElement();
-            }
-            catch
-            { };
-
-            try
-            {
-                xreader.ReadStartElement("Lateral");
-                bool dum_bool = XmlConvert.ToBoolean(xreader.ReadElementString("oldlat"));
-                newlateral.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("newlat"));
-                xreader.ReadEndElement();
-            }
-            catch
-            { };
-            try
-            {
-                xreader.ReadStartElement("Add_Ons");
-                tracerOutcheckBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("tracer-out"));
-                tracerOutputtextBox.Text = xreader.ReadElementString("tracer-out-filename");
-                googleAnimationCheckbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("google_animation"));
-                googleAnimationTextBox.Text = xreader.ReadElementString("google_animation_file_name");
-                googleBeginDate.Text = xreader.ReadElementString("google_begin");
-                googAnimationSaveInterval.Text = xreader.ReadElementString("google_interval");
-                jmeaninputfilebox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("jMean"));
-                avge_smoothbox.Text = xreader.ReadElementString("edge_smoothing");
-                string dum_string = xreader.ReadElementString("displacement");
-                propremaining.Text = xreader.ReadElementString("prop_remain");
-                max_time_step_Box.Text = xreader.ReadElementString("max_time_step");
-                bool dummy1 = XmlConvert.ToBoolean(xreader.ReadElementString("contam_input"));
-                string dummystring1 = xreader.ReadElementString("mineX");
-                string dummystring2 = xreader.ReadElementString("mineY");
-                string dummystring3 = xreader.ReadElementString("contam_input_file");
-                soil_ratebox.Text = xreader.ReadElementString("soil_rate");
-                SiberiaBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("siberia"));
-                Beta1Box.Text = xreader.ReadElementString("beta1");
-                Beta3Box.Text = xreader.ReadElementString("beta3");
-                m1Box.Text = xreader.ReadElementString("m1");
-                m3Box.Text = xreader.ReadElementString("m3");
-                n1Box.Text = xreader.ReadElementString("n1");
-                Q2box.Text = xreader.ReadElementString("W_depth_erosion_threshold");
-                dum_string = xreader.ReadElementString("fexp");
-                div_inputs_box.Text = xreader.ReadElementString("div_inputs");
-
-                init_depth_box.Text = xreader.ReadElementString("initial_sand_depth");
-                slab_depth_box.Text = xreader.ReadElementString("maxslabdepth");
-                shadow_angle_box.Text = xreader.ReadElementString("angle");
-                upstream_check_box.Text = xreader.ReadElementString("checkup");
-                depo_prob_box.Text = xreader.ReadElementString("dep_probability");
-                offset_box.Text = xreader.ReadElementString("downstream_offset");
-                dune_time_box.Text = xreader.ReadElementString("dune_timestep");
-                dune_grid_size_box.Text = xreader.ReadElementString("dune_gridsize");
-
-                wilcockbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("wilcock"));
-                einsteinbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("einstein"));
-                DuneBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("dune"));
-
-                UTMgridcheckbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("UTM"));
-                UTMsouthcheck.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("South"));
-                UTMzonebox.Text = xreader.ReadElementString("UTMzone");
-
-
-                raintimestepbox.Text = xreader.ReadElementString("raindatatimestep");
-                activebox.Text = xreader.ReadElementString("activelayerthickness");
-
-                // more add on's  21/5/2012
-                downstreamshiftbox.Text = xreader.ReadElementString("downstreamshift");
-                courantbox.Text = xreader.ReadElementString("courantnumber");
-                textBox4.Text = xreader.ReadElementString("hflow");
-                textBox7.Text = xreader.ReadElementString("lateralsmoothing");
-                textBox8.Text = xreader.ReadElementString("froude_limit");
-                textBox9.Text = xreader.ReadElementString("mannings");
-
-                checkBox3.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("TidalorStage"));
-                MinQmaxvalue.Text = xreader.ReadElementString("MinQmaxvalue");
-                TidalXmin.Text = xreader.ReadElementString("TidalXmin");
-                TidalXmax.Text = xreader.ReadElementString("TidalXmax");
-                TidalYmin.Text = xreader.ReadElementString("TidalYmin");
-                TidalYmax.Text = xreader.ReadElementString("TidalYmax");
-                TidalFileName.Text = xreader.ReadElementString("TidalFileName");
-                TidalInputStep.Text = xreader.ReadElementString("TidalInputStep");
-
-                // more add ons for bedrock erosion 19/1/14
-                bedrock_erosion_threshold_box.Text = xreader.ReadElementString("bedrock_erosion_threshold");
-                bedrock_erosion_rate_box.Text = xreader.ReadElementString("bedrock_erosion_rate");
-
-                // more add ons for spatially variable rainfall
-                rfnumBox.Text = xreader.ReadElementString("rfnum");
-                hydroindexBox.Text = xreader.ReadElementString("hydroindex");
-                checkBox7.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("MultiRainfall"));
-
-                // more addons for soil development and spatially variable mannings 28/8/2015
-                soildevbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("soildevbox"));
-                checkBox4.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("bedrocklowering"));
-                checkBox5.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("physicalweathering"));
-                checkBox6.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("chemicalweathering"));
-                textBox11.Text = xreader.ReadElementString("P1");
-                textBox12.Text = xreader.ReadElementString("b1");
-                textBox13.Text = xreader.ReadElementString("k1");
-                textBox14.Text = xreader.ReadElementString("c1");
-                textBox15.Text = xreader.ReadElementString("c2");
-                textBox16.Text = xreader.ReadElementString("k2");
-                textBox17.Text = xreader.ReadElementString("c3");
-                textBox18.Text = xreader.ReadElementString("c4");
-
-                SpatVarManningsCheckbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("SpatVarManningsCheckbox"));
-                textBox19.Text = xreader.ReadElementString("spatvarmanningsfilename");
-                mfiletimestepbox.Text = xreader.ReadElementString("mfiletimestepbox");
-                mvalueloadbox.Text = xreader.ReadElementString("mvalueloadbox");
-
-                // 5/12/16
-                meyerbox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("meyer"));
-
-                //18/7/18
-                checkBox8.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("all_nine_grainsizes"));
-
-                // 11/9/18
-                radioButton1.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("oldveg"));
-                radioButton2.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("newveg"));
-
-                // add ons from MDW
-                //spatialmanningsBox.Text = xreader.ReadElementString("manningfile");
-                //checkBox9.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("SpatialFriction"));
-                checkBox10.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("TraceWater"));
-                checkBox11.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("TraceRainZonation"));
-                textBox20.Text = xreader.ReadElementString("TraceRainZonationMapfile"); // MDW_V2 bug fix - corrected reference
-                checkBoxSoluteTracer.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("TraceSolutes")); // MDW_V2
-
-                textBoxOutDir.Text = xreader.ReadElementString("OutputDirectory"); // MDW_V2
-                checkboxOutDirDateTime.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("OutDirDateTime")); // MDW_V2
-
-                // OIL_V1
-                OilTab_checkBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("OilSimulation"));
-                OilYmin.Text = xreader.ReadElementString("OilYmin");
-                OilYmax.Text = xreader.ReadElementString("OilYmax");
-                OilXmin.Text = xreader.ReadElementString("OilXmin");
-                OilXmax.Text = xreader.ReadElementString("OilXmax");
-                OilTimeMin.Text = xreader.ReadElementString("OilTimeMin");
-                OilDepthStart.Text = xreader.ReadElementString("OilDepthStart");
-                OilVolume.Text = xreader.ReadElementString("OilVolume");
-                OilSpillDuration.Text = xreader.ReadElementString("OilSpillDuration");
-
-                //MDW
-                xreader.ReadStartElement("SaveOptions");
-                dum = xreader.ReadElementString("Option");
-                menuItem6.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("SaveOptions");
-                dum = xreader.ReadElementString("Option");
-                menuItem15.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("SaveOptions"); //MDW_V2
-                dum = xreader.ReadElementString("Option");
-                menuItemSoluteTracer.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked")); // MDW_V2
-                xreader.ReadEndElement();
-                //
-
-                // Jun LS tracing
-                xreader.ReadStartElement("Filenames");
-                dum = xreader.ReadElementString("Desc");
-                angle_thresholdbox.Text = xreader.ReadElementString("Name");
-                xreader.ReadEndElement();
-                xreader.ReadStartElement("Filenames");
-                dum = xreader.ReadElementString("Desc");
-                grain_index_file.Text = xreader.ReadElementString("Name");
-                xreader.ReadEndElement();
-                // more add ons for spatially variable tracer
-                tracer_num.Text = xreader.ReadElementString("tracer");
-                tracer_file.Text = xreader.ReadElementString("tracerindex");
-                checkBox_tracer.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("MultiTracer"));
-                // more add ons for spatially variable grainsize
-                landslide_grainsize.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("MultiGrain"));
-
-                xreader.ReadEndElement();
-                xreader.ReadEndElement();
-            }
-            catch
-            { };
-
-
-            xreader.Close();
-
-
-            this.Text = basetext + " (" + Path.GetFileName(cfgname) + ")";
-            button2.Enabled = true;
-            start_button.Enabled = false;
-            Panel1.Visible = false;
-            tabControl1.Visible = true;
-
-        }
-    }
-}
-// JMW - Config File Save & SaveAs Event Handler
-private void menuItemConfigFileSave_Click(object sender, System.EventArgs e)
-{
-    XmlTextWriter xwriter;
-
-    if ((sender == menuItemConfigFileSaveAs) || (cfgname == null))
-    {
-
-        SaveFileDialog saveFileDialog1 = new SaveFileDialog();
-
-        saveFileDialog1.InitialDirectory = workdir;
-        saveFileDialog1.Filter = "cfg files (*.xml)|*.xml|All files (*.*)|*.*";
-        saveFileDialog1.FilterIndex = 1;
-        saveFileDialog1.RestoreDirectory = false;
-
-        if (saveFileDialog1.ShowDialog() == DialogResult.OK)
-        {
-            cfgname = saveFileDialog1.FileName;
-        }
-
-    }
-
-    if (cfgname != null)
-    {
-
-        //Create a new XmlTextWriter.
-        xwriter = new XmlTextWriter(cfgname, System.Text.Encoding.UTF8);
-        //Write the beginning of the document including the
-        //document declaration. Standalone is true.
-        //Use indentation for readability.
-        xwriter.Formatting = Formatting.Indented;
-        xwriter.Indentation = 4;
-
-
-        xwriter.WriteStartDocument(true);
-
-        //Write the beginning of the "data" element. This is
-        //the opening tag to our data
-        xwriter.WriteStartElement("Parms");
-        xwriter.WriteStartElement("General-Parms");
-        xwriter.WriteElementString("headeroverride", XmlConvert.ToString(overrideheaderBox.Checked));
-        xwriter.WriteElementString("x-coordinate", xtextbox.Text);
-        xwriter.WriteElementString("y-coordinate", ytextbox.Text);
-        xwriter.WriteElementString("initscans", initscansbox.Text);
-        xwriter.WriteElementString("maxerodelimit", erodefactorbox.Text);
-        xwriter.WriteElementString("cellsize", dxbox.Text);
-        xwriter.WriteElementString("memorylimit", limitbox.Text);
-        xwriter.WriteElementString("minq", minqbox.Text);
-        xwriter.WriteElementString("creeprate", creepratebox.Text);
-        xwriter.WriteElementString("lateralerosionrate", lateralratebox.Text);
-        xwriter.WriteElementString("maxiter", itermaxbox.Text);
-        xwriter.WriteElementString("runstarttime", textBox1.Text);
-        xwriter.WriteElementString("maxrunduration", cyclemaxbox.Text);
-        xwriter.WriteElementString("slopefailurethreshold", slopebox.Text);
-        xwriter.WriteElementString("wssmoothingradius", smoothbox.Text);
-        xwriter.WriteElementString("mvalue", mvaluebox.Text);
-        xwriter.WriteElementString("growgrasstime", grasstextbox.Text);
-        xwriter.WriteElementString("initialq", textBox2.Text);
-        xwriter.WriteElementString("wssmoothing", "false");
-        xwriter.WriteElementString("grass-sediment", XmlConvert.ToString(flowonlybox.Checked));
-        xwriter.WriteElementString("flowdistribution", textBox3.Text); // MJ 24/01/05
-        xwriter.WriteElementString("mintimestep", mintimestepbox.Text); // MJ 24/01/05
-        xwriter.WriteElementString("evaporation", k_evapBox.Text); // MJ 15/03/05
-        xwriter.WriteElementString("vegcritshear", vegTauCritBox.Text); // MJ 10/05/05
-        xwriter.WriteElementString("bedslope", XmlConvert.ToString(bedslope_box.Checked));
-        xwriter.WriteElementString("wsslope", XmlConvert.ToString(false));
-        xwriter.WriteElementString("veltaubox", XmlConvert.ToString(veltaubox.Checked));
-        xwriter.WriteElementString("catchment_mode", XmlConvert.ToString(catchment_mode_box.Checked));
-        xwriter.WriteElementString("reach_mode", XmlConvert.ToString(reach_mode_box.Checked));
-        xwriter.WriteElementString("lat1", XmlConvert.ToString(false));
-        xwriter.WriteElementString("lat2", XmlConvert.ToString(false));
-        xwriter.WriteElementString("lat3", XmlConvert.ToString(false));
-        xwriter.WriteElementString("cross_stream_grad", XmlConvert.ToString(0));
-        xwriter.WriteElementString("max_vel", max_vel_box.Text);
-
-
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "elevations");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem12.Checked));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "elevdiff");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem13.Checked));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "grainsize");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem14.Checked));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "total tracer g/s");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "tracer layer 1");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "tracer layer 2");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "tracer layer 3");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "tracer layer 4");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "tracer layer 5");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "tracer layer 6");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "tracer layer 7");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "tracer layer 8");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "tracer layer 9");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(false));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "water depth");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem25.Checked));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "d50");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem29.Checked));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "flow velocity");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem33.Checked));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "soil saturation");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem34.Checked));
-        xwriter.WriteEndElement();
-
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g1box.Text);
-        xwriter.WriteElementString("gp", gp1box.Text);
-        xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS1box.Checked));
-        xwriter.WriteElementString("fv", fallGS1box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g2box.Text);
-        xwriter.WriteElementString("gp", gp2box.Text);
-        xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS2box.Checked));
-        xwriter.WriteElementString("fv", fallGS2box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g3box.Text);
-        xwriter.WriteElementString("gp", gp3box.Text);
-        xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS3box.Checked));
-        xwriter.WriteElementString("fv", fallGS3box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g4box.Text);
-        xwriter.WriteElementString("gp", gp4box.Text);
-        xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS4box.Checked));
-        xwriter.WriteElementString("fv", fallGS4box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g5box.Text);
-        xwriter.WriteElementString("gp", gp5box.Text);
-        xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS5box.Checked));
-        xwriter.WriteElementString("fv", fallGS5box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g6box.Text);
-        xwriter.WriteElementString("gp", gp6box.Text);
-        xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS6box.Checked));
-        xwriter.WriteElementString("fv", fallGS6box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g7box.Text);
-        xwriter.WriteElementString("gp", gp7box.Text);
-        xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS7box.Checked));
-        xwriter.WriteElementString("fv", fallGS7box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g8box.Text);
-        xwriter.WriteElementString("gp", gp8box.Text);
-        xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS8box.Checked));
-        xwriter.WriteElementString("fv", fallGS8box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g9box.Text);
-        xwriter.WriteElementString("gp", gp9box.Text);
-        xwriter.WriteElementString("ss", XmlConvert.ToString(suspGS9box.Checked));
-        xwriter.WriteElementString("fv", fallGS9box.Text);
-        xwriter.WriteEndElement();
-
-        // additional landslide grainsize
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g1_box.Text);
-        xwriter.WriteElementString("gp", gp1_box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g2_box.Text);
-        xwriter.WriteElementString("gp", gp2_box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g3_box.Text);
-        xwriter.WriteElementString("gp", gp3_box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g4_box.Text);
-        xwriter.WriteElementString("gp", gp4_box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g5_box.Text);
-        xwriter.WriteElementString("gp", gp5_box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g6_box.Text);
-        xwriter.WriteElementString("gp", gp6_box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g7_box.Text);
-        xwriter.WriteElementString("gp", gp7_box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g8_box.Text);
-        xwriter.WriteElementString("gp", gp8_box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Grain-Size");
-        xwriter.WriteElementString("gs", g9_box.Text);
-        xwriter.WriteElementString("gp", gp9_box.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("File-Parms");
-
-        xwriter.WriteElementString("inputtimestep", input_time_step_box.Text);
-        xwriter.WriteElementString("saveinterval", saveintervalbox.Text);
-        xwriter.WriteElementString("savetologfileinterval", outputfilesaveintervalbox.Text);
-        xwriter.WriteElementString("tracerrun", XmlConvert.ToString(tracerbox.Checked));
-        xwriter.WriteElementString("uniquefilecheck", XmlConvert.ToString(uniquefilecheck.Checked));
-
-
-        xwriter.WriteStartElement("Filenames");
-        xwriter.WriteElementString("Desc", "DEM Data File");
-        xwriter.WriteElementString("Name", openfiletextbox.Text);
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("Filenames");
-        xwriter.WriteElementString("Desc", "Grain Data File");
-        xwriter.WriteElementString("Name", graindataloadbox.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Filenames");
-        xwriter.WriteElementString("Desc", "Bedrock Data File");
-        xwriter.WriteElementString("Name", bedrockbox.Text);
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Filenames");
-        xwriter.WriteElementString("Desc", "Rain Data File");
-        xwriter.WriteElementString("Name", raindataloadbox.Text);
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("Filenames");
-        xwriter.WriteElementString("Desc", "Tracer File");
-        xwriter.WriteElementString("Name", mine_input_textBox.Text);
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("Filenames");
-        xwriter.WriteElementString("Desc", "Tracer Sed Vol File");
-        xwriter.WriteElementString("Name", tracerhydrofile.Text);
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("Filenames");
-        xwriter.WriteElementString("Desc", "Tracer Grain Size Data File");
-        xwriter.WriteElementString("Name", "null");
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("Sources");
-        xwriter.WriteElementString("input", XmlConvert.ToString(inbox1.Checked));
-        xwriter.WriteElementString("X", xbox1.Text);
-        xwriter.WriteElementString("Y", ybox1.Text);
-        xwriter.WriteElementString("Filename", infile1.Text);
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("Sources");
-        xwriter.WriteElementString("input", XmlConvert.ToString(inbox2.Checked));
-        xwriter.WriteElementString("X", xbox2.Text);
-        xwriter.WriteElementString("Y", ybox2.Text);
-        xwriter.WriteElementString("Filename", infile2.Text);
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("Sources");
-        xwriter.WriteElementString("input", XmlConvert.ToString(inbox3.Checked));
-        xwriter.WriteElementString("X", xbox3.Text);
-        xwriter.WriteElementString("Y", ybox3.Text);
-        xwriter.WriteElementString("Filename", infile3.Text);
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("Sources");
-        xwriter.WriteElementString("input", XmlConvert.ToString(inbox4.Checked));
-        xwriter.WriteElementString("X", xbox4.Text);
-        xwriter.WriteElementString("Y", ybox4.Text);
-        xwriter.WriteElementString("Filename", infile4.Text);
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("Sources");
-        xwriter.WriteElementString("input", XmlConvert.ToString(inbox5.Checked));
-        xwriter.WriteElementString("X", xbox5.Text);
-        xwriter.WriteElementString("Y", ybox5.Text);
-        xwriter.WriteElementString("Filename", infile5.Text);
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("Sources");
-        xwriter.WriteElementString("input", XmlConvert.ToString(inbox6.Checked));
-        xwriter.WriteElementString("X", xbox6.Text);
-        xwriter.WriteElementString("Y", ybox6.Text);
-        xwriter.WriteElementString("Filename", infile6.Text);
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("Sources");
-        xwriter.WriteElementString("input", XmlConvert.ToString(inbox7.Checked));
-        xwriter.WriteElementString("X", xbox7.Text);
-        xwriter.WriteElementString("Y", ybox7.Text);
-        xwriter.WriteElementString("Filename", infile7.Text);
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("Sources");
-        xwriter.WriteElementString("input", XmlConvert.ToString(inbox8.Checked));
-        xwriter.WriteElementString("X", xbox8.Text);
-        xwriter.WriteElementString("Y", ybox8.Text);
-        xwriter.WriteElementString("Filename", infile8.Text);
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("ExtraSources");                                      //MDW_V2
-        xwriter.WriteElementString("input", XmlConvert.ToString(inboxExtra.Checked));   //
-        xwriter.WriteElementString("Filename", infileExtra.Text);                       //
-        xwriter.WriteEndElement();                                                      //
-        xwriter.WriteEndElement();
-
-
-        xwriter.WriteStartElement("Description");
-        xwriter.WriteElementString("S", DescBox.Text);
-        xwriter.WriteEndElement();
-
-        //JMW 2004-11-11; updated MJ 24/01/05
-        xwriter.WriteStartElement("OutputFile-Parms");
-        xwriter.WriteElementString("generateavifile", "false");
-        xwriter.WriteElementString("avifile", "novalue");
-        xwriter.WriteElementString("avifreq", saveintervalbox.Text);
-        xwriter.WriteElementString("generatetimeseriesfile", XmlConvert.ToString(checkBoxGenerateTimeSeries.Checked));
-        xwriter.WriteElementString("timeseriesfile", TimeseriesOutBox.Text);
-        xwriter.WriteElementString("timeseriesfreq", outputfilesaveintervalbox.Text);
-        xwriter.WriteElementString("generateiterationsfile", XmlConvert.ToString(checkBoxGenerateIterations.Checked));
-        xwriter.WriteElementString("iterationsfile", IterationOutbox.Text);
-        xwriter.WriteEndElement();
-
-
-        xwriter.WriteStartElement("Display");
-        xwriter.WriteElementString("top", string.Format(" {0}", Form1.ActiveForm.Top));
-        xwriter.WriteElementString("left", string.Format(" {0}", Form1.ActiveForm.Left));
-        xwriter.WriteElementString("width", string.Format(" {0}", Form1.ActiveForm.Width));
-        xwriter.WriteElementString("height", string.Format(" {0}", Form1.ActiveForm.Height));
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Lateral");
-        xwriter.WriteElementString("oldlat", XmlConvert.ToString(false));
-        xwriter.WriteElementString("newlat", XmlConvert.ToString(newlateral.Checked));
-        xwriter.WriteEndElement();
-
-        xwriter.WriteStartElement("Add_Ons");
-        xwriter.WriteElementString("tracer-out", XmlConvert.ToString(tracerOutcheckBox.Checked));
-        xwriter.WriteElementString("tracer-out-filename", tracerOutputtextBox.Text);
-        xwriter.WriteElementString("google_animation", XmlConvert.ToString(googleAnimationCheckbox.Checked));
-        xwriter.WriteElementString("google_animation_file_name", googleAnimationTextBox.Text);
-        xwriter.WriteElementString("google_begin", googleBeginDate.Text);
-        xwriter.WriteElementString("google_interval", googAnimationSaveInterval.Text);
-        xwriter.WriteElementString("jMean", XmlConvert.ToString(jmeaninputfilebox.Checked));
-        xwriter.WriteElementString("edge_smoothing", avge_smoothbox.Text);
-        xwriter.WriteElementString("displacement", XmlConvert.ToString(false));
-        xwriter.WriteElementString("prop_remain", propremaining.Text);
-        xwriter.WriteElementString("max_time_step", max_time_step_Box.Text);
-        xwriter.WriteElementString("contam_input", XmlConvert.ToString(false));
-        xwriter.WriteElementString("mineX", "null");
-        xwriter.WriteElementString("mineY", "null");
-        xwriter.WriteElementString("contam_input_file", "null");
-        xwriter.WriteElementString("soil_rate", soil_ratebox.Text);
-        xwriter.WriteElementString("siberia", XmlConvert.ToString(SiberiaBox.Checked));
-        xwriter.WriteElementString("beta1", Beta1Box.Text);
-        xwriter.WriteElementString("beta3", Beta3Box.Text);
-        xwriter.WriteElementString("m1", m1Box.Text);
-        xwriter.WriteElementString("m3", m3Box.Text);
-        xwriter.WriteElementString("n1", n1Box.Text);
-        xwriter.WriteElementString("W_depth_erosion_threshold", Q2box.Text);
-        xwriter.WriteElementString("fexp", XmlConvert.ToString(1));
-        xwriter.WriteElementString("div_inputs", div_inputs_box.Text);
-        xwriter.WriteElementString("initial_sand_depth", init_depth_box.Text);
-        xwriter.WriteElementString("maxslabdepth", slab_depth_box.Text);
-        xwriter.WriteElementString("angle", shadow_angle_box.Text);
-        xwriter.WriteElementString("checkup", upstream_check_box.Text);
-        xwriter.WriteElementString("dep_probability", depo_prob_box.Text);
-        xwriter.WriteElementString("downstream_offset", offset_box.Text);
-        xwriter.WriteElementString("dune_timestep", dune_time_box.Text);
-        xwriter.WriteElementString("dune_gridsize", dune_grid_size_box.Text);
-        xwriter.WriteElementString("wilcock", XmlConvert.ToString(wilcockbox.Checked));
-        xwriter.WriteElementString("einstein", XmlConvert.ToString(einsteinbox.Checked));
-        xwriter.WriteElementString("dune", XmlConvert.ToString(DuneBox.Checked));
-        // three UTM interface elements
-        xwriter.WriteElementString("UTM", XmlConvert.ToString(UTMgridcheckbox.Checked));
-        xwriter.WriteElementString("South", XmlConvert.ToString(UTMsouthcheck.Checked));
-        xwriter.WriteElementString("UTMzone", UTMzonebox.Text);
-
-        xwriter.WriteElementString("raindatatimestep", raintimestepbox.Text);
-        xwriter.WriteElementString("activelayerthickness", activebox.Text);
-
-        // more add on's  21/5/2012
-
-        xwriter.WriteElementString("downstreamshift", downstreamshiftbox.Text);
-        xwriter.WriteElementString("courantnumber", courantbox.Text);
-        xwriter.WriteElementString("hflow", textBox4.Text);
-        xwriter.WriteElementString("lateralsmoothing", textBox7.Text);
-        xwriter.WriteElementString("froude_limit", textBox8.Text);
-        xwriter.WriteElementString("mannings", textBox9.Text);
-
-        // more add on's 4/7/13
-        xwriter.WriteElementString("TidalorStage", XmlConvert.ToString(checkBox3.Checked));
-        xwriter.WriteElementString("MinQmaxvalue", MinQmaxvalue.Text);
-        xwriter.WriteElementString("TidalXmin", TidalXmin.Text);
-        xwriter.WriteElementString("TidalXmax", TidalXmax.Text);
-        xwriter.WriteElementString("TidalYmin", TidalYmin.Text);
-        xwriter.WriteElementString("TidalYmax", TidalYmax.Text);
-        xwriter.WriteElementString("TidalFileName", TidalFileName.Text);
-        xwriter.WriteElementString("TidalInputStep", TidalInputStep.Text);
-
-        // more add ons for bedrock erosion 19/1/14
-        xwriter.WriteElementString("bedrock_erosion_threshold", bedrock_erosion_threshold_box.Text);
-        xwriter.WriteElementString("bedrock_erosion_rate", bedrock_erosion_rate_box.Text);
-
-        // more add ons for spatially variable rainfall
-        xwriter.WriteElementString("rfnum", rfnumBox.Text);
-        xwriter.WriteElementString("hydroindex", hydroindexBox.Text);
-        xwriter.WriteElementString("MultiRainfall", XmlConvert.ToString(checkBox7.Checked));
-
-        // more addons for soil development and spatially variable mannings 28/8/2015
-        xwriter.WriteElementString("soildevbox", XmlConvert.ToString(soildevbox.Checked));
-        xwriter.WriteElementString("bedrocklowering", XmlConvert.ToString(checkBox4.Checked));
-        xwriter.WriteElementString("physicalweathering", XmlConvert.ToString(checkBox5.Checked));
-        xwriter.WriteElementString("chemicalweathering", XmlConvert.ToString(checkBox6.Checked));
-        xwriter.WriteElementString("P1", textBox11.Text);
-        xwriter.WriteElementString("b1", textBox12.Text);
-        xwriter.WriteElementString("k1", textBox13.Text);
-        xwriter.WriteElementString("c1", textBox14.Text);
-        xwriter.WriteElementString("c2", textBox15.Text);
-        xwriter.WriteElementString("k2", textBox16.Text);
-        xwriter.WriteElementString("c3", textBox17.Text);
-        xwriter.WriteElementString("c4", textBox18.Text);
-
-        xwriter.WriteElementString("SpatVarManningsCheckbox", XmlConvert.ToString(SpatVarManningsCheckbox.Checked));
-        xwriter.WriteElementString("spatvarmanningsfilename", textBox19.Text);
-
-        // 4/10/15 spat variable mannings box
-        xwriter.WriteElementString("mfiletimestepbox", mfiletimestepbox.Text);
-        xwriter.WriteElementString("mvalueloadbox", mvalueloadbox.Text);
-
-        // 5/12/16
-        xwriter.WriteElementString("meyer", XmlConvert.ToString(meyerbox.Checked));
-        //18/7/18
-        xwriter.WriteElementString("all_nine_grainsizes", XmlConvert.ToString(checkBox8.Checked));
-        // 11/9/18
-        xwriter.WriteElementString("oldveg", XmlConvert.ToString(radioButton1.Checked));
-        xwriter.WriteElementString("newveg", XmlConvert.ToString(radioButton2.Checked));
-
-        // add ons from MDW
-        //xwriter.WriteElementString("manningfile", spatialmanningsBox.Text);
-        //xwriter.WriteElementString("SpatialFriction", XmlConvert.ToString(checkBox9.Checked));
-        xwriter.WriteElementString("TraceWater", XmlConvert.ToString(checkBox10.Checked));
-        xwriter.WriteElementString("TraceRainZonation", XmlConvert.ToString(checkBox11.Checked));
-        xwriter.WriteElementString("TraceRainZonationMapfile", textBox20.Text); // MDW_V2 bug fix - corrected reference
-        xwriter.WriteElementString("TraceSolutes", XmlConvert.ToString(checkBoxSoluteTracer.Checked));
-
-        xwriter.WriteElementString("OutputDirectory", textBoxOutDir.Text); // MDW_V2
-        xwriter.WriteElementString("OutDirDateTime", XmlConvert.ToString(checkboxOutDirDateTime.Checked)); // MDW_V2
-
-        // OIL_V1
-        xwriter.WriteElementString("OilSimulation", XmlConvert.ToString(OilTab_checkBox.Checked));
-        xwriter.WriteElementString("OilYmin", OilYmin.Text);
-        xwriter.WriteElementString("OilYmax", OilYmax.Text);
-        xwriter.WriteElementString("OilXmin", OilXmin.Text);
-        xwriter.WriteElementString("OilXmax", OilXmax.Text);
-        xwriter.WriteElementString("OilTimeMin", OilTimeMin.Text);
-        xwriter.WriteElementString("OilDepthStart", OilDepthStart.Text);
-        xwriter.WriteElementString("OilVolume", OilVolume.Text);
-        xwriter.WriteElementString("OilSpillDuration", OilSpillDuration.Text);
-
-        //MDW
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "water tracers");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem6.Checked));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "rain zone tracers");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem15.Checked));
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "solute tracers");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItemSoluteTracer.Checked));
-        xwriter.WriteEndElement();
-        //
-        //xwriter.WriteElementString();
-
-        //PDF
-        xwriter.WriteStartElement("SaveOptions");
-        xwriter.WriteElementString("Option", "oil depth");
-        xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItemOilSpill.Checked));
-        xwriter.WriteEndElement();
-        //
-
-        //additional from Jun LS tracing
-        xwriter.WriteStartElement("Filenames");
-        xwriter.WriteElementString("Desc", "Angle Data File");
-        xwriter.WriteElementString("Name", angle_thresholdbox.Text);
-        xwriter.WriteEndElement();
-        xwriter.WriteStartElement("Filenames");
-        xwriter.WriteElementString("Desc", "Grain index Data File");
-        xwriter.WriteElementString("Name", grain_index_file.Text);
-        xwriter.WriteEndElement();
-        xwriter.WriteElementString("tracer", tracer_num.Text);
-        xwriter.WriteElementString("tracerindex", tracer_file.Text);
-        xwriter.WriteElementString("MultiTracer", XmlConvert.ToString(checkBox_tracer.Checked));
-        // more add ons for spatially variable grainsize
-        xwriter.WriteElementString("MultiGrain", XmlConvert.ToString(landslide_grainsize.Checked));
-
-        xwriter.WriteEndElement();
-        xwriter.WriteEndElement();
-
-
-        //End the document
-        xwriter.WriteEndDocument();
-
-        //Flush the xml document to the underlying stream and
-        //close the underlying stream. The data will not be
-        //written out to the stream until either the Flush()
-        //method is called or the Close() method is called.
-        xwriter.Close();
-
-        this.Text = basetext + " (" + Path.GetFileName(cfgname) + ")";
-    }
-}
-private void suspCheckedChange(object sender, System.EventArgs e)
-{
-    fallGS1box.Enabled = suspGS1box.Checked;
-    fallGS2box.Enabled = suspGS2box.Checked;
-    fallGS3box.Enabled = suspGS3box.Checked;
-    fallGS4box.Enabled = suspGS4box.Checked;
-    fallGS5box.Enabled = suspGS5box.Checked;
-    fallGS6box.Enabled = suspGS6box.Checked;
-    fallGS7box.Enabled = suspGS7box.Checked;
-    fallGS8box.Enabled = suspGS8box.Checked;
-    fallGS9box.Enabled = suspGS9box.Checked;
-}
-private void fracGSchanged(object sender, System.EventArgs e)
-{
-    double sum;
-
-    sum = 0.0;
-    if (gp1box.Text != "") sum += double.Parse(gp1box.Text);
-    if (gp2box.Text != "") sum += double.Parse(gp2box.Text);
-    if (gp3box.Text != "") sum += double.Parse(gp3box.Text);
-    if (gp4box.Text != "") sum += double.Parse(gp4box.Text);
-    if (gp5box.Text != "") sum += double.Parse(gp5box.Text);
-    if (gp6box.Text != "") sum += double.Parse(gp6box.Text);
-    if (gp7box.Text != "") sum += double.Parse(gp7box.Text);
-    if (gp8box.Text != "") sum += double.Parse(gp8box.Text);
-    if (gp9box.Text != "") sum += double.Parse(gp9box.Text);
-
-    if (Math.Abs(sum - 1.0) < 0.000000001)
-    {
-        gpSumLabel.Text = "OK";
-        gpSumLabel.ForeColor = Color.Black;
-        gpSumLabel2.ForeColor = Color.Black;
-    }
-    else
-    {
-        gpSumLabel.Text = string.Format("{0:F8}", sum);
-        gpSumLabel.ForeColor = Color.Red;
-        gpSumLabel2.ForeColor = Color.Red;
-    }
-}
-private void button4_Click_1(object sender, System.EventArgs e)
-{
-    updateClick = 1;
-    this.Refresh();
-    drawwater(mygraphics);
-}
-private void overrideheaderBox_CheckedChanged(object sender, System.EventArgs e)
-{
-    label1.Enabled = overrideheaderBox.Checked;
-    label2.Enabled = overrideheaderBox.Checked;
-    label11.Enabled = overrideheaderBox.Checked;
-    xtextbox.Enabled = overrideheaderBox.Checked;
-    ytextbox.Enabled = overrideheaderBox.Checked;
-    dxbox.Enabled = overrideheaderBox.Checked;
-}
-private void checkBox1_CheckedChanged(object sender, System.EventArgs e)
-{
-
-}
-private void bedslope_box_CheckedChanged(object sender, System.EventArgs e)
-{
-    if (bedslope_box.Checked == true)
-    {
-        veltaubox.Checked = false;
-        bedslopebox2.Checked = false;
-    }
-}
-private void newlateral_CheckedChanged(object sender, System.EventArgs e)
-{
-
-    if (newlateral.Checked == true) nolateral.Checked = false;
-}
-private void label54_Click(object sender, System.EventArgs e)
-{
-
-}
-private void button5_Click(object sender, System.EventArgs e)
-{
-    Form1.ActiveForm.Show();
-}
-private void button5_Click_1(object sender, System.EventArgs e)
-{
-    get_area();
-}
-private void veltaubox_CheckedChanged(object sender, EventArgs e)
-{
-    if (veltaubox.Checked == true)
-    {
-
-        bedslope_box.Checked = false;
-        bedslopebox2.Checked = false;
-    }
-}
-private void backgroundWorker1_DoWork(object sender, DoWorkEventArgs e)
-{
-    erodedepo();
-}
-private void nolateral_CheckedChanged(object sender, EventArgs e)
-{
-
-    if (nolateral.Checked == true) newlateral.Checked = false;
-}
-private void Form1_Resize(object sender, EventArgs e)
-{
-    zoomPanImageBox1.Height = this.Height - 225;
-    zoomPanImageBox1.Width = this.Width - 20;
-}
-private void zoomPanImageBox1_Load(object sender, EventArgs e)
-{
-
-}
-private void trackBar1_Scroll(object sender, EventArgs e)
-{
-    contrastMultiplier = contrastFactor[trackBar1.Value];
-    drawwater(mygraphics);
-}
-private void trackBar2_Scroll(object sender, EventArgs e)
-{
-    magnifyValue = zoomFactor[this.trackBar2.Value];
-    zoomPanImageBox1.setZoom();
-}
-private void trackBar3_Scroll(object sender, EventArgs e)
-{
-    enhanceValue = enhanceFactor[this.trackBar3.Value];
-    drawwater(mygraphics);
-}
-private void comboBox1_SelectedValueChanged(object sender, EventArgs e)
-{
-    updateClick = 1;
-    this.Refresh();
-    drawwater(mygraphics);
-}
-
-// Water tracer controls - MDW
-private void comboBox2_SelectedValueChanged(object sender, EventArgs e)
-{
-    updateClick = 1;
-    if (checkBox12.Checked == true) tracerain_rgb[0] = comboBox2.SelectedIndex;
-    else if (checkBoxSoluteVis.Checked == true) tracesolute_rgb[0] = comboBox2.SelectedIndex;
-    else trace_rgb[0] = comboBox2.SelectedIndex;
-    if (tracergb_initialising == false)
-    {
-        this.Refresh();
-        drawwater(mygraphics);
-    }
-}
-private void comboBox3_SelectedValueChanged(object sender, EventArgs e)
-{
-    updateClick = 1;
-    if (checkBox12.Checked == true) tracerain_rgb[1] = comboBox3.SelectedIndex;
-    else if (checkBoxSoluteVis.Checked == true) tracesolute_rgb[1] = comboBox3.SelectedIndex;
-    else trace_rgb[1] = comboBox3.SelectedIndex;
-    if (tracergb_initialising == false)
-    {
-        this.Refresh();
-        drawwater(mygraphics);
-    }
-}
-private void comboBox4_SelectedValueChanged(object sender, EventArgs e)
-{
-    updateClick = 1;
-    if (checkBox12.Checked == true) tracerain_rgb[2] = comboBox4.SelectedIndex;
-    else if (checkBoxSoluteVis.Checked == true) tracesolute_rgb[2] = comboBox4.SelectedIndex;
-    else trace_rgb[2] = comboBox4.SelectedIndex;
-    if (tracergb_initialising == false)
-    {
-        this.Refresh();
-        drawwater(mygraphics);
-    }
-}
-
-private void n1Box_TextChanged(object sender, EventArgs e)
-{
-
-}
-private void graphicToGoogleEarthButton_Click(object sender, EventArgs e)
-{
-    if (coordinateDone == 0)
-    {
-        //transfrom coordinates
-        point testPoint = new point(xll, yll);
-        if (UTMgridcheckbox.Checked)
-        {
-            testPoint.UTMzone = System.Convert.ToInt32(UTMzonebox.Text);
-            testPoint.south = System.Convert.ToBoolean(UTMsouthcheck.Checked);
-            testPoint.transformUTMPoint();
-        }
-        else
-        {
-            testPoint.transformPoint();
-        }
-        yurcorner = yll + (System.Convert.ToDouble(ymax) * System.Convert.ToDouble(DX));
-        xurcorner = xll + (System.Convert.ToDouble(xmax) * System.Convert.ToDouble(DX));
-        point testPoint2 = new point(xurcorner, yurcorner);
-        if (UTMgridcheckbox.Checked)
-        {
-            testPoint2.UTMzone = System.Convert.ToInt32(UTMzonebox.Text);
-            testPoint2.south = System.Convert.ToBoolean(UTMsouthcheck.Checked);
-            testPoint2.transformUTMPoint();
-        }
-        else
-        {
-            testPoint2.transformPoint();
-        }
-
-
-
-        urfinalLati = testPoint2.ycoord;
-        urfinalLongi = testPoint2.xcoord;
-        llfinalLati = testPoint.ycoord;
-        llfinalLongi = testPoint.xcoord;
-        coordinateDone = 1;
-    }
-
-    //Save image
-    m_objDrawingSurface.MakeTransparent();
-    m_objDrawingSurface.Save(Path.Combine(googleAnimationDir, @"mysavedimage" + imageCount + ".png"), // MDW_V2
-                             System.Drawing.Imaging.ImageFormat.Png);
-    //m_objDrawingSurface.Save(@"mysavedimage" + imageCount + ".png", System.Drawing.Imaging.ImageFormat.Png);
-    //create kml file for image
-    string kml_file_name = "image" + imageCount + ".kml";
-    StreamWriter kmlsr = File.CreateText(kml_file_name);
-    string kml = @"<?xml version=""1.0"" encoding=""UTF-8""?>
-                                 <kml xmlns=""http://earth.google.com/kml/2.1"">
-                                 <GroundOverlay>
-                                 	<name>Untitled Image Overlay</name>";
-    kml = kml + "\n<Icon>"
-           + "\n<href>mySavedImage" + imageCount + ".png</href>"
-           + "\n</Icon>"
-           + "\n<LatLonBox>";
-    kml = kml + "\n<north>" + urfinalLati + "</north>"
-              + "\n<south>" + llfinalLati + "</south>"
-              + "\n<east>" + urfinalLongi + "</east>"
-              + "\n<west>" + llfinalLongi + "</west>\n";
-    kml = kml + @"</LatLonBox>
-                                 </GroundOverlay>
-                                 </kml>
-                                             ";
-    kmlsr.Write(kml);
-    kmlsr.Close();
-    imageCount++;
-}
-private void einsteinbox_CheckedChanged(object sender, EventArgs e)
-{
-    if (wilcockbox.Checked == true) wilcockbox.Checked = false;
-    if (meyerbox.Checked == true) meyerbox.Checked = false;
-}
-private void wilcockbox_CheckedChanged(object sender, EventArgs e)
-{
-    if (einsteinbox.Checked == true) einsteinbox.Checked = false;
-    if (meyerbox.Checked == true) meyerbox.Checked = false;
-}
-private void HydrologyTab_Click(object sender, EventArgs e)
-{
-
-}
-private void OilTab_Click(object sender, EventArgs e) // OIL_V1
-{
-
-}
-
-private void button6_Click(object sender, EventArgs e)
-{
-    int x, y;
-    for (x = 1; x <= xmax; x++)
-    {
-        for (y = 1; y <= ymax; y++)
-        {
-            if (x > 0 && x <= 200) elev[x, y] += 1;
-        }
-    }
-}
-private void checkBox1_CheckedChanged_1(object sender, EventArgs e)
-{
-    if (checkBox1.Checked == false) tabControl1.Visible = false;
-    if (checkBox1.Checked == true) tabControl1.Visible = true;
-}
-private void tabPage5_Click(object sender, EventArgs e)
-{
-
-}
-private void label88_Click(object sender, EventArgs e)
-{
-
-}
-private void textBox12_TextChanged(object sender, EventArgs e)
-{
-
-}
-private void label58_Click(object sender, EventArgs e)
-{
-
-}
-private void checkBox4_CheckedChanged(object sender, EventArgs e)
-{
-    if (UTMgridcheckbox.Checked)
-    {
-        UTMzonebox.Visible = true;
-        textBox6.Visible = true;
-        UTMsouthcheck.Visible = true;
-        groupBox4.Visible = true;
-    }
-}
-private void bedslopebox2_CheckedChanged(object sender, EventArgs e)
-{
-    if (bedslopebox2.Checked == true)
-    {
-        veltaubox.Checked = false;
-        bedslope_box.Checked = false;
-
-
-    }
-}
-private void UTMgridcheckbox_CheckedChanged(object sender, EventArgs e)
-{
-    if (UTMgridcheckbox.Checked)
-    {
-        UTMzonebox.Visible = true;
-        textBox6.Visible = true;
-        UTMsouthcheck.Visible = true;
-        groupBox4.Visible = true;
-    }
-
-}
-private void mouseclick2(object sender, MouseEventArgs e)
-{
-
-}
-
-private void checkBox2_CheckedChanged(object sender, EventArgs e)
-{
-
-    if (checkBox2.Checked == true)
-    {
-        CAESAR_lisflood_1._0.Form2 secondForm = new CAESAR_lisflood_1._0.Form2();
-        secondForm.Show();
-
-    }
-
-}
-
-private void checkBox7_CheckedChanged(object sender, EventArgs e)
-{
-    if (checkBox7.Checked == true)
-    {
-        rfnumBox.Enabled = true; // MDW_V2 changed each to Enable rather than visible
-        hydroindexBox.Enabled = true;
-        label102.Enabled = true;
-        label103.Enabled = true;
-    }
-    else // MDW_V2 added to disable when unchecked
-    {
-        rfnumBox.Enabled = false;
-        hydroindexBox.Enabled = false;
-        label102.Enabled = false;
-        label103.Enabled = false;
-    }
-}
-
-private void SpatVarManningsCheckbox_CheckedChanged(object sender, EventArgs e)
-{
-    if (SpatVarManningsCheckbox.Checked == true)
-    {
-        textBox19.Visible = true;
-        label104.Visible = true;
-
-    }
-}
-
-private void meyerbox_CheckedChanged(object sender, EventArgs e)
-{
-    if (wilcockbox.Checked == true) wilcockbox.Checked = false;
-    if (einsteinbox.Checked == true) einsteinbox.Checked = false;
-}
-
-private void checkBox10_CheckedChanged(object sender, EventArgs e)
-{
-    if (checkBox10.Checked == true)
-    {
-        isTraceWater = true;
-        checkBox11.Enabled = true; //MDW_V2 changed from visible, so it shows greyed out by default
-        textBox20.Enabled = true;  //
-        checkBoxSoluteTracer.Enabled = true; //MDW_V2
-                                             //labelSoluteNumber.Enabled = true;
-    }
-    else
-    {
-        isTraceWater = false;
-        checkBox11.Enabled = false; //MDW_V2 changed from visible, so it shows greyed out by default
-        textBox20.Enabled = false;  //
-        checkBoxSoluteTracer.Enabled = false; //MDW_V2
-                                              //labelSoluteNumber.Enabled = false;
-    }
-}
-
-private void checkBox11_CheckedChanged(object sender, EventArgs e)
-{
-    if (checkBox11.Checked == true)
-    {
-        isTraceRainZonation = true;
-        checkBox12.Enabled = true; // graphics
-    }
-    else
-    {
-        isTraceRainZonation = false;
-        checkBox12.Enabled = false; // graphics
-    }
-}
-
-private void checkBoxSoluteTracer_CheckedChanged(object sender, EventArgs e)
-{
-    if (checkBoxSoluteTracer.Checked == true)
-    {
-        isTraceSolutes = true;
-        //checkBoxSoluteView.Enabled = true;
-    }
-    else
-    {
-        isTraceSolutes = false;
-        //checkBoxSoluteView.Enabled = false;
-    }
-}
-
-private void checkBox12_CheckedChanged(object sender, EventArgs e)
-{
-    tracergb_initialising = true;
-
-    comboBox2.Items.Clear();
-    comboBox3.Items.Clear();
-    comboBox4.Items.Clear();
-    //comboBox2.Items.Add(" ");
-    //comboBox3.Items.Add(" ");
-    //comboBox4.Items.Add(" ");
-    comboBox2.Items.Add("0 : [none]"); // MDW_V2
-    comboBox3.Items.Add("0 : [none]"); // MDW_V2
-    comboBox4.Items.Add("0 : [none]"); // MDW_V2
-
-    if (checkBox12.Checked == true)
-    {
-
-        if (checkBoxSoluteVis.Checked == true) // MDW_V2 - both can't be active simultaneously
-        {
-            checkBoxSoluteVis.Checked = false;
-        }
-
-        // Add rain zones to the lists
-        for (int z = 0; z < nRainZones; z++) // MDW_V2 updated index and string below
-        {
-            comboBox2.Items.Add(Convert.ToString(z + 1) + " : rain zone " + Convert.ToString(rainZones[z]));
-            comboBox3.Items.Add(Convert.ToString(z + 1) + " : rain zone " + Convert.ToString(rainZones[z]));
-            comboBox4.Items.Add(Convert.ToString(z + 1) + " : rain zone " + Convert.ToString(rainZones[z]));
-        }
-        // Assign selected layer for first time
-        if (tracerain_rgb[0] == -1)
-        {
-            comboBox2.SelectedIndex = 1; tracerain_rgb[0] = 1;
-            if (nRainZones > 1) { comboBox3.SelectedIndex = 2; tracerain_rgb[1] = 2; } // does not default to zero if not loaded
-            else { comboBox3.SelectedIndex = 0; tracerain_rgb[1] = 0; }
-            if (nRainZones > 2) { comboBox4.SelectedIndex = 3; tracerain_rgb[2] = 3; } // does not default to zero if not loaded
-            else { comboBox4.SelectedIndex = 0; tracerain_rgb[2] = 0; }
-
-        }
-        // or to the one previously selected
-        else
-        {
-            comboBox2.SelectedIndex = tracerain_rgb[0];
-            comboBox3.SelectedIndex = tracerain_rgb[1];
-            comboBox4.SelectedIndex = tracerain_rgb[2];
-        }
-    }
-    else
-    {
-
-        if (checkBoxSoluteVis.Checked == true) // MDW_V2 - both can't be active simultaneously
-        {
-            return; // do nothing: checkBoxSoluteVis_CheckedChanged will handle this
-        }
-
-        for (int z = 0; z < nSources; z++) // MDW_V2 updated to zero index
-        {
-            // MDW_V2 - source selector box string generation, updated indices
-            string comboText = "";
-            if (z == 0) // tide source
-            {
-                if (checkBox3.Checked == true)
-                {
-                    comboText = Convert.ToString(z + 1) + " : Stage";
-                }
+                // or to the one previously selected
                 else
                 {
-                    comboText = Convert.ToString(z + 1) + " : Stage [not active]";
+                    comboBox2.SelectedIndex = tracerain_rgb[0];
+                    comboBox3.SelectedIndex = tracerain_rgb[1];
+                    comboBox4.SelectedIndex = tracerain_rgb[2];
                 }
             }
-            else if (z == 1) // rain source
+            else
             {
-                if (catchment_mode_box.Checked == true)
+
+                if (checkBoxSoluteVis.Checked == true) // MDW_V2 - both can't be active simultaneously
                 {
-                    comboText = Convert.ToString(z + 1) + " : Rain";
+                    return; // do nothing: checkBoxSoluteVis_CheckedChanged will handle this
                 }
+
+                for (int z = 0; z < nSources; z++) // MDW_V2 updated to zero index
+                {
+                    // MDW_V2 - source selector box string generation, updated indices
+                    string comboText = "";
+                    if (z == 0) // tide source
+                    {
+                        if (checkBox3.Checked == true)
+                        {
+                            comboText = Convert.ToString(z + 1) + " : Stage";
+                        }
+                        else
+                        {
+                            comboText = Convert.ToString(z + 1) + " : Stage [not active]";
+                        }
+                    }
+                    else if (z == 1) // rain source
+                    {
+                        if (catchment_mode_box.Checked == true)
+                        {
+                            comboText = Convert.ToString(z + 1) + " : Rain";
+                        }
+                        else
+                        {
+                            comboText = Convert.ToString(z + 1) + " : Rain [not active]";
+                        }
+                    }
+                    else if (z >= 2) // hydro sources
+                    {
+                        comboText = Convert.ToString(z + 1) + " : " + inputfilenames[z - sourceIndexAddition];
+                    }
+                    comboBox2.Items.Add(comboText);
+                    comboBox3.Items.Add(comboText);
+                    comboBox4.Items.Add(comboText);
+                }
+                // Assign selected layer to the one previously selected
+                comboBox2.SelectedIndex = trace_rgb[0];
+                comboBox3.SelectedIndex = trace_rgb[1];
+                comboBox4.SelectedIndex = trace_rgb[2];
+            }
+            tracergb_initialising = false;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+
+        private void checkBoxSoluteVis_CheckedChanged(object sender, EventArgs e) // MDW_V2
+        {
+
+            tracergb_initialising = true;
+
+            comboBox2.Items.Clear();
+            comboBox3.Items.Clear();
+            comboBox4.Items.Clear();
+            //comboBox2.Items.Add(" ");
+            //comboBox3.Items.Add(" ");
+            //comboBox4.Items.Add(" ");
+            comboBox2.Items.Add("0 : [none]"); // MDW_V2
+            comboBox3.Items.Add("0 : [none]"); // MDW_V2
+            comboBox4.Items.Add("0 : [none]"); // MDW_V2
+
+            if (checkBoxSoluteVis.Checked == true)
+            {
+                if (checkBox12.Checked == true)
+                {
+                    checkBox12.Checked = false;
+                }
+
+                // Add rain zones to the lists
+                for (int z = 0; z < nSolutes; z++) // MDW_V2 updated index and string below
+                {
+                    comboBox2.Items.Add(Convert.ToString(z + 1) + " : solute " + Convert.ToString(z + 1));
+                    comboBox3.Items.Add(Convert.ToString(z + 1) + " : solute " + Convert.ToString(z + 1));
+                    comboBox4.Items.Add(Convert.ToString(z + 1) + " : solute " + Convert.ToString(z + 1));
+                }
+                // Assign selected layer for first time
+                if (tracesolute_rgb[0] == -1)
+                {
+                    comboBox2.SelectedIndex = 1; tracesolute_rgb[0] = 1;
+                    if (nSolutes > 1) { comboBox3.SelectedIndex = 2; tracesolute_rgb[1] = 2; } // does not default to zero if not loaded
+                    else { comboBox3.SelectedIndex = 0; tracesolute_rgb[1] = 0; }
+                    if (nSolutes > 2) { comboBox4.SelectedIndex = 3; tracesolute_rgb[2] = 3; } // does not default to zero if not loaded
+                    else { comboBox4.SelectedIndex = 0; tracesolute_rgb[2] = 0; }
+
+                }
+                // or to the one previously selected
                 else
                 {
-                    comboText = Convert.ToString(z + 1) + " : Rain [not active]";
+                    comboBox2.SelectedIndex = tracesolute_rgb[0];
+                    comboBox3.SelectedIndex = tracesolute_rgb[1];
+                    comboBox4.SelectedIndex = tracesolute_rgb[2];
                 }
             }
-            else if (z >= 2) // hydro sources
+            else
             {
-                comboText = Convert.ToString(z + 1) + " : " + inputfilenames[z - sourceIndexAddition];
+                if (checkBox12.Checked == true)
+                {
+                    return; // Do nothing: checkBox12_CheckedChanged will handle this
+                }
+
+                for (int z = 0; z < nSources; z++) // MDW_V2 updated to zero index
+                {
+                    // MDW_V2 - source selector box string generation, updated indices
+                    string comboText = "";
+                    if (z == 0) // tide source
+                    {
+                        if (checkBox3.Checked == true)
+                        {
+                            comboText = Convert.ToString(z + 1) + " : Stage";
+                        }
+                        else
+                        {
+                            comboText = Convert.ToString(z + 1) + " : Stage [not active]";
+                        }
+                    }
+                    else if (z == 1) // rain source
+                    {
+                        if (catchment_mode_box.Checked == true)
+                        {
+                            comboText = Convert.ToString(z + 1) + " : Rain";
+                        }
+                        else
+                        {
+                            comboText = Convert.ToString(z + 1) + " : Rain [not active]";
+                        }
+                    }
+                    else if (z >= 2) // hydro sources
+                    {
+                        comboText = Convert.ToString(z + 1) + " : " + inputfilenames[z - sourceIndexAddition];
+                    }
+                    comboBox2.Items.Add(comboText);
+                    comboBox3.Items.Add(comboText);
+                    comboBox4.Items.Add(comboText);
+                }
+                // Assign selected layer to the one previously selected
+                comboBox2.SelectedIndex = trace_rgb[0];
+                comboBox3.SelectedIndex = trace_rgb[1];
+                comboBox4.SelectedIndex = trace_rgb[2];
             }
-            comboBox2.Items.Add(comboText);
-            comboBox3.Items.Add(comboText);
-            comboBox4.Items.Add(comboText);
-        }
-        // Assign selected layer to the one previously selected
-        comboBox2.SelectedIndex = trace_rgb[0];
-        comboBox3.SelectedIndex = trace_rgb[1];
-        comboBox4.SelectedIndex = trace_rgb[2];
-    }
-    tracergb_initialising = false;
-    this.Refresh();
-    drawwater(mygraphics);
-}
-
-private void checkBoxSoluteVis_CheckedChanged(object sender, EventArgs e) // MDW_V2
-{
-
-    tracergb_initialising = true;
-
-    comboBox2.Items.Clear();
-    comboBox3.Items.Clear();
-    comboBox4.Items.Clear();
-    //comboBox2.Items.Add(" ");
-    //comboBox3.Items.Add(" ");
-    //comboBox4.Items.Add(" ");
-    comboBox2.Items.Add("0 : [none]"); // MDW_V2
-    comboBox3.Items.Add("0 : [none]"); // MDW_V2
-    comboBox4.Items.Add("0 : [none]"); // MDW_V2
-
-    if (checkBoxSoluteVis.Checked == true)
-    {
-        if (checkBox12.Checked == true)
-        {
-            checkBox12.Checked = false;
-        }
-
-        // Add rain zones to the lists
-        for (int z = 0; z < nSolutes; z++) // MDW_V2 updated index and string below
-        {
-            comboBox2.Items.Add(Convert.ToString(z + 1) + " : solute " + Convert.ToString(z + 1));
-            comboBox3.Items.Add(Convert.ToString(z + 1) + " : solute " + Convert.ToString(z + 1));
-            comboBox4.Items.Add(Convert.ToString(z + 1) + " : solute " + Convert.ToString(z + 1));
-        }
-        // Assign selected layer for first time
-        if (tracesolute_rgb[0] == -1)
-        {
-            comboBox2.SelectedIndex = 1; tracesolute_rgb[0] = 1;
-            if (nSolutes > 1) { comboBox3.SelectedIndex = 2; tracesolute_rgb[1] = 2; } // does not default to zero if not loaded
-            else { comboBox3.SelectedIndex = 0; tracesolute_rgb[1] = 0; }
-            if (nSolutes > 2) { comboBox4.SelectedIndex = 3; tracesolute_rgb[2] = 3; } // does not default to zero if not loaded
-            else { comboBox4.SelectedIndex = 0; tracesolute_rgb[2] = 0; }
+            tracergb_initialising = false;
+            this.Refresh();
+            drawwater(mygraphics);
 
         }
-        // or to the one previously selected
-        else
-        {
-            comboBox2.SelectedIndex = tracesolute_rgb[0];
-            comboBox3.SelectedIndex = tracesolute_rgb[1];
-            comboBox4.SelectedIndex = tracesolute_rgb[2];
-        }
-    }
-    else
-    {
-        if (checkBox12.Checked == true)
-        {
-            return; // Do nothing: checkBox12_CheckedChanged will handle this
-        }
 
-        for (int z = 0; z < nSources; z++) // MDW_V2 updated to zero index
+        private void OilTab_checkBox_CheckedChanged(object sender, EventArgs e)
         {
-            // MDW_V2 - source selector box string generation, updated indices
-            string comboText = "";
-            if (z == 0) // tide source
+            if (OilTab_checkBox.Checked == true)
             {
-                if (checkBox3.Checked == true)
-                {
-                    comboText = Convert.ToString(z + 1) + " : Stage";
-                }
-                else
-                {
-                    comboText = Convert.ToString(z + 1) + " : Stage [not active]";
-                }
+                isOilSimulation = true;
+                //checkBox11.Enabled = true; //MDW_V2 changed from visible, so it shows greyed out by default
+                //textBox20.Enabled = true;  //
+                //checkBoxSoluteTracer.Enabled = true; //MDW_V2
+                //labelSoluteNumber.Enabled = true;
             }
-            else if (z == 1) // rain source
+            else
             {
-                if (catchment_mode_box.Checked == true)
-                {
-                    comboText = Convert.ToString(z + 1) + " : Rain";
-                }
-                else
-                {
-                    comboText = Convert.ToString(z + 1) + " : Rain [not active]";
-                }
+                isOilSimulation = false;
+                //checkBox11.Enabled = false; //MDW_V2 changed from visible, so it shows greyed out by default
+                //textBox20.Enabled = false;  //
+                //checkBoxSoluteTracer.Enabled = false; //MDW_V2
+                //labelSoluteNumber.Enabled = false;
             }
-            else if (z >= 2) // hydro sources
-            {
-                comboText = Convert.ToString(z + 1) + " : " + inputfilenames[z - sourceIndexAddition];
-            }
-            comboBox2.Items.Add(comboText);
-            comboBox3.Items.Add(comboText);
-            comboBox4.Items.Add(comboText);
         }
-        // Assign selected layer to the one previously selected
-        comboBox2.SelectedIndex = trace_rgb[0];
-        comboBox3.SelectedIndex = trace_rgb[1];
-        comboBox4.SelectedIndex = trace_rgb[2];
-    }
-    tracergb_initialising = false;
-    this.Refresh();
-    drawwater(mygraphics);
-
-}
-
-private void OilTab_checkBox_CheckedChanged(object sender, EventArgs e)
-{
-    if (OilTab_checkBox.Checked == true)
-    {
-        isOilSimulation = true;
-        //checkBox11.Enabled = true; //MDW_V2 changed from visible, so it shows greyed out by default
-        //textBox20.Enabled = true;  //
-        //checkBoxSoluteTracer.Enabled = true; //MDW_V2
-        //labelSoluteNumber.Enabled = true;
-    }
-    else
-    {
-        isOilSimulation = false;
-        //checkBox11.Enabled = false; //MDW_V2 changed from visible, so it shows greyed out by default
-        //textBox20.Enabled = false;  //
-        //checkBoxSoluteTracer.Enabled = false; //MDW_V2
-        //labelSoluteNumber.Enabled = false;
-    }
-}
 
 
 
-private void menuItem10_Click(object sender, EventArgs e)
-{
-    menuItem10.Checked = (!menuItem10.Checked);
-    if (menuItem10.Checked == true)
-    {
-        comboBox1.Items.Add("water source tracer");
-    }
-    else
-    {
-        comboBox1.Items.Remove("water source tracer");
-    }
-    popComboBox1();
-    updateClick = 1;
-    this.Refresh();
-    drawwater(mygraphics);
-}
+        private void menuItem10_Click(object sender, EventArgs e)
+        {
+            menuItem10.Checked = (!menuItem10.Checked);
+            if (menuItem10.Checked == true)
+            {
+                comboBox1.Items.Add("water source tracer");
+            }
+            else
+            {
+                comboBox1.Items.Remove("water source tracer");
+            }
+            popComboBox1();
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
     }
 
     class point
-{
-    //lat long variables
-    public double xcoord;
-    public double ycoord;
-    public int UTMzone;
-    public bool south;
-    double transParallelX = 446.448;
-    double transParallelY = -125.157;
-    double transParallelZ = 542.060;
-    double scaleChange = -20.4894 * 0.000001;
-    double rotX = (0.1502 / 3600) * (Math.PI / 180);
-    double rotY = (0.2470 / 3600) * (Math.PI / 180);
-    double rotZ = (0.8421 / 3600) * (Math.PI / 180);
-    double a = 6377563.396; //airy 1830 semi-major axis
-    double b = 6356256.910; //airy 1830 semi-minor axis
-    double a2 = 6378137.000;
-    double b2 = 6356752.3142;
-    double eSquared = 0;
-    double eSquared2 = 0;
-    double nO = -100000;//northing of true origin
-    double eO = 400000;//easting of true origin
-    double fO = 0.9996012717;//scale factor
-    double latTrue = 49.0 * (Math.PI / 180.0);//latitude of true origin
-    double longTrue = -2.0 * (Math.PI / 180.0);//longitude of true origin
-    double psiHash, MBig, v, v2, v3, nLittle, rho, nSquare = 0;
-    double vii, viii, ix, Tx2, xi, xii, xiia = 0;
-    double helmertX, helmertY, helmertZ, cartX, cartY, cartZ;
-    double Height2 = 0;
-    double finalLati, finalLongi, latiRad, longiRad = 0;
-    double rootXYSqr = 0;
-    double PHI1, PHI2, PHI = 0;
-
-    public point(double theXcoord, double theYcoord)//constructor
     {
-        this.xcoord = theXcoord;
-        this.ycoord = theYcoord;
-    }
+        //lat long variables
+        public double xcoord;
+        public double ycoord;
+        public int UTMzone;
+        public bool south;
+        double transParallelX = 446.448;
+        double transParallelY = -125.157;
+        double transParallelZ = 542.060;
+        double scaleChange = -20.4894 * 0.000001;
+        double rotX = (0.1502 / 3600) * (Math.PI / 180);
+        double rotY = (0.2470 / 3600) * (Math.PI / 180);
+        double rotZ = (0.8421 / 3600) * (Math.PI / 180);
+        double a = 6377563.396; //airy 1830 semi-major axis
+        double b = 6356256.910; //airy 1830 semi-minor axis
+        double a2 = 6378137.000;
+        double b2 = 6356752.3142;
+        double eSquared = 0;
+        double eSquared2 = 0;
+        double nO = -100000;//northing of true origin
+        double eO = 400000;//easting of true origin
+        double fO = 0.9996012717;//scale factor
+        double latTrue = 49.0 * (Math.PI / 180.0);//latitude of true origin
+        double longTrue = -2.0 * (Math.PI / 180.0);//longitude of true origin
+        double psiHash, MBig, v, v2, v3, nLittle, rho, nSquare = 0;
+        double vii, viii, ix, Tx2, xi, xii, xiia = 0;
+        double helmertX, helmertY, helmertZ, cartX, cartY, cartZ;
+        double Height2 = 0;
+        double finalLati, finalLongi, latiRad, longiRad = 0;
+        double rootXYSqr = 0;
+        double PHI1, PHI2, PHI = 0;
 
-    public void transformPoint()//british os to lat long
-    {
-        eSquared = (Math.Pow(a, 2) - Math.Pow(b, 2)) / Math.Pow(a, 2);
-        Height2 = 0;
-
-        //OSGB36 easting and northing to OSGB36 latitude and longitude (lower left corner of DTM)
-        psiHash = ((this.ycoord - nO) / (a * fO)) + latTrue;
-        nLittle = (a - b) / (a + b);
-        MBig = b * fO * (((1 + nLittle + ((5.0 / 4.0) * Math.Pow(nLittle, 2)) + ((5.0 / 4.0) * Math.Pow(nLittle, 3))) * (psiHash -
-                 latTrue))
-           - (((3.0 * nLittle) + (3.0 * Math.Pow(nLittle, 2)) + ((21.0 / 8.0) * Math.Pow(nLittle, 3))) *
-                 Math.Sin(psiHash - latTrue) * Math.Cos(psiHash + latTrue))
-           + (((15.0 / 8.0 * Math.Pow(nLittle, 2)) + (15.0 / 8.0 * Math.Pow(nLittle, 3))) * Math.Sin(2.0 * (psiHash - latTrue)) * Math.Cos(2.0 * (psiHash + latTrue)))
-           - ((35.0 / 24.0 * Math.Pow(nLittle, 3)) * Math.Sin(3.0 * (psiHash - latTrue)) * Math.Cos(3.0 * (psiHash + latTrue))));
-        if (Math.Abs((this.ycoord - nO - MBig)) >= 0.01)
+        public point(double theXcoord, double theYcoord)//constructor
         {
-            while (Math.Abs((this.ycoord - nO - MBig)) >= 0.01)
+            this.xcoord = theXcoord;
+            this.ycoord = theYcoord;
+        }
+
+        public void transformPoint()//british os to lat long
+        {
+            eSquared = (Math.Pow(a, 2) - Math.Pow(b, 2)) / Math.Pow(a, 2);
+            Height2 = 0;
+
+            //OSGB36 easting and northing to OSGB36 latitude and longitude (lower left corner of DTM)
+            psiHash = ((this.ycoord - nO) / (a * fO)) + latTrue;
+            nLittle = (a - b) / (a + b);
+            MBig = b * fO * (((1 + nLittle + ((5.0 / 4.0) * Math.Pow(nLittle, 2)) + ((5.0 / 4.0) * Math.Pow(nLittle, 3))) * (psiHash -
+                     latTrue))
+               - (((3.0 * nLittle) + (3.0 * Math.Pow(nLittle, 2)) + ((21.0 / 8.0) * Math.Pow(nLittle, 3))) *
+                     Math.Sin(psiHash - latTrue) * Math.Cos(psiHash + latTrue))
+               + (((15.0 / 8.0 * Math.Pow(nLittle, 2)) + (15.0 / 8.0 * Math.Pow(nLittle, 3))) * Math.Sin(2.0 * (psiHash - latTrue)) * Math.Cos(2.0 * (psiHash + latTrue)))
+               - ((35.0 / 24.0 * Math.Pow(nLittle, 3)) * Math.Sin(3.0 * (psiHash - latTrue)) * Math.Cos(3.0 * (psiHash + latTrue))));
+            if (Math.Abs((this.ycoord - nO - MBig)) >= 0.01)
             {
-                psiHash = ((this.ycoord - nO - MBig) / (a * fO)) + psiHash;
-                MBig = b * fO * (((1 + nLittle + ((5.0 / 4.0) * Math.Pow(nLittle, 2)) + ((5.0 / 4.0) * Math.Pow(nLittle, 3))) * (psiHash -
-                   latTrue))
-             - (((3.0 * nLittle) + (3.0 * Math.Pow(nLittle, 2)) + ((21.0 / 8.0) * Math.Pow(nLittle, 3))) *
-                   Math.Sin(psiHash - latTrue) * Math.Cos(psiHash + latTrue))
-             + (((15.0 / 8.0 * Math.Pow(nLittle, 2)) + (15.0 / 8.0 * Math.Pow(nLittle, 3))) * Math.Sin(2.0 * (psiHash - latTrue)) * Math.Cos(2.0 * (psiHash + latTrue)))
-             - ((35.0 / 24.0 * Math.Pow(nLittle, 3)) * Math.Sin(3.0 * (psiHash - latTrue)) * Math.Cos(3.0 * (psiHash + latTrue))));
+                while (Math.Abs((this.ycoord - nO - MBig)) >= 0.01)
+                {
+                    psiHash = ((this.ycoord - nO - MBig) / (a * fO)) + psiHash;
+                    MBig = b * fO * (((1 + nLittle + ((5.0 / 4.0) * Math.Pow(nLittle, 2)) + ((5.0 / 4.0) * Math.Pow(nLittle, 3))) * (psiHash -
+                       latTrue))
+                 - (((3.0 * nLittle) + (3.0 * Math.Pow(nLittle, 2)) + ((21.0 / 8.0) * Math.Pow(nLittle, 3))) *
+                       Math.Sin(psiHash - latTrue) * Math.Cos(psiHash + latTrue))
+                 + (((15.0 / 8.0 * Math.Pow(nLittle, 2)) + (15.0 / 8.0 * Math.Pow(nLittle, 3))) * Math.Sin(2.0 * (psiHash - latTrue)) * Math.Cos(2.0 * (psiHash + latTrue)))
+                 - ((35.0 / 24.0 * Math.Pow(nLittle, 3)) * Math.Sin(3.0 * (psiHash - latTrue)) * Math.Cos(3.0 * (psiHash + latTrue))));
+                }
             }
-        }
-        v = a * fO * Math.Pow(1 - eSquared * Math.Pow(Math.Sin(psiHash), 2), -.5);
-        rho = a * fO * (1 - eSquared) * Math.Pow(1.0 - eSquared * Math.Pow(Math.Sin(psiHash), 2), -1.5);
-        nSquare = v / rho - 1.0;
-        vii = (Math.Tan(psiHash)) / (2.0 * rho * v);
-        viii = ((Math.Tan(psiHash)) / (24.0 * rho * Math.Pow(v, 3))) * (5 + 3.0 * Math.Pow(Math.Tan(psiHash), 2) + nSquare - 9.0 * (Math.Pow(Math.Tan(psiHash), 2) * nSquare));
-        ix = (Math.Tan(psiHash) / ((720.0 * rho * Math.Pow(v, 5)))) * (61 + 90.0 * Math.Pow(Math.Tan(psiHash), 2) + 45.0 * Math.Pow(Math.Tan(psiHash), 4));
-        Tx2 = (1.0 / Math.Cos(psiHash)) / v;
-        xi = (1.0 / Math.Cos(psiHash)) / (6.0 * Math.Pow(v, 3)) * ((v / rho) + (2.0 * Math.Pow(Math.Tan(psiHash), 2)));
-        xii = (1.0 / Math.Cos(psiHash)) / (120.0 * Math.Pow(v, 5)) * (5.0 + (28.0 * Math.Pow(Math.Tan(psiHash), 2)) + (24.0 * Math.Pow(Math.Tan(psiHash), 4)));
-        xiia = ((1.0 / Math.Cos(psiHash)) / (5040.0 * Math.Pow(v, 7))) * (61.0 + (662.0 * Math.Pow(Math.Tan(psiHash), 2)) + (1320.0 * Math.Pow(Math.Tan(psiHash), 4)) + (720.0 * Math.Pow(Math.Tan(psiHash), 6)));
-        latiRad = psiHash - (vii * Math.Pow((this.xcoord - eO), 2)) + (viii * Math.Pow((this.xcoord - eO), 4)) - (ix * Math.Pow((this.xcoord - eO), 6));
-        longiRad = longTrue + (Tx2 * (this.xcoord - eO)) - (xi * (Math.Pow((this.xcoord - eO), 3))) + (xii * (Math.Pow((this.xcoord - eO), 5))) - (xiia * (Math.Pow((this.xcoord - eO), 7)));
-        //Console.WriteLine(latiRad * (180 / Math.PI));
-        //Console.WriteLine(longiRad * (180 / Math.PI));
-        //OSGB36 Latitude Longitude Height to OSGB36 Cartesian XYZ
-        v2 = a / (Math.Sqrt(1 - (eSquared * ((Math.Pow(Math.Sin(latiRad), 2))))));
-        cartX = (v2 + Height2) * Math.Cos(latiRad) * Math.Cos(longiRad);
-        cartY = (v2 + Height2) * (Math.Cos(latiRad) * Math.Sin(longiRad));
-        cartZ = ((v2 * (1 - eSquared)) + Height2) * Math.Sin(latiRad);
-        //Console.WriteLine();
-        //Console.WriteLine(cartX);
-        //Console.WriteLine(cartY);
-        //Helmert Datum Transformation (OSGB36 to WGS84)
-        helmertX = cartX + (cartX * scaleChange) - (cartY * rotZ) + (cartZ * rotY) + transParallelX;
-        helmertY = (cartX * rotZ) + cartY + (cartY * scaleChange) - (cartZ * rotX) + transParallelY;
-        helmertZ = (-1 * cartX * rotY) + (cartY * rotX) + cartZ + (cartZ * scaleChange) + transParallelZ;
-        //Console.WriteLine();
-        //Console.WriteLine(helmertX);
-        //Console.WriteLine(helmertY);
-        //WGS84 Cartesian XYZ to WGS84 Latitude, longitude and Ellipsoidal height								
-        rootXYSqr = Math.Sqrt((Math.Pow(helmertX, 2)) + (Math.Pow(helmertY, 2)));
-        eSquared2 = (Math.Pow(a2, 2) - Math.Pow(b2, 2)) / Math.Pow(a2, 2);
-        PHI1 = Math.Atan(helmertZ / (rootXYSqr * (1 - eSquared2)));
-        v3 = a2 / (Math.Sqrt(1.0 - (eSquared2 * ((Math.Pow(Math.Sin(PHI1), 2))))));
-        PHI2 = Math.Atan((helmertZ + (eSquared2 * v3 * (Math.Sin(PHI1)))) / rootXYSqr);
-        while (Math.Abs(PHI1 - PHI2) > 0.000000001)
-        {
-            PHI1 = PHI2;
-            v3 = a2 / (Math.Sqrt(1 - (eSquared2 * ((Math.Pow(Math.Sin(PHI1), 2))))));
+            v = a * fO * Math.Pow(1 - eSquared * Math.Pow(Math.Sin(psiHash), 2), -.5);
+            rho = a * fO * (1 - eSquared) * Math.Pow(1.0 - eSquared * Math.Pow(Math.Sin(psiHash), 2), -1.5);
+            nSquare = v / rho - 1.0;
+            vii = (Math.Tan(psiHash)) / (2.0 * rho * v);
+            viii = ((Math.Tan(psiHash)) / (24.0 * rho * Math.Pow(v, 3))) * (5 + 3.0 * Math.Pow(Math.Tan(psiHash), 2) + nSquare - 9.0 * (Math.Pow(Math.Tan(psiHash), 2) * nSquare));
+            ix = (Math.Tan(psiHash) / ((720.0 * rho * Math.Pow(v, 5)))) * (61 + 90.0 * Math.Pow(Math.Tan(psiHash), 2) + 45.0 * Math.Pow(Math.Tan(psiHash), 4));
+            Tx2 = (1.0 / Math.Cos(psiHash)) / v;
+            xi = (1.0 / Math.Cos(psiHash)) / (6.0 * Math.Pow(v, 3)) * ((v / rho) + (2.0 * Math.Pow(Math.Tan(psiHash), 2)));
+            xii = (1.0 / Math.Cos(psiHash)) / (120.0 * Math.Pow(v, 5)) * (5.0 + (28.0 * Math.Pow(Math.Tan(psiHash), 2)) + (24.0 * Math.Pow(Math.Tan(psiHash), 4)));
+            xiia = ((1.0 / Math.Cos(psiHash)) / (5040.0 * Math.Pow(v, 7))) * (61.0 + (662.0 * Math.Pow(Math.Tan(psiHash), 2)) + (1320.0 * Math.Pow(Math.Tan(psiHash), 4)) + (720.0 * Math.Pow(Math.Tan(psiHash), 6)));
+            latiRad = psiHash - (vii * Math.Pow((this.xcoord - eO), 2)) + (viii * Math.Pow((this.xcoord - eO), 4)) - (ix * Math.Pow((this.xcoord - eO), 6));
+            longiRad = longTrue + (Tx2 * (this.xcoord - eO)) - (xi * (Math.Pow((this.xcoord - eO), 3))) + (xii * (Math.Pow((this.xcoord - eO), 5))) - (xiia * (Math.Pow((this.xcoord - eO), 7)));
+            //Console.WriteLine(latiRad * (180 / Math.PI));
+            //Console.WriteLine(longiRad * (180 / Math.PI));
+            //OSGB36 Latitude Longitude Height to OSGB36 Cartesian XYZ
+            v2 = a / (Math.Sqrt(1 - (eSquared * ((Math.Pow(Math.Sin(latiRad), 2))))));
+            cartX = (v2 + Height2) * Math.Cos(latiRad) * Math.Cos(longiRad);
+            cartY = (v2 + Height2) * (Math.Cos(latiRad) * Math.Sin(longiRad));
+            cartZ = ((v2 * (1 - eSquared)) + Height2) * Math.Sin(latiRad);
+            //Console.WriteLine();
+            //Console.WriteLine(cartX);
+            //Console.WriteLine(cartY);
+            //Helmert Datum Transformation (OSGB36 to WGS84)
+            helmertX = cartX + (cartX * scaleChange) - (cartY * rotZ) + (cartZ * rotY) + transParallelX;
+            helmertY = (cartX * rotZ) + cartY + (cartY * scaleChange) - (cartZ * rotX) + transParallelY;
+            helmertZ = (-1 * cartX * rotY) + (cartY * rotX) + cartZ + (cartZ * scaleChange) + transParallelZ;
+            //Console.WriteLine();
+            //Console.WriteLine(helmertX);
+            //Console.WriteLine(helmertY);
+            //WGS84 Cartesian XYZ to WGS84 Latitude, longitude and Ellipsoidal height
+            rootXYSqr = Math.Sqrt((Math.Pow(helmertX, 2)) + (Math.Pow(helmertY, 2)));
+            eSquared2 = (Math.Pow(a2, 2) - Math.Pow(b2, 2)) / Math.Pow(a2, 2);
+            PHI1 = Math.Atan(helmertZ / (rootXYSqr * (1 - eSquared2)));
+            v3 = a2 / (Math.Sqrt(1.0 - (eSquared2 * ((Math.Pow(Math.Sin(PHI1), 2))))));
             PHI2 = Math.Atan((helmertZ + (eSquared2 * v3 * (Math.Sin(PHI1)))) / rootXYSqr);
+            while (Math.Abs(PHI1 - PHI2) > 0.000000001)
+            {
+                PHI1 = PHI2;
+                v3 = a2 / (Math.Sqrt(1 - (eSquared2 * ((Math.Pow(Math.Sin(PHI1), 2))))));
+                PHI2 = Math.Atan((helmertZ + (eSquared2 * v3 * (Math.Sin(PHI1)))) / rootXYSqr);
+            }
+            PHI = PHI2;
+            finalLati = PHI * (180.0 / Math.PI);
+            finalLongi = (Math.Atan(helmertY / helmertX)) * (180.0 / Math.PI);
+            this.xcoord = finalLongi;
+            this.ycoord = finalLati;
         }
-        PHI = PHI2;
-        finalLati = PHI * (180.0 / Math.PI);
-        finalLongi = (Math.Atan(helmertY / helmertX)) * (180.0 / Math.PI);
-        this.xcoord = finalLongi;
-        this.ycoord = finalLati;
+
+        public void transformUTMPoint()
+        {
+            //transforms coordinates in UTM WGS84 to lat long
+            //requires x, y, zone and north/south
+            //the code in this function was found at http://home.hiwaay.net/~taylorc/toolbox/geography/geoutm.html
+            //made by Chuck Taylor
+            //tested in xls for points in Poland, Turkey and South Africa
+
+            // The code first calculates TM coordinates from UTM coordinates
+            // Then calculates corresponding latitude and longitude in radians
+            // Before converting back to degrees
+
+            // first version ArT 12-06-09
+
+            double footpointlatitude = 0;
+            double UTMscalefactor = 0.9996;
+            double centralmeridian_deg = 0;
+            double centralmeridian_rad = 0;
+            double y_ = 0;
+            double WGS84_sm_a = 6378137;
+            double WGS84_sm_b = 6356752.314;
+            double n = (WGS84_sm_a - WGS84_sm_b) / (WGS84_sm_a + WGS84_sm_b);
+
+            this.xcoord = (this.xcoord - 500000) / UTMscalefactor;
+            if (this.south) this.ycoord = (this.ycoord - 10000000) / UTMscalefactor;
+            else this.ycoord /= UTMscalefactor;
+
+            centralmeridian_deg = -183 + (this.UTMzone * 6);
+            centralmeridian_rad = centralmeridian_deg / 180 * Math.PI;
+
+            double alpha = (((WGS84_sm_a + WGS84_sm_b) / 2) * (1 + Math.Pow(n, 2) / 4) + (Math.Pow(n, 4) / 64));
+            double beta = (3 * n / 2) + (-27 * Math.Pow(n, 3) / 32) + (269 * Math.Pow(n, 5) / 512);
+            double gamma = (21 * Math.Pow(n, 2) / 16) + (-55 * Math.Pow(n, 4) / 32);
+            double delta = (151 * Math.Pow(n, 3) / 96) + (-417 * Math.Pow(n, 5) / 128);
+            double epsilon = (1097 * Math.Pow(n, 4) / 512);
+
+            y_ = this.ycoord / (alpha);
+            footpointlatitude = y_ + (beta * Math.Sin(2 * y_)) + (gamma * Math.Sin(4 * y_)) + (delta * Math.Sin(6 * y_)) + (epsilon * Math.Sin(8 * y_));
+
+            double ep2 = (Math.Pow(WGS84_sm_a, 2) - Math.Pow(WGS84_sm_b, 2)) / Math.Pow(WGS84_sm_b, 2);
+            double cf = Math.Cos(footpointlatitude);
+            double nuf2 = ep2 * Math.Pow(cf, 2);
+            double nf = Math.Pow(WGS84_sm_a, 2) / (WGS84_sm_b * Math.Sqrt(1 + nuf2));
+
+            double tf = Math.Tan(footpointlatitude);
+            double tf2 = Math.Pow(tf, 2);
+            double tf4 = Math.Pow(tf, 4);
+
+            double x1frac = 1 / (1 * Math.Pow(nf, 1) * cf);
+            double x2frac = tf / (2 * Math.Pow(nf, 2));
+            double x3frac = 1 / (6 * Math.Pow(nf, 3) * cf);
+            double x4frac = tf / (24 * Math.Pow(nf, 4));
+            double x5frac = 1 / (120 * Math.Pow(nf, 5) * cf);
+            double x6frac = tf / (720 * Math.Pow(nf, 6));
+            double x7frac = 1 / (5040 * Math.Pow(nf, 7) * cf);
+            double x8frac = tf / (40320 * Math.Pow(nf, 8));
+
+            double x2poly = -1 - nuf2;
+            double x3poly = -1 - nuf2 - (2 * tf2);
+            double x4poly = 5 + 3 * tf2 + 6 * nuf2 - 6 * tf2 * nuf2 - 3 * Math.Pow(nuf2, 2) - 9 * tf2 * nuf2 * nuf2;
+            double x5poly = 5 + 28 * tf2 + 24 * tf4 + 6 * nuf2 + 8 * tf2 * nuf2;
+            double x6poly = -61 - 90 * tf2 - 45 * tf4 - 107 * nuf2 + 162 * tf2 * nuf2;
+            double x7poly = -61 - 662 * tf2 - 1320 * tf4 - 720 * tf4 * tf2;
+            double x8poly = 1385 + 3633 * tf2 + 4095 * tf4 + 1575 * tf4 * tf2;
+
+            double latitude = footpointlatitude
+                            + x2frac * x2poly * Math.Pow(this.xcoord, 2)
+                            + x4frac * x4poly * Math.Pow(this.xcoord, 4)
+                            + x6frac * x6poly * Math.Pow(this.xcoord, 6)
+                            + x8frac * x8poly * Math.Pow(this.xcoord, 8);
+            double longitude = centralmeridian_rad
+                            + x1frac * 1 * Math.Pow(this.xcoord, 1)
+                            + x3frac * x3poly * Math.Pow(this.xcoord, 3)
+                            + x5frac * x5poly * Math.Pow(this.xcoord, 5)
+                            + x7frac * x7poly * Math.Pow(this.xcoord, 7);
+
+            this.ycoord = latitude / Math.PI * 180;
+            this.xcoord = longitude / Math.PI * 180;
+        }
+
     }
-
-    public void transformUTMPoint()
-    {
-        //transforms coordinates in UTM WGS84 to lat long
-        //requires x, y, zone and north/south
-        //the code in this function was found at http://home.hiwaay.net/~taylorc/toolbox/geography/geoutm.html
-        //made by Chuck Taylor
-        //tested in xls for points in Poland, Turkey and South Africa
-
-        // The code first calculates TM coordinates from UTM coordinates
-        // Then calculates corresponding latitude and longitude in radians
-        // Before converting back to degrees
-
-        // first version ArT 12-06-09 
-
-        double footpointlatitude = 0;
-        double UTMscalefactor = 0.9996;
-        double centralmeridian_deg = 0;
-        double centralmeridian_rad = 0;
-        double y_ = 0;
-        double WGS84_sm_a = 6378137;
-        double WGS84_sm_b = 6356752.314;
-        double n = (WGS84_sm_a - WGS84_sm_b) / (WGS84_sm_a + WGS84_sm_b);
-
-        this.xcoord = (this.xcoord - 500000) / UTMscalefactor;
-        if (this.south) this.ycoord = (this.ycoord - 10000000) / UTMscalefactor;
-        else this.ycoord /= UTMscalefactor;
-
-        centralmeridian_deg = -183 + (this.UTMzone * 6);
-        centralmeridian_rad = centralmeridian_deg / 180 * Math.PI;
-
-        double alpha = (((WGS84_sm_a + WGS84_sm_b) / 2) * (1 + Math.Pow(n, 2) / 4) + (Math.Pow(n, 4) / 64));
-        double beta = (3 * n / 2) + (-27 * Math.Pow(n, 3) / 32) + (269 * Math.Pow(n, 5) / 512);
-        double gamma = (21 * Math.Pow(n, 2) / 16) + (-55 * Math.Pow(n, 4) / 32);
-        double delta = (151 * Math.Pow(n, 3) / 96) + (-417 * Math.Pow(n, 5) / 128);
-        double epsilon = (1097 * Math.Pow(n, 4) / 512);
-
-        y_ = this.ycoord / (alpha);
-        footpointlatitude = y_ + (beta * Math.Sin(2 * y_)) + (gamma * Math.Sin(4 * y_)) + (delta * Math.Sin(6 * y_)) + (epsilon * Math.Sin(8 * y_));
-
-        double ep2 = (Math.Pow(WGS84_sm_a, 2) - Math.Pow(WGS84_sm_b, 2)) / Math.Pow(WGS84_sm_b, 2);
-        double cf = Math.Cos(footpointlatitude);
-        double nuf2 = ep2 * Math.Pow(cf, 2);
-        double nf = Math.Pow(WGS84_sm_a, 2) / (WGS84_sm_b * Math.Sqrt(1 + nuf2));
-
-        double tf = Math.Tan(footpointlatitude);
-        double tf2 = Math.Pow(tf, 2);
-        double tf4 = Math.Pow(tf, 4);
-
-        double x1frac = 1 / (1 * Math.Pow(nf, 1) * cf);
-        double x2frac = tf / (2 * Math.Pow(nf, 2));
-        double x3frac = 1 / (6 * Math.Pow(nf, 3) * cf);
-        double x4frac = tf / (24 * Math.Pow(nf, 4));
-        double x5frac = 1 / (120 * Math.Pow(nf, 5) * cf);
-        double x6frac = tf / (720 * Math.Pow(nf, 6));
-        double x7frac = 1 / (5040 * Math.Pow(nf, 7) * cf);
-        double x8frac = tf / (40320 * Math.Pow(nf, 8));
-
-        double x2poly = -1 - nuf2;
-        double x3poly = -1 - nuf2 - (2 * tf2);
-        double x4poly = 5 + 3 * tf2 + 6 * nuf2 - 6 * tf2 * nuf2 - 3 * Math.Pow(nuf2, 2) - 9 * tf2 * nuf2 * nuf2;
-        double x5poly = 5 + 28 * tf2 + 24 * tf4 + 6 * nuf2 + 8 * tf2 * nuf2;
-        double x6poly = -61 - 90 * tf2 - 45 * tf4 - 107 * nuf2 + 162 * tf2 * nuf2;
-        double x7poly = -61 - 662 * tf2 - 1320 * tf4 - 720 * tf4 * tf2;
-        double x8poly = 1385 + 3633 * tf2 + 4095 * tf4 + 1575 * tf4 * tf2;
-
-        double latitude = footpointlatitude
-                        + x2frac * x2poly * Math.Pow(this.xcoord, 2)
-                        + x4frac * x4poly * Math.Pow(this.xcoord, 4)
-                        + x6frac * x6poly * Math.Pow(this.xcoord, 6)
-                        + x8frac * x8poly * Math.Pow(this.xcoord, 8);
-        double longitude = centralmeridian_rad
-                        + x1frac * 1 * Math.Pow(this.xcoord, 1)
-                        + x3frac * x3poly * Math.Pow(this.xcoord, 3)
-                        + x5frac * x5poly * Math.Pow(this.xcoord, 5)
-                        + x7frac * x7poly * Math.Pow(this.xcoord, 7);
-
-        this.ycoord = latitude / Math.PI * 180;
-        this.xcoord = longitude / Math.PI * 180;
-    }
-
-}
 
 
 
