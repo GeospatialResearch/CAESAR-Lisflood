@@ -10,7 +10,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>CAESAR_lisflood_1._0</RootNamespace>
     <AssemblyName>CAESAR-lisflood 2.0.1</AssemblyName>
-    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <StartupObject>caesar1.Form1</StartupObject>
     <ApplicationIcon>caesar1.ico</ApplicationIcon>
@@ -112,6 +112,9 @@
     </Compile>
     <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <EmbeddedResource Include="Caesar Lisflood 2.0.resx">
+      <DependentUpon>Caesar Lisflood 2.0.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Form2.resx">
       <DependentUpon>Form2.cs</DependentUpon>
     </EmbeddedResource>

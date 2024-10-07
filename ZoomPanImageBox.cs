@@ -15,59 +15,59 @@ using System.Windows.Forms;
 
 namespace Smallwisdom.Windows.Forms
 {
-	/// <summary>
-	/// ZoomPanImageBox is a specialized ImageBox with Pan and Zoom control.
-	/// </summary>
-	public class ZoomPanImageBox : System.Windows.Forms.UserControl
-	{
-		/// <summary>
-		/// The zoom factor for this control.  Currently, it is hardcoded, 
-		/// but perhaps a nice addition would be to set this?
-		/// </summary>
-		private double[] zoomFactor = {.25, .33, .50, .66, .80, 1, 1.25, 1.5, 2.0, 2.5, 3.0};
-		private System.Windows.Forms.Panel imagePanel;
-		private System.Windows.Forms.PictureBox imgBox;
+    /// <summary>
+    /// ZoomPanImageBox is a specialized ImageBox with Pan and Zoom control.
+    /// </summary>
+    public class ZoomPanImageBox : System.Windows.Forms.UserControl
+    {
+        /// <summary>
+        /// The zoom factor for this control.  Currently, it is hardcoded, 
+        /// but perhaps a nice addition would be to set this?
+        /// </summary>
+        private double[] zoomFactor = { .25, .33, .50, .66, .80, 1, 1.25, 1.5, 2.0, 2.5, 3.0 };
+        private System.Windows.Forms.Panel imagePanel;
+        private System.Windows.Forms.PictureBox imgBox;
         // zoom controls
 
-		/// <summary> 
-		/// Required designer variable.
-		/// </summary>
-		private System.ComponentModel.Container components = null;
+        /// <summary> 
+        /// Required designer variable.
+        /// </summary>
+        private System.ComponentModel.Container components = null;
 
-		#region Construct, Dispose
+        #region Construct, Dispose
 
-		public ZoomPanImageBox()
-		{
-			// This call is required by the Windows.Forms Form Designer.
-			InitializeComponent();
+        public ZoomPanImageBox()
+        {
+            // This call is required by the Windows.Forms Form Designer.
+            InitializeComponent();
 
-			// Initialize anything not included in the designer
-		}
+            // Initialize anything not included in the designer
+        }
 
-		/// <summary> 
-		/// Clean up any resources being used.
-		/// </summary>
-		protected override void Dispose( bool disposing )
-		{
-			if( disposing )
-			{
-				if(components != null)
-				{
-					components.Dispose();
-				}
-			}
-			base.Dispose( disposing );
-		}
+        /// <summary> 
+        /// Clean up any resources being used.
+        /// </summary>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                if (components != null)
+                {
+                    components.Dispose();
+                }
+            }
+            base.Dispose(disposing);
+        }
 
-		#endregion
+        #endregion
 
-		#region Component Designer generated code
-		/// <summary> 
-		/// Required method for Designer support - do not modify 
-		/// the contents of this method with the code editor.
-		/// </summary>
-		private void InitializeComponent()
-		{
+        #region Component Designer generated code
+        /// <summary> 
+        /// Required method for Designer support - do not modify 
+        /// the contents of this method with the code editor.
+        /// </summary>
+        private void InitializeComponent()
+        {
             this.imgBox = new System.Windows.Forms.PictureBox();
             this.imagePanel = new System.Windows.Forms.Panel();
             ((System.ComponentModel.ISupportInitialize)(this.imgBox)).BeginInit();
@@ -106,29 +106,29 @@ namespace Smallwisdom.Windows.Forms
             this.imagePanel.ResumeLayout(false);
             this.ResumeLayout(false);
 
-		}
-		#endregion
+        }
+        #endregion
 
-		/// <summary>
-		/// Initialization code goes here.
-		/// </summary>
-		
+        /// <summary>
+        /// Initialization code goes here.
+        /// </summary>
 
-		/// <summary>
-		/// Image loaded into the box.
-		/// </summary>
-		[Browsable(true),
-		Description("Image loaded into the box.")]
-		
+
+        /// <summary>
+        /// Image loaded into the box.
+        /// </summary>
+        [Browsable(true),
+        Description("Image loaded into the box.")]
+
         public Image Image
-		{
-			get
-			{
-				return imgBox.Image;
-			}
+        {
+            get
+            {
+                return imgBox.Image;
+            }
 
-			set
-			{
+            set
+            {
                 // Set the image value
                 imgBox.Image = value;
                 if (caesar1.Form1.updateClick == 0)
@@ -142,23 +142,23 @@ namespace Smallwisdom.Windows.Forms
                         imgBox.Size = value.Size;
                     }
                 }
-             
-			}
-		}
 
-		public void setZoom()
-		{
-			// The scrollZoom changed so reset the zoom factor
-			// based on the scrollZoom TrackBar position.
+            }
+        }
+
+        public void setZoom()
+        {
+            // The scrollZoom changed so reset the zoom factor
+            // based on the scrollZoom TrackBar position.
             double newZoom = caesar1.Form1.magnifyValue;
 
-			// Set the ImageBox width and height to the new zoom
-			// factor by multiplying the Image inside the Imagebox
-			// by the new zoom factor.
-			imgBox.Width = Convert.ToInt32 ( imgBox.Image.Width * newZoom); 
-			imgBox.Height = Convert.ToInt32 ( imgBox.Image.Height * newZoom );
-           
-		}
+            // Set the ImageBox width and height to the new zoom
+            // factor by multiplying the Image inside the Imagebox
+            // by the new zoom factor.
+            imgBox.Width = Convert.ToInt32(imgBox.Image.Width * newZoom);
+            imgBox.Height = Convert.ToInt32(imgBox.Image.Height * newZoom);
+
+        }
 
 
         private void clicky(object sender, MouseEventArgs e)
@@ -188,10 +188,10 @@ namespace Smallwisdom.Windows.Forms
 
 
                 // MDW_V2 add each of the water source tracers if active
-                if (caesar1.Form1.isTraceWater == true ) // water source tracers
+                if (caesar1.Form1.isTraceWater == true) // water source tracers
                 {
                     // add scrollbar 
-                    CAESAR_lisflood_1._0.Form2.textBox1.ScrollBars = ScrollBars.Vertical; 
+                    CAESAR_lisflood_1._0.Form2.textBox1.ScrollBars = ScrollBars.Vertical;
 
                     // insert empty line
                     CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text + Environment.NewLine;
@@ -208,7 +208,8 @@ namespace Smallwisdom.Windows.Forms
                         else if (src == 1)
                         {
                             srcname = "Rain";
-                        } else
+                        }
+                        else
                         {
                             srcname = caesar1.Form1.inputfilenames[src - caesar1.Form1.sourceIndexAddition];
                         }
@@ -216,7 +217,7 @@ namespace Smallwisdom.Windows.Forms
                         CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text +
                         " " +
                         Convert.ToString(src + 1) + " (" + srcname + "): " +
-                        Convert.ToString(Math.Round(caesar1.Form1.watertracer[(int)(x), (int)(y), src], 4)) + Environment.NewLine; // MDW_Apr24: increased output precision
+                        Convert.ToString(Math.Round(caesar1.Form1.watertracer[(int)(x), (int)(y), src], 3)) + Environment.NewLine;
                     }
 
                 }
@@ -231,7 +232,7 @@ namespace Smallwisdom.Windows.Forms
                         CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text +
                         " " +
                         Convert.ToString(src + 1) + " (ID = " + Convert.ToString(caesar1.Form1.rainZones[src]) + "): " +
-                        Convert.ToString(Math.Round(caesar1.Form1.watertracerRainZone[(int)(x), (int)(y), src], 4)) + Environment.NewLine; // MDW_Apr24: increased output precision
+                        Convert.ToString(Math.Round(caesar1.Form1.watertracerRainZone[(int)(x), (int)(y), src], 3)) + Environment.NewLine;
                     }
                 }
                 if (caesar1.Form1.isTraceSolutes == true)
@@ -244,7 +245,7 @@ namespace Smallwisdom.Windows.Forms
                         CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text +
                         " " +
                         Convert.ToString(src + 1) + ": " +
-                        Convert.ToString(Math.Round(caesar1.Form1.solutetracer[(int)(x), (int)(y), src], 4)) + Environment.NewLine; // MDW_Apr24: increased output precision
+                        Convert.ToString(Math.Round(caesar1.Form1.solutetracer[(int)(x), (int)(y), src], 3)) + Environment.NewLine;
                     }
                 }
                 // end water source tracer info
@@ -261,5 +262,5 @@ namespace Smallwisdom.Windows.Forms
 
 
 
-	}// end class
+    }// end class
 }// end namespace
