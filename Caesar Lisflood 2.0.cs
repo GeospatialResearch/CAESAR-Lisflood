@@ -11146,6 +11146,7 @@ namespace caesar1
 
             // It might be good to put this in a function so that it is easier to get a dynamic temperature input later. 
             double Ev = (3.39 + 0.048 * oil_T) * Math.Log(local_time_factor); // this equation depends on type of oil
+            // test
 
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
 
