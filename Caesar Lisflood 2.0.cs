@@ -344,8 +344,8 @@ namespace caesar1
         // OIL_V1
         public int oil_fromx, oil_tox, oil_fromy, oil_toy, oil_n_cells;
         public static bool isOilSimulation, oil_eventtriggered = false;
-        public double oil_startt, oil_starth, oil_spillt, ro_oil, ro_water, oil_density, oil_T, cinematic_v, oil_D, oil_ratev, oil_totalv, oil_depth_init, oil_input;
-        public static double[,] oil_Mx, oil_My, oil_M, dh_oil_x, dh_oil_y, oil_depth_update, oil_depth, oil_V;
+        public double oil_startt, oil_starth, oil_spillt, ro_oil, ro_water, oil_density, oil_T, cinematic_v, oil_ratev, oil_totalv, oil_depth_init, oil_input, Cf, oil_Tg, oil_To, oil_B, oil_A,oil_area,oil_transf_coeff, vel_wind;
+        public static double[,] oil_Mx, oil_My, oil_M, dh_oil_x, dh_oil_y, oil_depth_update, oil_depth, oil_V, oil_exp, Ev, oil_D;
 
         // TC mining
         int minesitenumber = 0;
@@ -6164,6 +6164,7 @@ namespace caesar1
                     {
 
                         oil_spill_input();
+                        oil_evaporation();
                         oilroute();
                         oil_update();
                     }
@@ -10914,6 +10915,9 @@ namespace caesar1
 
         }
 
+
+
+
         void qroute()
         {
             double local_time_factor = time_factor;
@@ -11135,55 +11139,68 @@ namespace caesar1
                 }
             });
         }
+        void oil_evaporation()
+        {
+            double local_time_factor = time_factor;
+            if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
+
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+            Parallel.For(1, ymax + 1, options, delegate (int y)
+            {
+                int inc = 1;
+                while (down_scan[y, inc] > 0)
+                {
+                    int x = down_scan[y, inc];
+                    inc++;
+
+                    // inital area of oil slick
+                    oil_area = Math.Pow((27 * Math.PI / 2 * Math.Pow(oil_totalv, 3) * ((ro_water - oil_density) / ro_water) * gravity * local_time_factor / cinematic_v), 0.25);
+                    //Mass transfer coefficient for evaporation
+                    oil_transf_coeff = 0.0107 * Math.Pow(vel_wind, 0.78) * Math.Pow(DX, -0.11) * Math.Pow(0.5, -0.67);
+                    //evaporation exposure
+                    oil_exp[x, y] = oil_transf_coeff * oil_area * (local_time_factor) / (oil_depth[x, y] * DX * DX);
+                    //evaporation rate (m/s);
+                    Ev[x, y] = (oil_T / oil_B * oil_Tg) * Math.Log(oil_exp[x, y] * (oil_B * oil_Tg / oil_T) * Math.Exp(oil_A - (oil_B * oil_To / oil_T)) + 1);
+                    // spreading - diffusion coefficient
+                    oil_D[x, y] = gravity * oil_depth[x, y] * (ro_water - oil_density) / (ro_water * Cf);
+                }
+
+            });
+        }
 
         void oilroute()
         {
 
             double local_time_factor = time_factor;
             if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
-            // time factor recalled in different part of the code
-
-
-            // It might be good to put this in a function so that it is easier to get a dynamic temperature input later. 
-            double Ev = (3.39 + 0.048 * oil_T) * Math.Log(local_time_factor); // this equation depends on type of oil
-            // test
 
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
-
-            Parallel.For(1, ymax + 1, options, (y) =>
+            Parallel.For(2, ymax + 2, options, (y) =>
             {
-                int inc = 1;
-
+               int inc = 1;
                 while (down_scan[y, inc] > 0)
                 {
                     int x = down_scan[y, inc];
                     inc++;
 
-                    //routing oil in x direction------------- need to define before oil_V?
+                    //routing oil in x direction
                     if ((oil_depth[x, y] > 0.0 || oil_depth[x - 1, y] > 0.0) && elev[x - 1, y] > -9999)
                     {
-
-                        oil_Mx[x, y] = ((oil_Mx[x - 1, y] * oil_V[x - 1, y] / local_time_factor) + (qx[x, y] * oil_Mx[x, y] - qx[x - 1, y] * oil_Mx[x - 1, y]) +
-                          ((oil_Mx[x, y] - oil_Mx[x - 1, y]) - (oil_Mx[x + 1, y] - oil_Mx[x, y]) * oil_D * oil_V[x, y] / (DX * DX)) - (Ev * oil_Mx[x, y] * qx[x, y]) -
-                          (Math.Pow(27 * Math.PI / 2 * Math.Pow(oil_V[x, y], 3) * ((ro_water - oil_density) / ro_water) * gravity * local_time_factor / cinematic_v, 0.25) *
-                              oil_Mx[x, y] * DX / local_time_factor) * local_time_factor / oil_V[x, y]);
+                        oil_Mx[x, y] = oil_Mx[x-1, y] * (1/local_time_factor  + vel_dir[x,y,7]/DX+ oil_D[x, y] / (DX * DX)) / (1 / local_time_factor  + vel_dir[x-1, y,7]/DX + oil_D[x, y] / (DX * DX) + Ev[x, y] / DX);
                     }
-
                     // routing in y direction
                     if ((oil_depth[x, y] > 0.0 || oil_depth[x, y - 1] > 0.0) && elev[x, y - 1] > -9999)
                     {
-                        oil_My[x, y] = ((oil_My[x, y - 1] * oil_V[x, y - 1] / local_time_factor) + (qy[x, y] * oil_My[x, y - 1] - qy[x, y] * oil_My[x, y - 1]) +
-                          ((oil_My[x, y] - oil_My[x, y - 1]) - (oil_My[x, y + 1] - oil_My[x, y]) * oil_D * oil_V[x, y] / (DX * DX)) - (Ev * oil_My[x, y] * qy[x, y]) -
-                          (Math.Pow(27 * Math.PI / 2 * Math.Pow(oil_V[x, y], 3) * ((ro_water - oil_density) / ro_water) * gravity * local_time_factor / cinematic_v, 0.25) *
-                              oil_My[x, y] * DX / local_time_factor) * local_time_factor / oil_V[x, y]);
+                        oil_My[x, y] = oil_My[x, y - 1] * (1 / local_time_factor - vel_dir[x, y, 5] / DX + oil_D[x, y] / (DX * DX)) / (1 / local_time_factor - vel_dir[x, y, 5] / DX + oil_D[x, y] / (DX * DX) + Ev[x, y] / DX);
                     }
                 }
-            });
 
+            });
         }
 
         void oil_update()
         {
+
             double local_time_factor = time_factor;
             if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
             // time factor recalled in different part of the code
@@ -11198,22 +11215,16 @@ namespace caesar1
                     int x = down_scan[y, inc];
                     inc++;
 
-                    if (isOilSimulation == true)
-                    {
                         dh_oil_x[x + 1, y] = (oil_Mx[x + 1, y] / (ro_oil * DX * DX));
                         dh_oil_x[x, y] = (oil_Mx[x, y] / (ro_oil * DX * DX));
                         dh_oil_y[x, y + 1] = (oil_My[x, y + 1] / (ro_oil * DX * DX));
                         dh_oil_y[x, y] = (oil_My[x, y] / (ro_oil * DX * DX));
-                    }
 
                     //update oil depth
 
                     oil_depth[x, y] += (dh_oil_x[x + 1, y] - dh_oil_x[x, y] + dh_oil_y[x, y + 1] - dh_oil_y[x, y]);
 
-                    //update volume
-
-                    oil_V[x, y] += oil_depth[x, y] / ro_oil; // is this needed here or before?
-
+                    // total amount of oil
 
                 }
             });
@@ -11409,14 +11420,6 @@ namespace caesar1
         void initialise_oil_simulation() // OIL_V1
         {
 
-            /*
-            oil_density = Convert.ToDouble(OilDensity.Text);
-            ro_water = Convert.ToDouble(WaterDensity.Text);
-            oil_D = Convert.ToDouble(DiffusiveCoefficient.Text);
-            cinematic_v = Convert.ToDouble(OilViscosity.Text);
-            oil_T = Convert.ToDouble(OilTemperature.Text);
-            */
-
             // Read in input cell coordinates, checking for valid values. Disable oil spill and skip rest if parse fails
             if (!int.TryParse(OilYmin.Text, out oil_fromy) |
                 !int.TryParse(OilYmax.Text, out oil_toy) |
@@ -11494,20 +11497,31 @@ namespace caesar1
             // Initialise other parameters - to be added to interface
             oil_density = 805; //then to be defined in the graphical interface input
             ro_water = 1000;
-            oil_D = 0.0000002;
             cinematic_v = 6;
-            oil_T = 20;
+            oil_T = 295;
+            Cf = 0.02;
+            oil_A = 8.133;// these variables comes from Bobra evaporation experiments
+            oil_B = 11.594;
+            oil_Tg = 539.1;
+            oil_To = 397.0;
+            vel_wind = 2.5;
+
+
 
             // Assign arrays
-            oil_M = new double[xmax, ymax];
+            oil_M = new double[xmax, ymax];// for oilroute()
             oil_Mx = new double[xmax, ymax];
             oil_My = new double[xmax, ymax];
             oil_depth = new double[xmax, ymax];
             oil_V = new double[xmax, ymax];
 
-            dh_oil_y = new double[xmax, ymax];
+            dh_oil_y = new double[xmax, ymax];// for oil_update()
             dh_oil_x = new double[xmax, ymax];
             oil_depth_update = new double[xmax, ymax];
+            oil_D = new double[xmax, ymax];
+
+            oil_exp = new double[xmax, ymax];// for oil_evaporation ()
+            Ev = new double[xmax, ymax];
 
 
 
