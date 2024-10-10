@@ -11233,7 +11233,7 @@ namespace caesar1
                     double update_oil_V = oil_depth[x, y] * DX * DX;
                     //definition of a lock statement for the calculation of the total oil Volume
                     object oil_total_V = new object();
-                    double totalOilVolume = 0;
+                    double totalOilVolume=0;
                     // check if it is right
                     lock (oil_total_V)
                     {
