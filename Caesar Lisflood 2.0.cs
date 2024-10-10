@@ -341,6 +341,8 @@ namespace caesar1
         int nHydroChecked = 0; //MDW_V2 - needed to correctly index extra sources
         public static int sourceIndexAddition = 2; //MDW_V2 - source numbering adjustment to accrount for whether if rain/ tide is on
 
+        public static bool simLoadState = false;
+
         // OIL_V1
         public int oil_fromx, oil_tox, oil_fromy, oil_toy, oil_n_cells;
         public static bool isOilSimulation, oil_eventtriggered = false;
@@ -767,6 +769,7 @@ namespace caesar1
         private CheckBox checkBox11;
         private CheckBox checkBox10;
         private MenuItem menuItem10;
+        private MenuItem menuItemOilVisualisation; // OIL_V1_MDW
         private MenuItem menuItem6;
         private MenuItem menuItem15;
         private MenuItem menuItemSoluteTracer; //MDW_V2
@@ -884,6 +887,7 @@ namespace caesar1
             this.menuItem4 = new System.Windows.Forms.MenuItem();
             this.menuItem5 = new System.Windows.Forms.MenuItem();
             this.menuItem10 = new System.Windows.Forms.MenuItem();
+            this.menuItemOilVisualisation = new System.Windows.Forms.MenuItem(); // OIL_V1_MDW
             this.menuItem2 = new System.Windows.Forms.MenuItem();
             this.menuItem7 = new System.Windows.Forms.MenuItem();
             this.menuItem8 = new System.Windows.Forms.MenuItem();
@@ -1426,7 +1430,8 @@ namespace caesar1
             this.menuItem3,
             this.menuItem4,
             this.menuItem5,
-            this.menuItem10});
+            this.menuItem10,
+            this.menuItemOilVisualisation});
             this.menuItem1.Text = "&Top Graphics";
             //
             // menuItem30
@@ -1470,7 +1475,8 @@ namespace caesar1
             this.menuItem26,
             this.menuItem27,
             this.menuItem28,
-            this.menuItem31});
+            this.menuItem31,
+            this.menuItemOilVisualisation});
             this.menuItem2.Text = "&Top graphics II";
             //
             // menuItem7
@@ -1515,6 +1521,12 @@ namespace caesar1
             this.menuItem31.Text = "flow velocity";
             this.menuItem31.Click += new System.EventHandler(this.menuItem31_Click);
             //
+            // menuItemOilVisualisation OIL_V1_MDW
+            //
+            this.menuItemOilVisualisation.Index = 7;
+            this.menuItemOilVisualisation.Text = "oil spill";
+            this.menuItemOilVisualisation.Click += new System.EventHandler(this.menuItemOilVisualisation_Click);
+            //
             // menuItem11
             //
             this.menuItem11.Index = 3;
@@ -1529,8 +1541,7 @@ namespace caesar1
             this.menuItem6,
             this.menuItem15,
             this.menuItem16,
-            this.menuItemSoluteTracer,
-            this.menuItemOilSpill});
+            this.menuItemSoluteTracer});
             //OIL_V1_PDF
             this.menuItem11.Text = "Save Options";
             //
@@ -11529,7 +11540,7 @@ namespace caesar1
             oil_M = new double[xmax, ymax];// for oilroute()
             oil_Mx = new double[xmax, ymax];
             oil_My = new double[xmax, ymax];
-            oil_depth = new double[xmax, ymax];
+            oil_depth = new double[xmax + 2, ymax + 2]; // same as declaration for water_depth. I think the others will need to be as well
             oil_V = new double[xmax, ymax];
 
             dh_oil_y = new double[xmax, ymax];// for oil_update()
@@ -12274,6 +12285,8 @@ namespace caesar1
 
         void drawwater(System.Drawing.Graphics graphics)// <JMW 20041018>
         {
+            if(!simLoadState) return; // MDW: if data are not loaded, do nothing (fixes an exception which happens when selecting an item from the graphics menu before data are loaded)
+
             Graphics objGraphics;
             objGraphics = Graphics.FromImage(m_objDrawingSurface);
             objGraphics.Clear(SystemColors.Control);
@@ -12303,7 +12316,7 @@ namespace caesar1
 
             // These loop through the entire grid
             // DEM <JOE 20050905>
-            if (menuItem30.Checked == true)
+            if (menuItem30.Checked == true) // DEM
             {
                 double zDEM;
                 double zCalc, zMin = 100000.0, zMax = -9990.0, zRange, hsMin = 0, hsMax = 255, hsRange, hs;
@@ -12415,6 +12428,25 @@ namespace caesar1
             }
             wdRange = wdMax - wdMin;
 
+            // OIL_V1_MDW
+            // Find range of oil depths if needed
+            double oilCalc, oilMin = 100000.0, oilMax = -10.0, oilRange = 1;
+            if (isOilSimulation && menuItemOilVisualisation.Checked == true)
+            {
+                for (x = 1; x < xmax; x++)
+                {
+                    for (y = 1; y <= ymax; y++)
+                    {
+                        oilCalc = oil_depth[x, y];
+                        if (oilCalc > 0)
+                        {
+                            if (oilCalc < oilMin) oilMin = oilCalc;
+                            if (oilCalc > oilMax) oilMax = oilCalc;
+                        }
+                    }
+                }
+                if (oilMax > 0) oilRange = oilMax - oilMin;
+            }
 
 
             // All these loop through just the 'Active Area'
@@ -12504,7 +12536,6 @@ namespace caesar1
 
 
                         }
-
 
                         // Water Source Tracers - MDW 17-03-2016
                         if (menuItem10.Checked == true && water_depth[x, y] > water_depth_erosion_threshold)
@@ -12876,6 +12907,36 @@ namespace caesar1
                                 }
                             }
                         }
+
+                        // Oil spill - OIL_V1_MDW
+                        if (menuItemOilVisualisation.Checked == true) 
+                        {
+                            if (index[x, y] != -9999)
+                            {
+                                if (oil_depth[x, y] > 0 && water_depth[x, y] > water_depth_erosion_threshold)
+                                {
+                                    z = (int)(oil_depth[x, y] * (128 / oilRange)); // using lower half of grey range for darker cells
+                                    if (comboBox1.Text == "oil spill") // display only the oil spill for this cell (opaque cell)
+                                    {
+                                        alphacol = 255;   
+                                    }
+                                    else // display on top of whatever else is selected (semi-transparent cell)
+                                    {
+                                        alphacol = 128;
+                                    }
+                                    if (z < 0) z = 0;
+                                    if (z > 128) z = 128;
+                                    greencol = redcol = bluecol = 128 - z; // deep oil is black, shallow oil is mid-grey
+                                    //if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                                    //if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+
+                                    SolidBrush brush = new SolidBrush(Color.FromArgb(alphacol, redcol, greencol, bluecol));
+                                    objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+                                }
+                            }
+                        }
+
+                        
 
 
                     }           // Close of nodata check for 'active' grid only
@@ -15566,6 +15627,7 @@ namespace caesar1
             MessageBox.Show(message);
 
             //main_loop(this, null);
+            simLoadState = true; // MDW: added to signify that data are loaded, allowing a fix to an exception which happens when selecting an item from the graphics menu before data are loaded
 
         }
         private void buttonOutDir_Click(object sender, System.EventArgs e) // MDW_V2
@@ -17764,6 +17826,24 @@ namespace caesar1
             else
             {
                 comboBox1.Items.Remove("water source tracer");
+            }
+            popComboBox1();
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+
+        //OIL_V1_MDW
+        private void menuItemOilVisualisation_Click(object sender, EventArgs e)
+        {
+            menuItemOilVisualisation.Checked = (!menuItemOilVisualisation.Checked);
+            if (menuItemOilVisualisation.Checked == true)
+            {
+                comboBox1.Items.Add("oil spill");
+            }
+            else
+            {
+                comboBox1.Items.Remove("oil spill");
             }
             popComboBox1();
             updateClick = 1;
