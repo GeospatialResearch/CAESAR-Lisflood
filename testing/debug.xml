@@ -89,11 +89,11 @@
         </SaveOptions>
         <SaveOptions>
             <Option>water depth</Option>
-            <Checked>true</Checked>
+            <Checked>false</Checked>
         </SaveOptions>
         <SaveOptions>
             <Option>d50</Option>
-            <Checked>true</Checked>
+            <Checked>false</Checked>
         </SaveOptions>
         <SaveOptions>
             <Option>flow velocity</Option>
@@ -295,10 +295,10 @@
         <iterationsfile>iterout.dat</iterationsfile>
     </OutputFile-Parms>
     <Display>
-        <top> 0</top>
-        <left> 783</left>
-        <width> 1404</width>
-        <height> 1047</height>
+        <top> -8</top>
+        <left> -8</left>
+        <width> 1552</width>
+        <height> 832</height>
     </Display>
     <Lateral>
         <oldlat>false</oldlat>
@@ -392,14 +392,14 @@
         <OutputDirectory>debug</OutputDirectory>
         <OutDirDateTime>true</OutDirDateTime>
         <OilSimulation>true</OilSimulation>
-        <OilYmin>10</OilYmin>
-        <OilYmax>12</OilYmax>
-        <OilXmin>10</OilXmin>
-        <OilXmax>12</OilXmax>
+        <OilYmin>0</OilYmin>
+        <OilYmax>0</OilYmax>
+        <OilXmin>0</OilXmin>
+        <OilXmax>0</OilXmax>
         <OilTimeMin>0</OilTimeMin>
-        <OilDepthStart>0.01</OilDepthStart>
-        <OilVolume>1</OilVolume>
-        <OilSpillDuration>60</OilSpillDuration>
+        <OilDepthStart>1.5</OilDepthStart>
+        <OilVolume>0</OilVolume>
+        <OilSpillDuration>0</OilSpillDuration>
         <SaveOptions>
             <Option>water tracers</Option>
             <Checked>false</Checked>
@@ -410,10 +410,6 @@
         </SaveOptions>
         <SaveOptions>
             <Option>solute tracers</Option>
-            <Checked>false</Checked>
-        </SaveOptions>
-        <SaveOptions>
-            <Option>oil depth</Option>
             <Checked>false</Checked>
         </SaveOptions>
         <Filenames>
