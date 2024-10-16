@@ -6743,7 +6743,7 @@ namespace caesar1
 
         }
 
-        void stage_tidal_input(double local_time_factor)
+        void stage_tidal_input(double local_time_factor) 
         {
 
             for (int x = Math.Min(fromx, tox); x <= Math.Max(fromx, tox); x++)
@@ -6841,6 +6841,10 @@ namespace caesar1
         {
 
             double local_time_factor = time_factor;
+            
+            // MDW : note to check : we're changing the value of dt used here, so it is different to the one used for Q
+            // see stage_tide_input(): local_time_factor is passed into the function rather than calculated within it
+
             if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
 
             for (int x = Math.Min(oil_fromx, oil_tox); x <= Math.Max(oil_fromx, oil_tox); x++)
@@ -11160,8 +11164,8 @@ namespace caesar1
                         count_cells++;
                     }
                     inc++;
-                    oil_S[x, y] = count_cells * DX * DX;
-                   
+                    oil_S[x, y] = count_cells * DX * DX; // MDW : note to check : this will accumulate as the loop scans across the array. oil_S is a 2D array 
+
                 }
 
                
@@ -11171,7 +11175,7 @@ namespace caesar1
         void oil_evaporation()
             
         {
-            double local_time_factor = time_factor;
+            double local_time_factor = time_factor; // MDW : note to check : same issue - local_time_factor should be the same as in the Q route
             if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
 
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
@@ -11182,7 +11186,7 @@ namespace caesar1
                 {
                     int x = down_scan[y, inc];
                     inc++;
-
+                    // MDW : note to check : there is no loss of oil to the atmosphere here? Should oil_depth be updated?
                     //evaporation exposure
                     oil_exp[x, y] = oil_transf_coeff * oil_S[x, y] * (local_time_factor / 60) / (oil_depth[x, y] * DX * DX);
                     //evaporation rate 
@@ -11208,17 +11212,36 @@ namespace caesar1
                 {
                     int x = down_scan[y, inc];
                     inc++;
-                    //routing oil in x direction
 
-                    if (oil_depth[x, y] >0) // assess cells cointaining oil
+                // from qroute, x direction
+                //hflow = Math.Max(elev[x, y] + water_depth[x, y], elev[x - 1, y] + water_depth[x - 1, y]) -
+                //                          Math.Max(elev[x - 1, y], elev[x, y]);
+                //
+                //  qx[x, y] = ((qx[x, y] - (gravity * hflow * local_time_factor * tempslope)) /
+                //             (1 + gravity * hflow * local_time_factor * (temp_mannings * temp_mannings) * Math.Abs(qx[x, y]) /
+                //              Math.Pow(hflow, (10 / 3))));
+                //
+                // so for elev[] this uses x-1, but for qx it uses x: qx is one cell smaller than elev
+                //
+                // for the code below, qx[x+1, y] is used: I think this should be x, not x+1. Similarly for y.
+                //
+                // Also, where is the reference to the oil depth in the neighbouring cell? (i.e. in a similar way to hflow)
+
+            //routing oil in x direction
+
+            if (oil_depth[x, y] >0) // assess cells cointaining oil
                     {
-                        oil_Mx[x,y] = (oil_depth[x, y] * DX * DX * oil_density) * (1 / local_time_factor + qx[x+1, y] / (DX * DX) + oil_D[x, y] / (DX * DX)) / (1 / local_time_factor - qx[x+1, y] / (DX * DX) + oil_D[x, y] / (DX * DX) + Ev[x, y] / DX);
-                    }
+                        oil_Mx[x,y] = (oil_depth[x, y] * DX * DX * oil_density) * 
+                                      (1 / local_time_factor + qx[x+1, y] / (DX * DX) + oil_D[x, y] / (DX * DX)) / 
+                                      (1 / local_time_factor - qx[x+1, y] / (DX * DX) + oil_D[x, y] / (DX * DX) + Ev[x, y] / DX);
+                    //}
 
                     // routing in y direction
-                    if (oil_depth[x, y] > 0 )
-                    {
-                        oil_My[x, y] = (oil_depth[x, y] * DX * DX * oil_density) * (1 / local_time_factor - qy[x, y+1] / (DX * DX) + oil_D[x, y] / (DX * DX)) / (1 / local_time_factor - qy[x, y+1] / (DX * DX) + oil_D[x, y] / (DX * DX) + Ev[x, y] / DX);
+                    //if (oil_depth[x, y] > 0 ) // check already done above
+                    //{
+                        oil_My[x, y] = (oil_depth[x, y] * DX * DX * oil_density) * 
+                                       (1 / local_time_factor - qy[x, y+1] / (DX * DX) + oil_D[x, y] / (DX * DX)) / 
+                                       (1 / local_time_factor - qy[x, y+1] / (DX * DX) + oil_D[x, y] / (DX * DX) + Ev[x, y] / DX);
                     }
                 }
 
@@ -11243,12 +11266,19 @@ namespace caesar1
                 {
                     int x = down_scan[y, inc];
                     inc++;
-                      
+
+                    // is local_time_factor needed here?
                     dh_oil_x[x, y] = (oil_Mx[x, y] / (oil_density * DX * DX)); // flow from right
                     dh_oil_x[x + 1, y] = (oil_Mx[x + 1, y] / (oil_density * DX * DX));// flow from left
                     dh_oil_y[x, y] = (oil_My[x, y] / (oil_density * DX * DX)); // flow from down
                     dh_oil_y[x, y + 1] = (oil_My[x, y + 1] / (oil_density * DX * DX));  // flow from up
 
+                    // from depth_update:
+                    // dhdt_x[x + 1, y] = local_time_factor * qx[x + 1, y] / DX;
+                    // dhdt_x[x, y] = local_time_factor * qx[x, y] / DX;
+                    // dhdt_y[x, y + 1] = local_time_factor * qy[x, y + 1] / DX;
+                    // dhdt_y[x, y] = local_time_factor * qy[x, y] / DX;
+                    //water_depth[x, y] += local_time_factor * (qx[x + 1, y] - qx[x, y] + qy[x, y + 1] - qy[x, y]) / DX;
 
                     //update oil depth
                     oil_depth[x, y] += (dh_oil_x[x + 1, y] - dh_oil_x[x, y]) + dh_oil_y[x, y + 1] - dh_oil_y[x, y];
