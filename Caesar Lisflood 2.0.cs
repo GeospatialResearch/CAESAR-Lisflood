@@ -346,8 +346,8 @@ namespace caesar1
         // OIL_V1
         public int oil_fromx, oil_tox, oil_fromy, oil_toy, oil_n_cells, count_cells;
         public static bool isOilSimulation, oil_eventtriggered = false;
-        public double oil_startt, oil_starth, oil_spillt, ro_water, oil_density, oil_T, cinematic_v, oil_ratev, oil_totalv, Cf, oil_Tg, oil_To, oil_B, oil_A,oil_transf_coeff, vel_wind, API, totalOilVolume;
-        public static double[,] oil_Mx, oil_My, dh_oil_x, dh_oil_y, oil_depth, oil_V, oil_exp, Ev, oil_D, oil_S;
+        public double oil_startt, oil_starth, oil_spillt, ro_water, oil_density, oil_T, cinematic_v, oil_ratev, oil_totalv, Cf, oil_Tg, oil_To, oil_B, oil_A, oil_transf_coeff, vel_wind, API, totalOilVolume, oil_S;
+        public static double[,] oil_Mx, oil_My, dh_oil_x, dh_oil_y, oil_depth, oil_V, oil_exp, Ev, oil_Dx, oil_Dy, oil_depth_x, oil_depth_y;
 
         // TC mining
         int minesitenumber = 0;
@@ -6173,13 +6173,12 @@ namespace caesar1
 
                     if (oil_eventtriggered == true)
                     {
-                        oil_spill_input();
+                        oil_spill_input(local_time_factor);
                         oil_area();
-                        oil_evaporation();
-                        oilroute();
+                        oil_evaporation(local_time_factor);
+                        oilroute(local_time_factor);
                         oil_update();
                     }
-
 
                 }
 
@@ -6743,7 +6742,7 @@ namespace caesar1
 
         }
 
-        void stage_tidal_input(double local_time_factor) 
+        void stage_tidal_input(double local_time_factor)
         {
 
             for (int x = Math.Min(fromx, tox); x <= Math.Max(fromx, tox); x++)
@@ -6836,16 +6835,16 @@ namespace caesar1
 
         }
 
-        void oil_spill_input()
+        void oil_spill_input(double local_time_factor)
 
         {
 
-            double local_time_factor = time_factor;
-            
+            //double local_time_factor = time_factor;
+
             // MDW : note to check : we're changing the value of dt used here, so it is different to the one used for Q
             // see stage_tide_input(): local_time_factor is passed into the function rather than calculated within it
 
-            if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
+            //if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
 
             for (int x = Math.Min(oil_fromx, oil_tox); x <= Math.Max(oil_fromx, oil_tox); x++)
             {
@@ -10934,127 +10933,127 @@ namespace caesar1
 
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax + 1, options, delegate (int y)
-              {
-                  int inc = 1;
-                  while (down_scan[y, inc] > 0)
-                  {
-                      int x = down_scan[y, inc];
-                      inc++;
+            {
+                int inc = 1;
+                while (down_scan[y, inc] > 0)
+                {
+                    int x = down_scan[y, inc];
+                    inc++;
 
-                      if (elev[x, y] > -9999) // to stop moving water in to -9999's on elev
-                      {
-                          // add spatial mannings here
-                          double temp_mannings = mannings;
-                          if (SpatVarManningsCheckbox.Checked == true) temp_mannings = spat_var_mannings[x, y];
+                    if (elev[x, y] > -9999) // to stop moving water in to -9999's on elev
+                    {
+                        // add spatial mannings here
+                        double temp_mannings = mannings;
+                        if (SpatVarManningsCheckbox.Checked == true) temp_mannings = spat_var_mannings[x, y];
 
-                          // routing in x direction
-                          if ((water_depth[x, y] > 0 || water_depth[x - 1, y] > 0) && elev[x - 1, y] > -9999)  // need to check water and not -9999 on elev
-                          {
-                              double hflow = Math.Max(elev[x, y] + water_depth[x, y], elev[x - 1, y] + water_depth[x - 1, y]) -
-                                              Math.Max(elev[x - 1, y], elev[x, y]);
-                              if (hflow > DX / 2) hflow = DX / 2; // contreversial line...
+                        // routing in x direction
+                        if ((water_depth[x, y] > 0 || water_depth[x - 1, y] > 0) && elev[x - 1, y] > -9999)  // need to check water and not -9999 on elev
+                        {
+                            double hflow = Math.Max(elev[x, y] + water_depth[x, y], elev[x - 1, y] + water_depth[x - 1, y]) -
+                                            Math.Max(elev[x - 1, y], elev[x, y]);
+                            if (hflow > DX / 2) hflow = DX / 2; // contreversial line...
 
-                              if (hflow > hflow_threshold)
-                              {
-                                  double tempslope = (((elev[x - 1, y] + water_depth[x - 1, y])) -
-                                          (elev[x, y] + water_depth[x, y])) / DX;
+                            if (hflow > hflow_threshold)
+                            {
+                                double tempslope = (((elev[x - 1, y] + water_depth[x - 1, y])) -
+                                        (elev[x, y] + water_depth[x, y])) / DX;
 
-                                  if (x == xmax) tempslope = edgeslope;
-                                  if (x <= 2) tempslope = 0 - edgeslope;
+                                if (x == xmax) tempslope = edgeslope;
+                                if (x <= 2) tempslope = 0 - edgeslope;
 
-                                  //double oldqx = qx[x, y];
-                                  qx[x, y] = ((qx[x, y] - (gravity * hflow * local_time_factor * tempslope)) /
-                                            (1 + gravity * hflow * local_time_factor * (temp_mannings * temp_mannings) * Math.Abs(qx[x, y]) /
-                                            Math.Pow(hflow, (10 / 3))));
-                                  //if (oldqx != 0) qx[x, y] = (oldqx + qx[x, y]) / 2;
+                                //double oldqx = qx[x, y];
+                                qx[x, y] = ((qx[x, y] - (gravity * hflow * local_time_factor * tempslope)) /
+                                          (1 + gravity * hflow * local_time_factor * (temp_mannings * temp_mannings) * Math.Abs(qx[x, y]) /
+                                          Math.Pow(hflow, (10 / 3))));
+                                //if (oldqx != 0) qx[x, y] = (oldqx + qx[x, y]) / 2;
 
-                                  // need to have these lines to stop too much water moving from one cellt o another - resulting in -ve discharges
-                                  // whihc causes a large instability to develop - only in steep catchments really
-                                  if (qx[x, y] > 0 && (qx[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qx[x, y] = hflow * (Math.Sqrt(gravity * hflow) * froude_limit);
-                                  if (qx[x, y] < 0 && Math.Abs(qx[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qx[x, y] = 0 - (hflow * (Math.Sqrt(gravity * hflow) * froude_limit));
+                                // need to have these lines to stop too much water moving from one cellt o another - resulting in -ve discharges
+                                // whihc causes a large instability to develop - only in steep catchments really
+                                if (qx[x, y] > 0 && (qx[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qx[x, y] = hflow * (Math.Sqrt(gravity * hflow) * froude_limit);
+                                if (qx[x, y] < 0 && Math.Abs(qx[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qx[x, y] = 0 - (hflow * (Math.Sqrt(gravity * hflow) * froude_limit));
 
-                                  if (qx[x, y] > 0 && (qx[x, y] * local_time_factor / DX) > (water_depth[x, y] / 4)) qx[x, y] = ((water_depth[x, y] * DX) / 5) / local_time_factor;
-                                  if (qx[x, y] < 0 && Math.Abs(qx[x, y] * local_time_factor / DX) > (water_depth[x - 1, y] / 4)) qx[x, y] = 0 - ((water_depth[x - 1, y] * DX) / 5) / local_time_factor;
+                                if (qx[x, y] > 0 && (qx[x, y] * local_time_factor / DX) > (water_depth[x, y] / 4)) qx[x, y] = ((water_depth[x, y] * DX) / 5) / local_time_factor;
+                                if (qx[x, y] < 0 && Math.Abs(qx[x, y] * local_time_factor / DX) > (water_depth[x - 1, y] / 4)) qx[x, y] = 0 - ((water_depth[x - 1, y] * DX) / 5) / local_time_factor;
 
-                                  if (isSuspended[1])
-                                  {
-                                      for (int T = 0; T <= tracers; T++)
-                                      {
-                                          if (qx[x, y] > 0) qxs[x, y, T] = qx[x, y] * (Vsusptot[x, y, T] / water_depth[x, y]);
-                                          if (qx[x, y] < 0) qxs[x, y, T] = qx[x, y] * (Vsusptot[x - 1, y, T] / water_depth[x - 1, y]);
+                                if (isSuspended[1])
+                                {
+                                    for (int T = 0; T <= tracers; T++)
+                                    {
+                                        if (qx[x, y] > 0) qxs[x, y, T] = qx[x, y] * (Vsusptot[x, y, T] / water_depth[x, y]);
+                                        if (qx[x, y] < 0) qxs[x, y, T] = qx[x, y] * (Vsusptot[x - 1, y, T] / water_depth[x - 1, y]);
 
-                                          if (qxs[x, y, T] > 0 && qxs[x, y, T] * local_time_factor > (Vsusptot[x, y, T] * DX) / 4) qxs[x, y, T] = ((Vsusptot[x, y, T] * DX) / 5) / local_time_factor;
-                                          if (qxs[x, y, T] < 0 && Math.Abs(qxs[x, y, T] * local_time_factor) > (Vsusptot[x - 1, y, T] * DX) / 4) qxs[x, y, T] = 0 - ((Vsusptot[x - 1, y, T] * DX) / 5) / local_time_factor;
-                                      }
-                                  }
+                                        if (qxs[x, y, T] > 0 && qxs[x, y, T] * local_time_factor > (Vsusptot[x, y, T] * DX) / 4) qxs[x, y, T] = ((Vsusptot[x, y, T] * DX) / 5) / local_time_factor;
+                                        if (qxs[x, y, T] < 0 && Math.Abs(qxs[x, y, T] * local_time_factor) > (Vsusptot[x - 1, y, T] * DX) / 4) qxs[x, y, T] = 0 - ((Vsusptot[x - 1, y, T] * DX) / 5) / local_time_factor;
+                                    }
+                                }
 
-                                  // calc velocity now
-                                  if (qx[x, y] > 0) vel_dir[x, y, 7] = qx[x, y] / hflow;
-                                  if (qx[x, y] < 0) vel_dir[x - 1, y, 3] = (0 - qx[x, y]) / hflow;
+                                // calc velocity now
+                                if (qx[x, y] > 0) vel_dir[x, y, 7] = qx[x, y] / hflow;
+                                if (qx[x, y] < 0) vel_dir[x - 1, y, 3] = (0 - qx[x, y]) / hflow;
 
-                              }
-                              else
-                              {
-                                  qx[x, y] = 0;
-                                  for (int T = 0; T <= tracers; T++) qxs[x, y, T] = 0;
-                              }
-                          }
+                            }
+                            else
+                            {
+                                qx[x, y] = 0;
+                                for (int T = 0; T <= tracers; T++) qxs[x, y, T] = 0;
+                            }
+                        }
 
-                          //routing in the y direction
-                          if ((water_depth[x, y] > 0 || water_depth[x, y - 1] > 0) && elev[x, y - 1] > -9999)
-                          {
-                              double hflow = Math.Max(elev[x, y] + water_depth[x, y], elev[x, y - 1] + water_depth[x, y - 1]) -
-                                              Math.Max(elev[x, y], elev[x, y - 1]);
-                              if (hflow > DX / 2) hflow = DX / 2;
+                        //routing in the y direction
+                        if ((water_depth[x, y] > 0 || water_depth[x, y - 1] > 0) && elev[x, y - 1] > -9999)
+                        {
+                            double hflow = Math.Max(elev[x, y] + water_depth[x, y], elev[x, y - 1] + water_depth[x, y - 1]) -
+                                            Math.Max(elev[x, y], elev[x, y - 1]);
+                            if (hflow > DX / 2) hflow = DX / 2;
 
-                              if (hflow > hflow_threshold)
-                              {
-                                  double tempslope = (((elev[x, y - 1] + water_depth[x, y - 1])) -
-                                      (elev[x, y] + water_depth[x, y])) / DX;
-                                  if (y == ymax) tempslope = edgeslope;
-                                  if (y <= 2) tempslope = 0 - edgeslope;
+                            if (hflow > hflow_threshold)
+                            {
+                                double tempslope = (((elev[x, y - 1] + water_depth[x, y - 1])) -
+                                    (elev[x, y] + water_depth[x, y])) / DX;
+                                if (y == ymax) tempslope = edgeslope;
+                                if (y <= 2) tempslope = 0 - edgeslope;
 
-                                  //double oldqy = qy[x, y];
-                                  qy[x, y] = ((qy[x, y] - (gravity * hflow * local_time_factor * tempslope)) /
-                                            (1 + gravity * hflow * local_time_factor * (temp_mannings * temp_mannings) * Math.Abs(qy[x, y]) /
-                                            Math.Pow(hflow, (10 / 3))));
-                                  //if (oldqy != 0) qy[x, y] = (oldqy + qy[x, y]) / 2;
+                                //double oldqy = qy[x, y];
+                                qy[x, y] = ((qy[x, y] - (gravity * hflow * local_time_factor * tempslope)) /
+                                          (1 + gravity * hflow * local_time_factor * (temp_mannings * temp_mannings) * Math.Abs(qy[x, y]) /
+                                          Math.Pow(hflow, (10 / 3))));
+                                //if (oldqy != 0) qy[x, y] = (oldqy + qy[x, y]) / 2;
 
-                                  // need to have these lines to stop too much water moving from one cellt o another - resulting in -ve discharges
-                                  // whihc causes a large instability to develop - only in steep catchments really
-                                  if (qy[x, y] > 0 && (qy[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qy[x, y] = hflow * (Math.Sqrt(gravity * hflow) * froude_limit);
-                                  if (qy[x, y] < 0 && Math.Abs(qy[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qy[x, y] = 0 - (hflow * (Math.Sqrt(gravity * hflow) * froude_limit));
+                                // need to have these lines to stop too much water moving from one cellt o another - resulting in -ve discharges
+                                // whihc causes a large instability to develop - only in steep catchments really
+                                if (qy[x, y] > 0 && (qy[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qy[x, y] = hflow * (Math.Sqrt(gravity * hflow) * froude_limit);
+                                if (qy[x, y] < 0 && Math.Abs(qy[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qy[x, y] = 0 - (hflow * (Math.Sqrt(gravity * hflow) * froude_limit));
 
-                                  if (qy[x, y] > 0 && (qy[x, y] * local_time_factor / DX) > (water_depth[x, y] / 4)) qy[x, y] = ((water_depth[x, y] * DX) / 5) / local_time_factor;
-                                  if (qy[x, y] < 0 && Math.Abs(qy[x, y] * local_time_factor / DX) > (water_depth[x, y - 1] / 4)) qy[x, y] = 0 - ((water_depth[x, y - 1] * DX) / 5) / local_time_factor;
+                                if (qy[x, y] > 0 && (qy[x, y] * local_time_factor / DX) > (water_depth[x, y] / 4)) qy[x, y] = ((water_depth[x, y] * DX) / 5) / local_time_factor;
+                                if (qy[x, y] < 0 && Math.Abs(qy[x, y] * local_time_factor / DX) > (water_depth[x, y - 1] / 4)) qy[x, y] = 0 - ((water_depth[x, y - 1] * DX) / 5) / local_time_factor;
 
 
-                                  if (isSuspended[1])
-                                  {
-                                      for (int T = 0; T <= tracers; T++)
-                                      {
-                                          if (qy[x, y] > 0) qys[x, y, T] = qy[x, y] * (Vsusptot[x, y, T] / water_depth[x, y]);
-                                          if (qy[x, y] < 0) qys[x, y, T] = qy[x, y] * (Vsusptot[x, y - 1, T] / water_depth[x, y - 1]);
+                                if (isSuspended[1])
+                                {
+                                    for (int T = 0; T <= tracers; T++)
+                                    {
+                                        if (qy[x, y] > 0) qys[x, y, T] = qy[x, y] * (Vsusptot[x, y, T] / water_depth[x, y]);
+                                        if (qy[x, y] < 0) qys[x, y, T] = qy[x, y] * (Vsusptot[x, y - 1, T] / water_depth[x, y - 1]);
 
-                                          if (qys[x, y, T] > 0 && qys[x, y, T] * local_time_factor > (Vsusptot[x, y, T] * DX) / 4) qys[x, y, T] = ((Vsusptot[x, y, T] * DX) / 5) / local_time_factor;
-                                          if (qys[x, y, T] < 0 && Math.Abs(qys[x, y, T] * local_time_factor) > (Vsusptot[x, y - 1, T] * DX) / 4) qys[x, y, T] = 0 - ((Vsusptot[x, y - 1, T] * DX) / 5) / local_time_factor;
-                                      }
-                                  }
+                                        if (qys[x, y, T] > 0 && qys[x, y, T] * local_time_factor > (Vsusptot[x, y, T] * DX) / 4) qys[x, y, T] = ((Vsusptot[x, y, T] * DX) / 5) / local_time_factor;
+                                        if (qys[x, y, T] < 0 && Math.Abs(qys[x, y, T] * local_time_factor) > (Vsusptot[x, y - 1, T] * DX) / 4) qys[x, y, T] = 0 - ((Vsusptot[x, y - 1, T] * DX) / 5) / local_time_factor;
+                                    }
+                                }
 
-                                  // calc velocity now
-                                  if (qy[x, y] > 0) vel_dir[x, y, 1] = qy[x, y] / hflow;
-                                  if (qy[x, y] < 0) vel_dir[x, y - 1, 5] = (0 - qy[x, y]) / hflow;
-                              }
-                              else
-                              {
-                                  qy[x, y] = 0;
-                                  for (int T = 0; T <= tracers; T++) qys[x, y, T] = 0;
-                              }
-                          }
+                                // calc velocity now
+                                if (qy[x, y] > 0) vel_dir[x, y, 1] = qy[x, y] / hflow;
+                                if (qy[x, y] < 0) vel_dir[x, y - 1, 5] = (0 - qy[x, y]) / hflow;
+                            }
+                            else
+                            {
+                                qy[x, y] = 0;
+                                for (int T = 0; T <= tracers; T++) qys[x, y, T] = 0;
+                            }
+                        }
 
-                      }
-                  }
-              });
+                    }
+                }
+            });
 
 
         }
@@ -11070,41 +11069,41 @@ namespace caesar1
 
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax + 1, options, delegate (int y)
-              {
-                  int inc = 1;
-                  double tempmaxdepth = 0;
-                  while (down_scan[y, inc] > 0)
-                  {
-                      int x = down_scan[y, inc];
-                      inc++;
+            {
+                int inc = 1;
+                double tempmaxdepth = 0;
+                while (down_scan[y, inc] > 0)
+                {
+                    int x = down_scan[y, inc];
+                    inc++;
 
-                      if (isTraceWater == true)// for water tracing, we need to record the volumes of water moving between cells - MDW
-                      {
+                    if (isTraceWater == true)// for water tracing, we need to record the volumes of water moving between cells - MDW
+                    {
 
-                          dhdt_x[x + 1, y] = local_time_factor * qx[x + 1, y] / DX;
-                          dhdt_x[x, y] = local_time_factor * qx[x, y] / DX;
-                          dhdt_y[x, y + 1] = local_time_factor * qy[x, y + 1] / DX;
-                          dhdt_y[x, y] = local_time_factor * qy[x, y] / DX;
-                      }
+                        dhdt_x[x + 1, y] = local_time_factor * qx[x + 1, y] / DX;
+                        dhdt_x[x, y] = local_time_factor * qx[x, y] / DX;
+                        dhdt_y[x, y + 1] = local_time_factor * qy[x, y + 1] / DX;
+                        dhdt_y[x, y] = local_time_factor * qy[x, y] / DX;
+                    }
 
-                      // update water depths
-                      water_depth[x, y] += local_time_factor * (qx[x + 1, y] - qx[x, y] + qy[x, y + 1] - qy[x, y]) / DX;
-                      // now update SS concs
-                      if (isSuspended[1])
-                      {
-                          for (int T = 0; T <= tracers; T++) Vsusptot[x, y, T] += local_time_factor * (qxs[x + 1, y, T] - qxs[x, y, T] + qys[x, y + 1, T] - qys[x, y, T]) / DX;
-                      }
+                    // update water depths
+                    water_depth[x, y] += local_time_factor * (qx[x + 1, y] - qx[x, y] + qy[x, y + 1] - qy[x, y]) / DX;
+                    // now update SS concs
+                    if (isSuspended[1])
+                    {
+                        for (int T = 0; T <= tracers; T++) Vsusptot[x, y, T] += local_time_factor * (qxs[x + 1, y, T] - qxs[x, y, T] + qys[x, y + 1, T] - qys[x, y, T]) / DX;
+                    }
 
-                      if (water_depth[x, y] > 0)
-                      {
-                          // line to remove any water depth on nodata cells (that shouldnt get there!)
-                          if (elev[x, y] == -9999) water_depth[x, y] = 0;
-                          // calc max flow depth for time step calc
-                          if (water_depth[x, y] > tempmaxdepth) tempmaxdepth = water_depth[x, y];
-                      }
-                  }
-                  tempmaxdepth2[y] = tempmaxdepth;
-              });
+                    if (water_depth[x, y] > 0)
+                    {
+                        // line to remove any water depth on nodata cells (that shouldnt get there!)
+                        if (elev[x, y] == -9999) water_depth[x, y] = 0;
+                        // calc max flow depth for time step calc
+                        if (water_depth[x, y] > tempmaxdepth) tempmaxdepth = water_depth[x, y];
+                    }
+                }
+                tempmaxdepth2[y] = tempmaxdepth;
+            });
             // reduction
             for (int y = 1; y <= ymax; y++) if (tempmaxdepth2[y] > maxdepth) maxdepth = tempmaxdepth2[y];
         }
@@ -11163,20 +11162,19 @@ namespace caesar1
                     {
                         count_cells++;
                     }
-                    inc++;
-                    oil_S[x, y] = count_cells * DX * DX; // MDW : note to check : this will accumulate as the loop scans across the array. oil_S is a 2D array 
+                    oil_S = count_cells * DX * DX;
 
                 }
 
-               
+
             });
         }
 
-        void oil_evaporation()
-            
+        void oil_evaporation(double local_time_factor)
+
         {
-            double local_time_factor = time_factor; // MDW : note to check : same issue - local_time_factor should be the same as in the Q route
-            if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
+            //double local_time_factor = time_factor;
+            //if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
 
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax + 1, options, delegate (int y)
@@ -11186,102 +11184,101 @@ namespace caesar1
                 {
                     int x = down_scan[y, inc];
                     inc++;
-                    // MDW : note to check : there is no loss of oil to the atmosphere here? Should oil_depth be updated?
+
                     //evaporation exposure
-                    oil_exp[x, y] = oil_transf_coeff * oil_S[x, y] * (local_time_factor / 60) / (oil_depth[x, y] * DX * DX);
+                    oil_exp[x, y] = oil_transf_coeff * oil_S * (local_time_factor / 60) / (oil_depth[x, y] * DX * DX);
                     //evaporation rate 
-                    Ev[x, y] = (oil_T / oil_B * oil_Tg) * Math.Log(oil_exp[x, y] * (oil_B * oil_Tg / oil_T) * Math.Exp(oil_A - (oil_B * oil_To / oil_T)) + 1);
-                    // spreading - diffusion coefficient
-                    oil_D[x, y] = gravity * oil_depth[x, y] * (ro_water - oil_density) / (ro_water * Cf);
+                    Ev[x, y] = (oil_T / oil_B * oil_Tg) * Math.Log(oil_exp[x, y] * (oil_B * oil_Tg / oil_T) * Math.Exp(oil_A - (oil_B * oil_To / oil_T)) + 1)/100;
+                    
                 }
             });
         }
-        
-        void oilroute()
+
+        void oilroute(double local_time_factor)
         {
 
 
-            double local_time_factor = time_factor;
-            if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
+            //double local_time_factor = time_factor;
+            //if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
 
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax + 1, options, delegate (int y)
             {
-               int inc = 1;
+                int inc = 1;
                 while (down_scan[y, inc] > 0)
                 {
                     int x = down_scan[y, inc];
                     inc++;
+                    //routing oil in x direction
 
-                // from qroute, x direction
-                //hflow = Math.Max(elev[x, y] + water_depth[x, y], elev[x - 1, y] + water_depth[x - 1, y]) -
-                //                          Math.Max(elev[x - 1, y], elev[x, y]);
-                //
-                //  qx[x, y] = ((qx[x, y] - (gravity * hflow * local_time_factor * tempslope)) /
-                //             (1 + gravity * hflow * local_time_factor * (temp_mannings * temp_mannings) * Math.Abs(qx[x, y]) /
-                //              Math.Pow(hflow, (10 / 3))));
-                //
-                // so for elev[] this uses x-1, but for qx it uses x: qx is one cell smaller than elev
-                //
-                // for the code below, qx[x+1, y] is used: I think this should be x, not x+1. Similarly for y.
-                //
-                // Also, where is the reference to the oil depth in the neighbouring cell? (i.e. in a similar way to hflow)
-
-            //routing oil in x direction
-
-            if (oil_depth[x, y] >0) // assess cells cointaining oil
+                    if (oil_depth[x, y] > 0 ) // assess cells cointaining oil
                     {
-                        oil_Mx[x,y] = (oil_depth[x, y] * DX * DX * oil_density) * 
-                                      (1 / local_time_factor + qx[x+1, y] / (DX * DX) + oil_D[x, y] / (DX * DX)) / 
-                                      (1 / local_time_factor - qx[x+1, y] / (DX * DX) + oil_D[x, y] / (DX * DX) + Ev[x, y] / DX);
-                    //}
+                        
+                        //definition of max depth routing in the neighbourn cell
+                        double oil_hflow_x = Math.Max(water_depth[x, y] + oil_depth[x, y] + elev[x, y], water_depth[x - 1, y] + oil_depth[x - 1, y] + elev[x - 1, y]) - Math.Max(water_depth[x, y] + elev[x, y], water_depth[x - 1, y] + elev[x - 1, y]);
+
+                        // spreading - diffusion coefficient
+                        oil_Dx[x, y] = gravity * (oil_hflow_x) * (ro_water - oil_density) / (ro_water * Cf);
+
+                        //ADE equation
+                        oil_Mx[x, y] = (oil_hflow_x) * (1 / local_time_factor - qx[x-1, y] / (DX * DX) + oil_Dx[x-1, y] / (DX * DX)) /
+                                                                                   (1 / local_time_factor - qx[x, y] / (DX * DX) + oil_Dx[x, y] / (DX * DX) + Ev[x, y] );
+                    }
 
                     // routing in y direction
-                    //if (oil_depth[x, y] > 0 ) // check already done above
-                    //{
-                        oil_My[x, y] = (oil_depth[x, y] * DX * DX * oil_density) * 
-                                       (1 / local_time_factor - qy[x, y+1] / (DX * DX) + oil_D[x, y] / (DX * DX)) / 
-                                       (1 / local_time_factor - qy[x, y+1] / (DX * DX) + oil_D[x, y] / (DX * DX) + Ev[x, y] / DX);
+                    if (oil_depth[x, y] > 0)
+                    {
+                    
+                        double oil_hflow_y = Math.Max(water_depth[x, y] + oil_depth[x, y] + elev[x, y], water_depth[x, y - 1] + oil_depth[x, y - 1] + elev[x, y - 1]) - Math.Max(water_depth[x, y] + elev[x, y], water_depth[x, y - 1] + elev[x, y - 1]);
+                        // spreading - diffusion coefficient
+                        oil_Dy[x, y] = gravity * (oil_hflow_y) * (ro_water - oil_density) / (ro_water * Cf);
+
+                        oil_My[x, y] = (oil_hflow_y) * (1 / local_time_factor - qy[x, y-1] / (DX * DX) + oil_Dy[x, y-1] / (DX * DX)) /
+                                                                                   (1 / local_time_factor - qy[x, y] / (DX * DX) + oil_Dy[x, y] / (DX * DX) + Ev[x, y] );
                     }
                 }
 
             });
         }
-        
+
         void oil_update()
         {
-            
-            double local_time_factor = time_factor;
-            if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
 
-            // time factor recalled in different part of the code
-            totalOilVolume =0;
-            
+            totalOilVolume = 0;
+
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax + 1, options, delegate (int y)
             {
-                int inc = 1;
-               
+            int inc = 1;
+
                 while (down_scan[y, inc] > 0)
                 {
                     int x = down_scan[y, inc];
                     inc++;
 
-                    // is local_time_factor needed here?
-                    dh_oil_x[x, y] = (oil_Mx[x, y] / (oil_density * DX * DX)); // flow from right
-                    dh_oil_x[x + 1, y] = (oil_Mx[x + 1, y] / (oil_density * DX * DX));// flow from left
-                    dh_oil_y[x, y] = (oil_My[x, y] / (oil_density * DX * DX)); // flow from down
-                    dh_oil_y[x, y + 1] = (oil_My[x, y + 1] / (oil_density * DX * DX));  // flow from up
+                   
+                        // change in oil depth
+                        dh_oil_x[x + 1, y] = oil_Mx[x + 1, y] / (oil_density * DX * DX);
+                        dh_oil_x[x, y] = oil_Mx[x, y] / (oil_density * DX * DX);
+                        dh_oil_y[x, y + 1] = oil_My[x, y + 1] / (oil_density * DX * DX);
+                        dh_oil_y[x, y] = oil_My[x, y] / (oil_density * DX * DX);
 
-                    // from depth_update:
-                    // dhdt_x[x + 1, y] = local_time_factor * qx[x + 1, y] / DX;
-                    // dhdt_x[x, y] = local_time_factor * qx[x, y] / DX;
-                    // dhdt_y[x, y + 1] = local_time_factor * qy[x, y + 1] / DX;
-                    // dhdt_y[x, y] = local_time_factor * qy[x, y] / DX;
-                    //water_depth[x, y] += local_time_factor * (qx[x + 1, y] - qx[x, y] + qy[x, y + 1] - qy[x, y]) / DX;
 
-                    //update oil depth
-                    oil_depth[x, y] += (dh_oil_x[x + 1, y] - dh_oil_x[x, y]) + dh_oil_y[x, y + 1] - dh_oil_y[x, y];
+                        // from depth_update:
+                        // dhdt_x[x + 1, y] = local_time_factor * qx[x + 1, y] / DX;
+                        // dhdt_x[x, y] = local_time_factor * qx[x, y] / DX;
+                        // dhdt_y[x, y + 1] = local_time_factor * qy[x, y + 1] / DX;
+                        // dhdt_y[x, y] = local_time_factor * qy[x, y] / DX;
+                        //water_depth[x, y] += local_time_factor * (qx[x + 1, y] - qx[x, y] + qy[x, y + 1] - qy[x, y]) / DX;
+
+                        //oil_depth[x, y] += (oil_Mx[x+1,y] - oil_Mx[x,y] + oil_My[x,y+1] - oil_My[x,y]);
+                   
+
+                    // condition for visualisation
+                    if (oil_depth[x, y] < 0.001)
+                    {
+                        oil_depth[x, y] = 0;
+                    }
 
                     if (oil_depth[x, y] > 0)
                     {
@@ -11292,7 +11289,9 @@ namespace caesar1
                         totalOilVolume += oil_depth[x, y] * DX * DX;
                     }
                 }
-            
+
+                
+
             });
         }
 
@@ -11574,24 +11573,26 @@ namespace caesar1
             oil_To = 645.45 - 4.6588 * API;
             oil_Tg = 388.19 - 3.87250825 * Math.Log(API);
             oil_transf_coeff = 0.0107 * Math.Pow(vel_wind, 0.78) * Math.Pow(DX, -0.11) * Math.Pow(0.5, -0.67); // wind to be considered variable in the future
-
+            oil_S = count_cells * DX * DX;
 
 
 
             // Assign arrays
-            
+
             oil_Mx = new double[xmax + 2, ymax + 2];
             oil_My = new double[xmax + 2, ymax + 2];
             oil_depth = new double[xmax + 2, ymax + 2]; // same as declaration for water_depth. I think the others will need to be as well
-            
 
             dh_oil_y = new double[xmax + 2, ymax + 2];// for oil_update()
             dh_oil_x = new double[xmax + 2, ymax + 2];
-            oil_D = new double[xmax + 2, ymax + 2];
+            oil_Dx = new double[xmax + 2, ymax + 2];
+            oil_Dy = new double[xmax + 2, ymax + 2];
+            oil_depth_x = new double[xmax + 2, ymax + 2];
+            oil_depth_y = new double[xmax + 2, ymax + 2];
 
             oil_exp = new double[xmax + 2, ymax + 2];// for oil_evaporation ()
             Ev = new double[xmax + 2, ymax + 2];
-            oil_S = new double[xmax + 2, ymax + 2];
+            //oil_S = new double[xmax + 2, ymax + 2];
 
 
 
@@ -11614,29 +11615,29 @@ namespace caesar1
             double tempW = 0;// water_depth_erosion_threshold;
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax + 1, options, delegate (int y)
-              {
-                  int inc = 1;
+            {
+                int inc = 1;
 
-                  for (int x = 1; x <= xmax; x++)
-                  {
-                      // zero scan bit..
-                      down_scan[y, x] = 0;
-                      // and work out scanned area.
-                      if (water_depth[x, y] > tempW
-                            || water_depth[x - 1, y] > tempW
-                            //|| water_depth[x - 1, y - 1] > tempW
-                            //|| water_depth[x - 1, y + 1] > tempW
-                            //|| water_depth[x + 1, y - 1] > tempW
-                            //|| water_depth[x + 1, y + 1] > tempW
-                            || water_depth[x, y - 1] > tempW
-                            || water_depth[x + 1, y] > tempW
-                            || water_depth[x, y + 1] > tempW)
-                      {
-                          down_scan[y, inc] = x;
-                          inc++;
-                      }
-                  }
-              });
+                for (int x = 1; x <= xmax; x++)
+                {
+                    // zero scan bit..
+                    down_scan[y, x] = 0;
+                    // and work out scanned area.
+                    if (water_depth[x, y] > tempW
+                          || water_depth[x - 1, y] > tempW
+                          //|| water_depth[x - 1, y - 1] > tempW
+                          //|| water_depth[x - 1, y + 1] > tempW
+                          //|| water_depth[x + 1, y - 1] > tempW
+                          //|| water_depth[x + 1, y + 1] > tempW
+                          || water_depth[x, y - 1] > tempW
+                          || water_depth[x + 1, y] > tempW
+                          || water_depth[x, y + 1] > tempW)
+                    {
+                        down_scan[y, inc] = x;
+                        inc++;
+                    }
+                }
+            });
 
 
 
@@ -12327,7 +12328,7 @@ namespace caesar1
 
         void drawwater(System.Drawing.Graphics graphics)// <JMW 20041018>
         {
-            if(!simLoadState) return; // MDW: if data are not loaded, do nothing (fixes an exception which happens when selecting an item from the graphics menu before data are loaded)
+            if (!simLoadState) return; // MDW: if data are not loaded, do nothing (fixes an exception which happens when selecting an item from the graphics menu before data are loaded)
 
             Graphics objGraphics;
             objGraphics = Graphics.FromImage(m_objDrawingSurface);
@@ -12951,7 +12952,7 @@ namespace caesar1
                         }
 
                         // Oil spill - OIL_V1_MDW
-                        if (menuItemOilVisualisation.Checked == true) 
+                        if (menuItemOilVisualisation.Checked == true)
                         {
                             if (index[x, y] != -9999)
                             {
@@ -12960,7 +12961,7 @@ namespace caesar1
                                     z = (int)(oil_depth[x, y] * (128 / oilRange)); // using lower half of grey range for darker cells
                                     if (comboBox1.Text == "oil spill") // display only the oil spill for this cell (opaque cell)
                                     {
-                                        alphacol = 255;   
+                                        alphacol = 255;
                                     }
                                     else // display on top of whatever else is selected (semi-transparent cell)
                                     {
@@ -12978,7 +12979,7 @@ namespace caesar1
                             }
                         }
 
-                        
+
 
 
                     }           // Close of nodata check for 'active' grid only
@@ -14441,23 +14442,23 @@ namespace caesar1
             // now determine edge cells on the new grid..
 
             Parallel.For(2, ymax * 2, options, delegate (int y)
-              {
-                  Parallel.For(2, xmax * 2, options, delegate (int x)
-                  {
-                      upscale_edge[x, y] = 0;
-                      if (upscale[x, y] == 0)
-                      {
-                          if (upscale[x, y - 1] == 1 ||
-                              upscale[x - 1, y] == 1 ||
-                              upscale[x + 1, y] == 1 ||
-                              upscale[x, y + 1] == 1)
-                          {
-                              upscale[x, y] = 2;
-                          }
-                      }
-                  });
+            {
+                Parallel.For(2, xmax * 2, options, delegate (int x)
+                {
+                    upscale_edge[x, y] = 0;
+                    if (upscale[x, y] == 0)
+                    {
+                        if (upscale[x, y - 1] == 1 ||
+                            upscale[x - 1, y] == 1 ||
+                            upscale[x + 1, y] == 1 ||
+                            upscale[x, y + 1] == 1)
+                        {
+                            upscale[x, y] = 2;
+                        }
+                    }
+                });
 
-              });
+            });
 
 
 
@@ -14500,21 +14501,21 @@ namespace caesar1
             // now update normal edge array..
 
             Parallel.For(1, ymax + 1, options, delegate (int y)
-              {
-                  Parallel.For(1, xmax + 1, options, delegate (int x)
-                  {
-                      if (edge[x, y] == 0)
-                      {
-                          edge[x, y] = (double)(upscale_edge[(x * 2), (y * 2)] +
-                              upscale_edge[(x * 2), (y * 2) - 1] +
-                              upscale_edge[(x * 2) - 1, (y * 2)] +
-                              upscale_edge[(x * 2) - 1, (y * 2) - 1]);
-                          if (edge[x, y] > 2) edge[x, y] = 2; // important line to stop too great inside bends...
-                          if (edge[x, y] < -2) edge[x, y] = -2;
+            {
+                Parallel.For(1, xmax + 1, options, delegate (int x)
+                {
+                    if (edge[x, y] == 0)
+                    {
+                        edge[x, y] = (double)(upscale_edge[(x * 2), (y * 2)] +
+                            upscale_edge[(x * 2), (y * 2) - 1] +
+                            upscale_edge[(x * 2) - 1, (y * 2)] +
+                            upscale_edge[(x * 2) - 1, (y * 2) - 1]);
+                        if (edge[x, y] > 2) edge[x, y] = 2; // important line to stop too great inside bends...
+                        if (edge[x, y] < -2) edge[x, y] = -2;
 
-                      }
-                  });
-              });
+                    }
+                });
+            });
 
             //then apply a smoothing filter over the top of this. here its done X number of times -
 
@@ -18093,5 +18094,3 @@ namespace caesar1
 
 
 }
-
-

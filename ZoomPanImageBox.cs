@@ -181,6 +181,7 @@ namespace Smallwisdom.Windows.Forms
                     "Erosion/Dep " + Convert.ToString(caesar1.Form1.init_elevs[(int)(x), (int)(y)] - caesar1.Form1.elev[(int)(x), (int)(y)]) + Environment.NewLine +
                     "Shear Stress " + Convert.ToString(caesar1.Form1.Tau[(int)(x), (int)(y)]) + Environment.NewLine +
                     "Drainage area " + Convert.ToString(caesar1.Form1.area[(int)(x), (int)(y)]) + Environment.NewLine +
+                     "Oil depth " + Convert.ToString(caesar1.Form1.oil_depth[(int)(x), (int)(y)]) + Environment.NewLine +
                     /*"Soil moisture " + Convert.ToString(caesar1.Form1.soil_moisture[(int)(x), (int)(y)]) + Environment.NewLine +*/
                     "Veg " + Convert.ToString(caesar1.Form1.veg[(int)(x), (int)(y), 1]) + Environment.NewLine
                     /*+ "Edge " + Convert.ToString(caesar1.Form1.edge[(int)(x), (int)(y)]) + Environment.NewLine*/
