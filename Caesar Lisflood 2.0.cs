@@ -347,7 +347,7 @@ namespace caesar1
         public int oil_fromx, oil_tox, oil_fromy, oil_toy, oil_n_cells, count_cells;
         public static bool isOilSimulation, oil_eventtriggered = false;
         public double oil_startt, oil_starth, oil_spillt, ro_water, oil_density, oil_T, cinematic_v, oil_ratev, oil_totalv, Cf, oil_Tg, oil_To, oil_B, oil_A, oil_transf_coeff, vel_wind, API, totalOilVolume, oil_S;
-        public static double[,] oil_Mx, oil_My, dh_oil_x, dh_oil_y, oil_depth, oil_V, oil_exp, Ev, oil_Dx, oil_Dy, oil_depth_x, oil_depth_y;
+        public static double[,] oil_Mx, oil_My, dh_oil_x, dh_oil_y, oil_depth, oil_V, oil_exp, Ev, oil_D;
 
         // TC mining
         int minesitenumber = 0;
@@ -11162,7 +11162,7 @@ namespace caesar1
                     {
                         count_cells++;
                     }
-                    oil_S = count_cells * DX * DX;
+                    oil_S = count_cells * DX * DX; // MDW : note to check : this will accumulate as the loop scans across the array. oil_S is a 2D array 
 
                 }
 
@@ -11184,6 +11184,8 @@ namespace caesar1
                 {
                     int x = down_scan[y, inc];
                     inc++;
+                    // MDW : note to check : there is no loss of oil to the atmosphere here? Should oil_depth be updated?
+
 
                     //evaporation exposure
                     oil_exp[x, y] = oil_transf_coeff * oil_S * (local_time_factor / 60) / (oil_depth[x, y] * DX * DX);
@@ -11209,6 +11211,24 @@ namespace caesar1
                 {
                     int x = down_scan[y, inc];
                     inc++;
+
+                    // spreading - diffusion coefficient
+                    oil_D[x, y] = gravity * (oil_depth[x, y]) * (ro_water - oil_density) / (ro_water * Cf);
+                    // from qroute, x direction
+                    //hflow = Math.Max(elev[x, y] + water_depth[x, y], elev[x - 1, y] + water_depth[x - 1, y]) -
+                    //                          Math.Max(elev[x - 1, y], elev[x, y]);
+                    //
+                    //  qx[x, y] = ((qx[x, y] - (gravity * hflow * local_time_factor * tempslope)) /
+                    //             (1 + gravity * hflow * local_time_factor * (temp_mannings * temp_mannings) * Math.Abs(qx[x, y]) /
+                    //              Math.Pow(hflow, (10 / 3))));
+                    //
+                    // so for elev[] this uses x-1, but for qx it uses x: qx is one cell smaller than elev
+                    //
+                    // for the code below, qx[x+1, y] is used: I think this should be x, not x+1. Similarly for y.
+                    //
+                    // Also, where is the reference to the oil depth in the neighbouring cell? (i.e. in a similar way to hflow)
+
+
                     //routing oil in x direction
 
                     if (oil_depth[x, y] > 0 ) // assess cells cointaining oil
@@ -11217,12 +11237,10 @@ namespace caesar1
                         //definition of max depth routing in the neighbourn cell
                         double oil_hflow_x = Math.Max(water_depth[x, y] + oil_depth[x, y] + elev[x, y], water_depth[x - 1, y] + oil_depth[x - 1, y] + elev[x - 1, y]) - Math.Max(water_depth[x, y] + elev[x, y], water_depth[x - 1, y] + elev[x - 1, y]);
 
-                        // spreading - diffusion coefficient
-                        oil_Dx[x, y] = gravity * (oil_hflow_x) * (ro_water - oil_density) / (ro_water * Cf);
-
                         //ADE equation
-                        oil_Mx[x, y] = (oil_hflow_x) * (1 / local_time_factor - qx[x-1, y] / (DX * DX) + oil_Dx[x-1, y] / (DX * DX)) /
-                                                                                   (1 / local_time_factor - qx[x, y] / (DX * DX) + oil_Dx[x, y] / (DX * DX) + Ev[x, y] );
+                       
+                        oil_Mx[x, y] = (oil_hflow_x * oil_density * DX * DX) * (1 / local_time_factor - qx[x-1, y] / (DX * DX) + oil_D[x-1, y] / (DX * DX)) /
+                                                                                   (1 / local_time_factor - qx[x, y] / (DX * DX) + oil_D[x, y] / (DX * DX) + Ev[x, y]/local_time_factor );
                     }
 
                     // routing in y direction
@@ -11230,11 +11248,9 @@ namespace caesar1
                     {
                     
                         double oil_hflow_y = Math.Max(water_depth[x, y] + oil_depth[x, y] + elev[x, y], water_depth[x, y - 1] + oil_depth[x, y - 1] + elev[x, y - 1]) - Math.Max(water_depth[x, y] + elev[x, y], water_depth[x, y - 1] + elev[x, y - 1]);
-                        // spreading - diffusion coefficient
-                        oil_Dy[x, y] = gravity * (oil_hflow_y) * (ro_water - oil_density) / (ro_water * Cf);
 
-                        oil_My[x, y] = (oil_hflow_y) * (1 / local_time_factor - qy[x, y-1] / (DX * DX) + oil_Dy[x, y-1] / (DX * DX)) /
-                                                                                   (1 / local_time_factor - qy[x, y] / (DX * DX) + oil_Dy[x, y] / (DX * DX) + Ev[x, y] );
+                        oil_My[x, y] = (oil_hflow_y * oil_density * DX * DX) * (1 / local_time_factor - qy[x, y-1] / (DX * DX) + oil_D[x, y-1] / (DX * DX)) /
+                                                                                   (1 / local_time_factor - qy[x, y] / (DX * DX) + oil_D[x, y] / (DX * DX) + Ev[x, y]/local_time_factor );
                     }
                 }
 
@@ -11243,240 +11259,224 @@ namespace caesar1
 
         void oil_update()
         {
-
             totalOilVolume = 0;
 
-            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
-            Parallel.For(1, ymax + 1, options, delegate (int y)
+            for (int y = 1; y <= ymax; y++)
             {
-            int inc = 1;
-
-                while (down_scan[y, inc] > 0)
-                {
-                    int x = down_scan[y, inc];
-                    inc++;
-
-                   
-                        // change in oil depth
-                        dh_oil_x[x + 1, y] = oil_Mx[x + 1, y] / (oil_density * DX * DX);
-                        dh_oil_x[x, y] = oil_Mx[x, y] / (oil_density * DX * DX);
-                        dh_oil_y[x, y + 1] = oil_My[x, y + 1] / (oil_density * DX * DX);
-                        dh_oil_y[x, y] = oil_My[x, y] / (oil_density * DX * DX);
-
-
-                        // from depth_update:
-                        // dhdt_x[x + 1, y] = local_time_factor * qx[x + 1, y] / DX;
-                        // dhdt_x[x, y] = local_time_factor * qx[x, y] / DX;
-                        // dhdt_y[x, y + 1] = local_time_factor * qy[x, y + 1] / DX;
-                        // dhdt_y[x, y] = local_time_factor * qy[x, y] / DX;
-                        //water_depth[x, y] += local_time_factor * (qx[x + 1, y] - qx[x, y] + qy[x, y + 1] - qy[x, y]) / DX;
-
-                        //oil_depth[x, y] += (oil_Mx[x+1,y] - oil_Mx[x,y] + oil_My[x,y+1] - oil_My[x,y]);
-                   
-
-                    // condition for visualisation
-                    if (oil_depth[x, y] < 0.001)
-                    {
-                        oil_depth[x, y] = 0;
-                    }
-
-                    if (oil_depth[x, y] > 0)
-                    {
-                        // line to remove any oil depth on nodata cells (that shouldnt get there!)
-                        if (elev[x, y] == -9999) oil_depth[x, y] = 0;
-
-                        // check if it is right
-                        totalOilVolume += oil_depth[x, y] * DX * DX;
-                    }
-                }
-
-                
-
-            });
-        }
-
-        void update_tracer_states()
-        {
-            ///////////////////////////////////////////////////////////////////
-            // Update water proportions for water source tracing - MDW 13/03/16
-            // Note - we only need to deal with inflows for each cell as it is
-            // assumed that the water in a cell is mixed, so the propotion from
-            // each source in outflow will be the same as in the cell itself.
-            //
-            // 1. Get depth after outflows only - check not to get -ve depths
-            // 2. Get dhdt added by each inflow and scale for each water source
-            // 3. In main cell, work out the sum of depth from each source:
-            //    : the proportion of remaining water from each source, plus
-            //    : the sum of dhdt from each source
-            // 4. Update the proportions from each source: divide by the new depth
-
-            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
-            Parallel.For(1, ymax + 1, options, delegate (int y)
-            {
-
                 int inc = 1;
+
                 while (down_scan[y, inc] > 0)
                 {
                     int x = down_scan[y, inc];
                     inc++;
 
-                    if (water_depth[x, y] > 0.0) // assess all cells which contain water
-                    {
-                        double dhdt_sumOut, dhdt_sumIn, depth_after_outflows, raindepth_after_outflows, raindepth;
-                        double[] dhdt_sumInSrc;
-                        dhdt_sumInSrc = new Double[nSources + 1];
-                        double[] dhdt_sumInSrcRainZone = new Double[nRainZones + 1];
-                        double[] dhdt_sumInSrcSolutes = new Double[nSolutes];
-                        //double solute_after_outflows;
+                    //change in oli dept #2
+                    dh_oil_x[x, y] = (oil_Mx[x + 1, y] - oil_Mx[x, y]) / (oil_density * DX * DX);
+                    dh_oil_y[x, y] = (oil_My[x, y + 1] - oil_My[x, y]) / (oil_density * DX * DX);
 
-                        // work out total outflows for this cell - source not important here
-                        dhdt_sumOut = 0.0;
-                        if (dhdt_x[x + 1, y] < 0.0) { dhdt_sumOut += dhdt_x[x + 1, y]; }  // Flow from right: -ve = outflow
-                        if (dhdt_x[x, y] > 0.0) { dhdt_sumOut -= dhdt_x[x, y]; }      // Flow from left:  +ve = outflow
-                        if (dhdt_y[x, y + 1] < 0.0) { dhdt_sumOut += dhdt_y[x, y + 1]; }  // Flow from up:    -ve = outflow
-                        if (dhdt_y[x, y] > 0.0) { dhdt_sumOut -= dhdt_y[x, y]; }      // Flow from down:  +ve = outflow
-                                                                                      // n.b. sum of outflows will be negative
+                    oil_depth[x, y] = dh_oil_x[x, y] + dh_oil_y[x, y];
 
-                        // get depth of cell from previous iteration after outflows
-                        depth_after_outflows = water_depth_prev[x, y] + dhdt_sumOut;
-
-                        for (int src = 0; src < nSources; src++) // MDW_V2 updated to zero index
-                        {
-                            dhdt_sumInSrc[src] = 0.0;
-
-                            // work out the total inflow from neighbouring cells for this source of water - ignore outflows
-                            if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumInSrc[src] += dhdt_x[x + 1, y] * watertracer_prev[x + 1, y, src]; }  // Flow from right: +ve = inflow
-                            if (dhdt_x[x, y] < 0.0) { dhdt_sumInSrc[src] -= dhdt_x[x, y] * watertracer_prev[x - 1, y, src]; }  // Flow from left:  -ve = inflow
-                            if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumInSrc[src] += dhdt_y[x, y + 1] * watertracer_prev[x, y + 1, src]; }  // Flow from up:    +ve = inflow
-                            if (dhdt_y[x, y] < 0.0) { dhdt_sumInSrc[src] -= dhdt_y[x, y] * watertracer_prev[x, y - 1, src]; }  // Flow from down:  -ve = inflow
-
-                            // update sources at this location
-                            if ((dhdt_sumInSrc[src] == 0.0) & (watertracer_prev[x, y, src] == 0.0)) // if there is no contribution or existing water from this source
+                            // condition for visualisation
+                            if (oil_depth[x, y] < 0.00001)
                             {
-                                watertracer[x, y, src] = 0.0;
-                            }
-                            else // if there are inflows or existing water from this source, update proportions
-                            {
-                                if (depth_after_outflows < 0) // just in case
-                                {
-                                    watertracer[x, y, src] = dhdt_sumInSrc[src] / (water_depth[x, y] - depth_after_outflows); // proportions are assigned based only on incoming water
-                                }
-                                else
-                                {
-                                    // ([depth of water from this source still in cell] + [depth of water from this source flowing in]) / [total depth now in cell]
-                                    watertracer[x, y, src] = ((depth_after_outflows * watertracer_prev[x, y, src]) + dhdt_sumInSrc[src]) / water_depth[x, y];
-                                }
+                                oil_depth[x, y] = 0;
                             }
 
-                        }
-                        // deal with rain zones - MDW 01/04/16
-                        if (isTraceRainZonation == true && watertracer[x, y, 1] > 0.0)
-                        {
-                            for (int src = 0; src < nRainZones; src++) // MDW_V2 updated to zero index
+                            if (oil_depth[x, y] > 0)
                             {
-                                dhdt_sumInSrcRainZone[src] = 0.0;
+                                // line to remove any oil depth on nodata cells (that shouldn't get there!)
+                                if (elev[x, y] == -9999) oil_depth[x, y] = 0;
 
-                                // work out the total inflow from neighbouring cells for this source of water - ignore outflows
-                                if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumInSrcRainZone[src] += dhdt_x[x + 1, y] * watertracer_prev[x + 1, y, 1] * watertracerRainZone_prev[x + 1, y, src]; }  // Flow from right: +ve = inflow
-                                if (dhdt_x[x, y] < 0.0) { dhdt_sumInSrcRainZone[src] -= dhdt_x[x, y] * watertracer_prev[x - 1, y, 1] * watertracerRainZone_prev[x - 1, y, src]; }  // Flow from left:  -ve = inflow
-                                if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumInSrcRainZone[src] += dhdt_y[x, y + 1] * watertracer_prev[x, y + 1, 1] * watertracerRainZone_prev[x, y + 1, src]; }  // Flow from up:    +ve = inflow
-                                if (dhdt_y[x, y] < 0.0) { dhdt_sumInSrcRainZone[src] -= dhdt_y[x, y] * watertracer_prev[x, y - 1, 1] * watertracerRainZone_prev[x, y - 1, src]; }  // Flow from down:  -ve = inflow
-
-                                // update sources at this location
-                                if ((dhdt_sumInSrcRainZone[src] == 0.0) & (watertracerRainZone_prev[x, y, src] == 0.0)) // if there is no contribution or existing water from this source
-                                {
-                                    watertracerRainZone[x, y, src] = 0.0;
-                                }
-                                else // if there are inflows or existing water from this source, update proportions
-                                {
-                                    if (depth_after_outflows < 0) // just in case
-                                    {
-                                        watertracerRainZone[x, y, src] = dhdt_sumInSrcRainZone[src] / (water_depth[x, y] - depth_after_outflows); // proportions are assigned based only on incoming water
-                                    }
-                                    else
-                                    {
-                                        // ([rain depth from this zone still in cell] + [rain zone source flowing in])/ [total rain depth now in cell]
-                                        raindepth_after_outflows = depth_after_outflows * watertracer_prev[x, y, 1];
-                                        raindepth = water_depth[x, y] * watertracer[x, y, 1];
-                                        if (raindepth > 0.0) watertracerRainZone[x, y, src] = ((raindepth_after_outflows * watertracerRainZone_prev[x, y, src]) + dhdt_sumInSrcRainZone[src]) / raindepth;
-                                        else watertracerRainZone[x, y, src] = 0;
-                                    }
-                                }
-
+                                // check if it is right
+                                totalOilVolume += oil_depth[x, y] * DX * DX;
                             }
                         }
-                        // update solute tracers - MDW_V2
-                        if (isTraceSolutes == true)
-                        {
-                            // MDW_Apr24: Reworked algorithm due to very large values accumulating, caused by division by very small depths.
-
-                            // work out the total inflow from neighbouring cells for all sources. Ignoring outflow. This is needed
-                            // for depth-averaging the solute amounts
-                            dhdt_sumIn = 0.0;
-                            if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumIn += dhdt_x[x + 1, y]; }  // Flow from right: +ve = inflow
-                            if (dhdt_x[x, y] < 0.0) { dhdt_sumIn -= dhdt_x[x, y]; }  // Flow from left:  -ve = inflow
-                            if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumIn += dhdt_y[x, y + 1]; }  // Flow from up:    +ve = inflow
-                            if (dhdt_y[x, y] < 0.0) { dhdt_sumIn -= dhdt_y[x, y]; }  // Flow from down:  -ve = inflow
-
-                            for (int src = 0; src < nSolutes; src++)
-                            {
-                                dhdt_sumInSrcSolutes[src] = 0.0;
-                                if (dhdt_sumIn > 0.0)
-                                {
-                                    // for each neighbouring cell, find the volume of this solute flowing from that cell: [total in that cell] * [dhdt from that cell]
-                                    // get depth weighted average of inputs from source cells = [total solute input]
-                                    dhdt_sumInSrcSolutes[src] = 0.0;
-
-                                    // work out the total solute*dhdt from neighbouring cells for this source of water - ignore outflows
-                                    if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumInSrcSolutes[src] += dhdt_x[x + 1, y] * solutetracer_prev[x + 1, y, src]; }  // Flow from right: +ve = inflow
-                                    if (dhdt_x[x, y] < 0.0) { dhdt_sumInSrcSolutes[src] -= dhdt_x[x, y] * solutetracer_prev[x - 1, y, src]; }  // Flow from left:  -ve = inflow
-                                    if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumInSrcSolutes[src] += dhdt_y[x, y + 1] * solutetracer_prev[x, y + 1, src]; }  // Flow from up:    +ve = inflow
-                                    if (dhdt_y[x, y] < 0.0) { dhdt_sumInSrcSolutes[src] -= dhdt_y[x, y] * solutetracer_prev[x, y - 1, src]; }  // Flow from down:  -ve = inflow
-
-                                    // MDW_Apr24: get weighted average of solutes flowing into this cell, ignore outflows [total_solute_input]:
-                                    dhdt_sumInSrcSolutes[src] = dhdt_sumInSrcSolutes[src] / dhdt_sumIn;
-                                }
-
-                                // update sources at this location
-                                if ((dhdt_sumInSrcSolutes[src] == 0.0) & (solutetracer_prev[x, y, src] == 0.0)) // if there is no contribution or existing solute from this source
-                                {
-                                    solutetracer[x, y, src] = 0.0;
-                                }
-                                else if ((dhdt_sumInSrcSolutes[src] == 0.0) & dhdt_sumOut < 0.0) // for no additions, solute concentration stays the same
-                                {
-                                    solutetracer[x, y, src] = solutetracer_prev[x, y, src];
-                                }
-                                else // if there are solute inflows or existing solute from this source, update amounts
-                                {
-                                    if (depth_after_outflows < 0 || water_depth_prev[x, y] == 0)  // cell empty, so solute amount = solutes from inflow
-                                    {
-                                        solutetracer[x, y, src] = dhdt_sumInSrcSolutes[src];
-                                    }
-                                    else
-                                    {
-                                        // updated solute amount is a depth weighted average of what was there and what is flowing in
-                                        solutetracer[x, y, src] = ((solutetracer_prev[x, y, src] * depth_after_outflows) +  // solute already there
-                                                                   (dhdt_sumInSrcSolutes[src] * dhdt_sumIn))                // solute flowing in
-                                                                   / water_depth[x, y];
-                                    }
-                                }
-                            }
-                        }
-
-                        // MDW_DEBUG
-                        // check for error
-                        /* double tracersum = 0.0;
-                        for (int src = 0; src <= nSources; src++)
-                        {
-                            tracersum += watertracer[x, y, src];
-                            if (tracersum > 1.0000001)
-                            {
-                                MessageBox.Show("Tracer exception caught: tracersum = " + Convert.ToString(tracersum) +
-                                    ", counter = " + Convert.ToString(counter) + ", cycle = " + Convert.ToString(cycle));
-                            }
-                        } */
                     }
                 }
+
+
+                void update_tracer_states()
+                {
+                    ///////////////////////////////////////////////////////////////////
+                    // Update water proportions for water source tracing - MDW 13/03/16
+                    // Note - we only need to deal with inflows for each cell as it is
+                    // assumed that the water in a cell is mixed, so the propotion from
+                    // each source in outflow will be the same as in the cell itself.
+                    //
+                    // 1. Get depth after outflows only - check not to get -ve depths
+                    // 2. Get dhdt added by each inflow and scale for each water source
+                    // 3. In main cell, work out the sum of depth from each source:
+                    //    : the proportion of remaining water from each source, plus
+                    //    : the sum of dhdt from each source
+                    // 4. Update the proportions from each source: divide by the new depth
+
+                    var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+                    Parallel.For(1, ymax + 1, options, delegate (int y)
+                    {
+
+                        int inc = 1;
+                        while (down_scan[y, inc] > 0)
+                        {
+                            int x = down_scan[y, inc];
+                            inc++;
+
+                            if (water_depth[x, y] > 0.0) // assess all cells which contain water
+                            {
+                                double dhdt_sumOut, dhdt_sumIn, depth_after_outflows, raindepth_after_outflows, raindepth;
+                                double[] dhdt_sumInSrc;
+                                dhdt_sumInSrc = new Double[nSources + 1];
+                                double[] dhdt_sumInSrcRainZone = new Double[nRainZones + 1];
+                                double[] dhdt_sumInSrcSolutes = new Double[nSolutes];
+                                //double solute_after_outflows;
+
+                                // work out total outflows for this cell - source not important here
+                                dhdt_sumOut = 0.0;
+                                if (dhdt_x[x + 1, y] < 0.0) { dhdt_sumOut += dhdt_x[x + 1, y]; }  // Flow from right: -ve = outflow
+                                if (dhdt_x[x, y] > 0.0) { dhdt_sumOut -= dhdt_x[x, y]; }      // Flow from left:  +ve = outflow
+                                if (dhdt_y[x, y + 1] < 0.0) { dhdt_sumOut += dhdt_y[x, y + 1]; }  // Flow from up:    -ve = outflow
+                                if (dhdt_y[x, y] > 0.0) { dhdt_sumOut -= dhdt_y[x, y]; }      // Flow from down:  +ve = outflow
+                                                                                              // n.b. sum of outflows will be negative
+
+                                // get depth of cell from previous iteration after outflows
+                                depth_after_outflows = water_depth_prev[x, y] + dhdt_sumOut;
+
+                                for (int src = 0; src < nSources; src++) // MDW_V2 updated to zero index
+                                {
+                                    dhdt_sumInSrc[src] = 0.0;
+
+                                    // work out the total inflow from neighbouring cells for this source of water - ignore outflows
+                                    if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumInSrc[src] += dhdt_x[x + 1, y] * watertracer_prev[x + 1, y, src]; }  // Flow from right: +ve = inflow
+                                    if (dhdt_x[x, y] < 0.0) { dhdt_sumInSrc[src] -= dhdt_x[x, y] * watertracer_prev[x - 1, y, src]; }  // Flow from left:  -ve = inflow
+                                    if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumInSrc[src] += dhdt_y[x, y + 1] * watertracer_prev[x, y + 1, src]; }  // Flow from up:    +ve = inflow
+                                    if (dhdt_y[x, y] < 0.0) { dhdt_sumInSrc[src] -= dhdt_y[x, y] * watertracer_prev[x, y - 1, src]; }  // Flow from down:  -ve = inflow
+
+                                    // update sources at this location
+                                    if ((dhdt_sumInSrc[src] == 0.0) & (watertracer_prev[x, y, src] == 0.0)) // if there is no contribution or existing water from this source
+                                    {
+                                        watertracer[x, y, src] = 0.0;
+                                    }
+                                    else // if there are inflows or existing water from this source, update proportions
+                                    {
+                                        if (depth_after_outflows < 0) // just in case
+                                        {
+                                            watertracer[x, y, src] = dhdt_sumInSrc[src] / (water_depth[x, y] - depth_after_outflows); // proportions are assigned based only on incoming water
+                                        }
+                                        else
+                                        {
+                                            // ([depth of water from this source still in cell] + [depth of water from this source flowing in]) / [total depth now in cell]
+                                            watertracer[x, y, src] = ((depth_after_outflows * watertracer_prev[x, y, src]) + dhdt_sumInSrc[src]) / water_depth[x, y];
+                                        }
+                                    }
+
+                                }
+                                // deal with rain zones - MDW 01/04/16
+                                if (isTraceRainZonation == true && watertracer[x, y, 1] > 0.0)
+                                {
+                                    for (int src = 0; src < nRainZones; src++) // MDW_V2 updated to zero index
+                                    {
+                                        dhdt_sumInSrcRainZone[src] = 0.0;
+
+                                        // work out the total inflow from neighbouring cells for this source of water - ignore outflows
+                                        if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumInSrcRainZone[src] += dhdt_x[x + 1, y] * watertracer_prev[x + 1, y, 1] * watertracerRainZone_prev[x + 1, y, src]; }  // Flow from right: +ve = inflow
+                                        if (dhdt_x[x, y] < 0.0) { dhdt_sumInSrcRainZone[src] -= dhdt_x[x, y] * watertracer_prev[x - 1, y, 1] * watertracerRainZone_prev[x - 1, y, src]; }  // Flow from left:  -ve = inflow
+                                        if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumInSrcRainZone[src] += dhdt_y[x, y + 1] * watertracer_prev[x, y + 1, 1] * watertracerRainZone_prev[x, y + 1, src]; }  // Flow from up:    +ve = inflow
+                                        if (dhdt_y[x, y] < 0.0) { dhdt_sumInSrcRainZone[src] -= dhdt_y[x, y] * watertracer_prev[x, y - 1, 1] * watertracerRainZone_prev[x, y - 1, src]; }  // Flow from down:  -ve = inflow
+
+                                        // update sources at this location
+                                        if ((dhdt_sumInSrcRainZone[src] == 0.0) & (watertracerRainZone_prev[x, y, src] == 0.0)) // if there is no contribution or existing water from this source
+                                        {
+                                            watertracerRainZone[x, y, src] = 0.0;
+                                        }
+                                        else // if there are inflows or existing water from this source, update proportions
+                                        {
+                                            if (depth_after_outflows < 0) // just in case
+                                            {
+                                                watertracerRainZone[x, y, src] = dhdt_sumInSrcRainZone[src] / (water_depth[x, y] - depth_after_outflows); // proportions are assigned based only on incoming water
+                                            }
+                                            else
+                                            {
+                                                // ([rain depth from this zone still in cell] + [rain zone source flowing in])/ [total rain depth now in cell]
+                                                raindepth_after_outflows = depth_after_outflows * watertracer_prev[x, y, 1];
+                                                raindepth = water_depth[x, y] * watertracer[x, y, 1];
+                                                if (raindepth > 0.0) watertracerRainZone[x, y, src] = ((raindepth_after_outflows * watertracerRainZone_prev[x, y, src]) + dhdt_sumInSrcRainZone[src]) / raindepth;
+                                                else watertracerRainZone[x, y, src] = 0;
+                                            }
+                                        }
+
+                                    }
+                                }
+                                // update solute tracers - MDW_V2
+                                if (isTraceSolutes == true)
+                                {
+                                    // MDW_Apr24: Reworked algorithm due to very large values accumulating, caused by division by very small depths.
+
+                                    // work out the total inflow from neighbouring cells for all sources. Ignoring outflow. This is needed
+                                    // for depth-averaging the solute amounts
+                                    dhdt_sumIn = 0.0;
+                                    if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumIn += dhdt_x[x + 1, y]; }  // Flow from right: +ve = inflow
+                                    if (dhdt_x[x, y] < 0.0) { dhdt_sumIn -= dhdt_x[x, y]; }  // Flow from left:  -ve = inflow
+                                    if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumIn += dhdt_y[x, y + 1]; }  // Flow from up:    +ve = inflow
+                                    if (dhdt_y[x, y] < 0.0) { dhdt_sumIn -= dhdt_y[x, y]; }  // Flow from down:  -ve = inflow
+
+                                    for (int src = 0; src < nSolutes; src++)
+                                    {
+                                        dhdt_sumInSrcSolutes[src] = 0.0;
+                                        if (dhdt_sumIn > 0.0)
+                                        {
+                                            // for each neighbouring cell, find the volume of this solute flowing from that cell: [total in that cell] * [dhdt from that cell]
+                                            // get depth weighted average of inputs from source cells = [total solute input]
+                                            dhdt_sumInSrcSolutes[src] = 0.0;
+
+                                            // work out the total solute*dhdt from neighbouring cells for this source of water - ignore outflows
+                                            if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumInSrcSolutes[src] += dhdt_x[x + 1, y] * solutetracer_prev[x + 1, y, src]; }  // Flow from right: +ve = inflow
+                                            if (dhdt_x[x, y] < 0.0) { dhdt_sumInSrcSolutes[src] -= dhdt_x[x, y] * solutetracer_prev[x - 1, y, src]; }  // Flow from left:  -ve = inflow
+                                            if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumInSrcSolutes[src] += dhdt_y[x, y + 1] * solutetracer_prev[x, y + 1, src]; }  // Flow from up:    +ve = inflow
+                                            if (dhdt_y[x, y] < 0.0) { dhdt_sumInSrcSolutes[src] -= dhdt_y[x, y] * solutetracer_prev[x, y - 1, src]; }  // Flow from down:  -ve = inflow
+
+                                            // MDW_Apr24: get weighted average of solutes flowing into this cell, ignore outflows [total_solute_input]:
+                                            dhdt_sumInSrcSolutes[src] = dhdt_sumInSrcSolutes[src] / dhdt_sumIn;
+                                        }
+
+                                        // update sources at this location
+                                        if ((dhdt_sumInSrcSolutes[src] == 0.0) & (solutetracer_prev[x, y, src] == 0.0)) // if there is no contribution or existing solute from this source
+                                        {
+                                            solutetracer[x, y, src] = 0.0;
+                                        }
+                                        else if ((dhdt_sumInSrcSolutes[src] == 0.0) & dhdt_sumOut < 0.0) // for no additions, solute concentration stays the same
+                                        {
+                                            solutetracer[x, y, src] = solutetracer_prev[x, y, src];
+                                        }
+                                        else // if there are solute inflows or existing solute from this source, update amounts
+                                        {
+                                            if (depth_after_outflows < 0 || water_depth_prev[x, y] == 0)  // cell empty, so solute amount = solutes from inflow
+                                            {
+                                                solutetracer[x, y, src] = dhdt_sumInSrcSolutes[src];
+                                            }
+                                            else
+                                            {
+                                                // updated solute amount is a depth weighted average of what was there and what is flowing in
+                                                solutetracer[x, y, src] = ((solutetracer_prev[x, y, src] * depth_after_outflows) +  // solute already there
+                                                                           (dhdt_sumInSrcSolutes[src] * dhdt_sumIn))                // solute flowing in
+                                                                           / water_depth[x, y];
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // MDW_DEBUG
+                                // check for error
+                                /* double tracersum = 0.0;
+                                for (int src = 0; src <= nSources; src++)
+                                {
+                                    tracersum += watertracer[x, y, src];
+                                    if (tracersum > 1.0000001)
+                                    {
+                                        MessageBox.Show("Tracer exception caught: tracersum = " + Convert.ToString(tracersum) +
+                                            ", counter = " + Convert.ToString(counter) + ", cycle = " + Convert.ToString(cycle));
+                                    }
+                                } */
+                }
+            }
             });
 
 
@@ -11585,10 +11585,9 @@ namespace caesar1
 
             dh_oil_y = new double[xmax + 2, ymax + 2];// for oil_update()
             dh_oil_x = new double[xmax + 2, ymax + 2];
-            oil_Dx = new double[xmax + 2, ymax + 2];
-            oil_Dy = new double[xmax + 2, ymax + 2];
-            oil_depth_x = new double[xmax + 2, ymax + 2];
-            oil_depth_y = new double[xmax + 2, ymax + 2];
+            oil_D = new double[xmax + 2, ymax + 2];
+    
+            
 
             oil_exp = new double[xmax + 2, ymax + 2];// for oil_evaporation ()
             Ev = new double[xmax + 2, ymax + 2];
