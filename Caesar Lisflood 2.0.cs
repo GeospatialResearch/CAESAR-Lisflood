@@ -234,6 +234,7 @@ namespace caesar1
 
         // toms global arrays
         public static double[,] elev, bedrock, init_elevs, water_depth, area, tempcreep, Tau, Vel, qx, qy,
+            qx_prev, qy_prev, // OIL_V1 so that we can save the previous timestep of water routing
             /* dune arrays */ area_depth, sand, elev2, sand2, elev_diff, spat_var_mannings, erodetot, erodetot3, temp_elev;
         int[,] index, cross_scan, down_scan, rfarea, tracer_area, angle_threshold, grain_area;
         bool[,] inputpointsarray;
@@ -6175,9 +6176,10 @@ namespace caesar1
                     {
                         oil_spill_input(local_time_factor);
                         oil_area();
-                        oil_evaporation(local_time_factor);
+                        //oil_evaporation(local_time_factor);
                         oilroute(local_time_factor);
                         oil_update();
+
                     }
 
                 }
@@ -9432,6 +9434,9 @@ namespace caesar1
             qx = new double[xmax + 2, ymax + 2];
             qy = new double[xmax + 2, ymax + 2];
 
+            qx_prev = new double[xmax + 2, ymax + 2]; // OIL_V1 for saving of previous water routing
+            qy_prev = new double[xmax + 2, ymax + 2];
+
             qxs = new double[xmax + 2, ymax + 2, tracers + 1];
             qys = new double[xmax + 2, ymax + 2, tracers + 1];
 
@@ -10962,6 +10967,7 @@ namespace caesar1
                                 if (x <= 2) tempslope = 0 - edgeslope;
 
                                 //double oldqx = qx[x, y];
+                                qx_prev[x, y] = qx[x, y]; // OIL_V1 save q state
                                 qx[x, y] = ((qx[x, y] - (gravity * hflow * local_time_factor * tempslope)) /
                                           (1 + gravity * hflow * local_time_factor * (temp_mannings * temp_mannings) * Math.Abs(qx[x, y]) /
                                           Math.Pow(hflow, (10 / 3))));
@@ -11014,6 +11020,7 @@ namespace caesar1
                                 if (y <= 2) tempslope = 0 - edgeslope;
 
                                 //double oldqy = qy[x, y];
+                                qy_prev[x, y] = qy[x, y]; // OIL_V1 save q state
                                 qy[x, y] = ((qy[x, y] - (gravity * hflow * local_time_factor * tempslope)) /
                                           (1 + gravity * hflow * local_time_factor * (temp_mannings * temp_mannings) * Math.Abs(qy[x, y]) /
                                           Math.Pow(hflow, (10 / 3))));
@@ -11202,15 +11209,19 @@ namespace caesar1
 
             //double local_time_factor = time_factor;
             //if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
-
-            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
-            Parallel.For(1, ymax + 1, options, delegate (int y)
+            for (int x = 1; x < xmax; x++)
             {
-                int inc = 1;
-                while (down_scan[y, inc] > 0)
+                for (int y = 1; y < ymax; y++)
                 {
-                    int x = down_scan[y, inc];
-                    inc++;
+
+                    /*var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+                    Parallel.For(1, ymax + 1, options, delegate (int y)
+                    {
+                        int inc = 1;
+                        while (down_scan[y, inc] > 0)
+                        {
+                            int x = down_scan[y, inc];
+                            inc++;*/
 
                     // spreading - diffusion coefficient
                     oil_D[x, y] = gravity * (oil_depth[x, y]) * (ro_water - oil_density) / (ro_water * Cf);
@@ -11231,30 +11242,33 @@ namespace caesar1
 
                     //routing oil in x direction
 
-                    if (oil_depth[x, y] > 0 ) // assess cells cointaining oil
+                    if (oil_depth[x, y] > 0 | oil_depth[x - 1, y] > 0) // assess cells cointaining oil
                     {
-                        
+
                         //definition of max depth routing in the neighbourn cell
                         double oil_hflow_x = Math.Max(water_depth[x, y] + oil_depth[x, y] + elev[x, y], water_depth[x - 1, y] + oil_depth[x - 1, y] + elev[x - 1, y]) - Math.Max(water_depth[x, y] + elev[x, y], water_depth[x - 1, y] + elev[x - 1, y]);
-
+                        // 0.0040992381893186153
+                        //qx[x, y] = ((qx[x, y] - (gravity * hflow * local_time_factor * tempslope)) /
+                        //                  (1 + gravity * hflow * local_time_factor * (temp_mannings * temp_mannings) * Math.Abs(qx[x, y]) /
+                        //                  Math.Pow(hflow, (10 / 3))));
                         //ADE equation
-                       
-                        oil_Mx[x, y] = (oil_hflow_x * oil_density * DX * DX) * (1 / local_time_factor - qx[x-1, y] / (DX * DX) + oil_D[x-1, y] / (DX * DX)) /
-                                                                                   (1 / local_time_factor - qx[x, y] / (DX * DX) + oil_D[x, y] / (DX * DX) + Ev[x, y]/local_time_factor );
+                        // 1375.7043363353273
+                        oil_Mx[x, y] = (oil_hflow_x * oil_density * DX * DX) * (1 / local_time_factor - qx_prev[x, y] / (DX * DX) + oil_D[x - 1, y] / (DX * DX)) /
+                                                                                   (1 / local_time_factor - qx[x, y] / (DX * DX) + oil_D[x, y] / (DX * DX) + Ev[x, y] / local_time_factor);
                     }
 
                     // routing in y direction
-                    if (oil_depth[x, y] > 0)
+                    if (oil_depth[x, y] > 0 | oil_depth[x, y - 1] > 0)
                     {
-                    
+
                         double oil_hflow_y = Math.Max(water_depth[x, y] + oil_depth[x, y] + elev[x, y], water_depth[x, y - 1] + oil_depth[x, y - 1] + elev[x, y - 1]) - Math.Max(water_depth[x, y] + elev[x, y], water_depth[x, y - 1] + elev[x, y - 1]);
 
-                        oil_My[x, y] = (oil_hflow_y * oil_density * DX * DX) * (1 / local_time_factor - qy[x, y-1] / (DX * DX) + oil_D[x, y-1] / (DX * DX)) /
-                                                                                   (1 / local_time_factor - qy[x, y] / (DX * DX) + oil_D[x, y] / (DX * DX) + Ev[x, y]/local_time_factor );
+                        oil_My[x, y] = (oil_hflow_y * oil_density * DX * DX) * (1 / local_time_factor - qy_prev[x, y] / (DX * DX) + oil_D[x, y - 1] / (DX * DX)) /
+                                                                                   (1 / local_time_factor - qy[x, y] / (DX * DX) + oil_D[x, y] / (DX * DX) + Ev[x, y] / local_time_factor);
                     }
                 }
 
-            });
+            } //});
         }
 
         void oil_update()
@@ -11270,19 +11284,40 @@ namespace caesar1
                     int x = down_scan[y, inc];
                     inc++;
 
+                    // form of water update: dhdt in 4 directions (code below only has 2)
+                    //dhdt_x[x + 1, y] = local_time_factor * qx[x + 1, y] / DX;
+                    //dhdt_x[x, y] = local_time_factor * qx[x, y] / DX;
+                    //dhdt_y[x, y + 1] = local_time_factor * qy[x, y + 1] / DX;
+                    //dhdt_y[x, y] = local_time_factor * qy[x, y] / DX;
+
+                    // update water depths: 4 directions as well (could use dhdt directly here as you have)
+                    //water_depth[x, y] += local_time_factor * (qx[x + 1, y] - qx[x, y] + qy[x, y + 1] - qy[x, y]) / DX;
+
+
                     //change in oli dept #2
-                    dh_oil_x[x, y] = (oil_Mx[x + 1, y] - oil_Mx[x, y]) / (oil_density * DX * DX);
-                    dh_oil_y[x, y] = (oil_My[x, y + 1] - oil_My[x, y]) / (oil_density * DX * DX);
+                    dh_oil_x[x + 1, y] = oil_Mx[x + 1, y] / (oil_density * DX * DX);
+                    dh_oil_x[x, y] = oil_Mx[x, y] / (oil_density * DX * DX);
 
-                    oil_depth[x, y] = dh_oil_x[x, y] + dh_oil_y[x, y];
+                    dh_oil_y[x, y + 1] = oil_My[x, y + 1] / (oil_density * DX * DX);
+                    dh_oil_y[x, y] = oil_My[x, y] / (oil_density * DX * DX);
 
-                            // condition for visualisation
-                            if (oil_depth[x, y] < 0.00001)
-                            {
-                                oil_depth[x, y] = 0;
-                            }
+                    oil_depth[x, y] += dh_oil_x[x + 1, y] - dh_oil_x[x, y] + dh_oil_y[x, y + 1] - dh_oil_y[x, y]; // same structure as water depth
 
-                            if (oil_depth[x, y] > 0)
+
+                    //dh_oil_x[x, y] = (oil_Mx[x + 1, y] - oil_Mx[x, y]) / (oil_density * DX * DX);
+                    //dh_oil_y[x, y] = (oil_My[x, y + 1] - oil_My[x, y]) / (oil_density * DX * DX);
+
+                    //oil_depth[x, y] = dh_oil_x[x, y] + dh_oil_y[x, y]; // needs a += so that depth is added, not replaced
+
+
+                    // condition for visualisation // stop oil depth being negative
+                    if (oil_depth[x, y] < 0)
+                    {
+                        totalOilVolume += oil_depth[x, y] * DX * DX;
+                        oil_depth[x, y] = 0; 
+                    }
+
+                    if (oil_depth[x, y] > 0)
                             {
                                 // line to remove any oil depth on nodata cells (that shouldn't get there!)
                                 if (elev[x, y] == -9999) oil_depth[x, y] = 0;
@@ -11547,7 +11582,7 @@ namespace caesar1
             if (oil_starth < 0.01)
             {
                 MessageBox.Show("Oil spill simulation: depth threshold must be at least 0.01 m. Updating and continuing.");
-                oil_starth = 0.01;
+                //oil_starth = 0.01;
             }
 
             // All ok at this point
