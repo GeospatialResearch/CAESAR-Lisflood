@@ -348,8 +348,8 @@ namespace caesar1
         public int oil_fromx, oil_tox, oil_fromy, oil_toy, oil_n_cells, count_cells;
         public static bool isOilSimulation, oil_eventtriggered = false;
         public double oil_startt, oil_starth, oil_spillt, ro_water, oil_density, oil_T, cinematic_v, oil_ratev, oil_totalv, Cf,
-            oil_Tg, oil_To, oil_B, oil_A, oil_transf_coeff, vel_wind, API, totalOilVolume, oil_S, oil_D;
-        public static double[,] oil_hx, oil_hy, oil_depth_prev, dh_oil_x, dh_oil_y, oil_depth, oil_V, oil_exp, Ev, oil_depth_init, oil_D_prev;
+            oil_Tg, oil_To, oil_B, oil_A, oil_transf_coeff, vel_wind, API, totalOilVolume, oil_S, oil_D, iteration_t, Ev;
+        public static double[,] oil_hx, oil_hy, oil_depth_prev, dh_oil_x, dh_oil_y, oil_depth, oil_V, oil_exp, oil_depth_init, oil_D_prev;
 
         // TC mining
         int minesitenumber = 0;
@@ -6179,7 +6179,7 @@ namespace caesar1
                         oil_area();
                         //oil_evaporation(local_time_factor);
                         oilroute(local_time_factor);
-                        oil_update(local_time_factor);
+                        oil_update();
 
                     }
 
@@ -6853,7 +6853,7 @@ namespace caesar1
             {
                 for (int y = Math.Min(oil_fromy, oil_toy); y <= Math.Max(oil_fromy, oil_toy); y++)
                 {
-
+                     
                     // formula used below rather than being assigned
                     //oil_input = oil_ratev * local_time_factor /  (DX * DX);
 
@@ -6863,6 +6863,14 @@ namespace caesar1
                     //oil_depth_init = oil_input / oil_n_cells; 
 
                     // I think it is better to add the input onto the exiting oil depth, then route all the only in oilroute()
+
+                    // after the oil spill duration stop to add oil from the source
+                    iteration_t += local_time_factor;
+                    if (iteration_t > oil_spillt)
+                    {
+                        oil_ratev = 0;
+                    }
+
                     oil_depth[x, y] += oil_ratev * local_time_factor / (oil_n_cells * DX * DX);
                     totalOilVolume += oil_ratev * local_time_factor;
 
@@ -11183,8 +11191,6 @@ namespace caesar1
         void oil_evaporation(double local_time_factor)
 
         {
-            //double local_time_factor = time_factor;
-            //if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
 
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax + 1, options, delegate (int y)
@@ -11194,9 +11200,11 @@ namespace caesar1
                 {
                     int x = down_scan[y, inc];
                     inc++;
-                    //evaporation rate 
-                    Ev[x, y] = (3.24 + 0.054 * 15) * Math.Log(local_time_factor);
 
+                    //evaporation rate - no wind influence from Fingas studies
+                    Ev = (3.24 + 0.054 * 15) * Math.Log(local_time_factor) / 100;
+
+                    // Evaporation rate from MAckey experiments - takes into account wind, area of oil slick, oil charachteristics (API).
                     /*if (oil_depth[x,y] > 0 )
                     {
                         //evaporation exposure
@@ -11210,9 +11218,6 @@ namespace caesar1
             });
         }
 
-
-
-
         void oilroute(double local_time_factor)
         {
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
@@ -11224,87 +11229,82 @@ namespace caesar1
                     int x = down_scan[y, inc];
                     inc++;
                     /*for (int x = 1; x < xmax; x++)
-                    {
-                        for (int y = 1; y < ymax; y++)
-                        {*/
-
-                    if (elev[x, y] > -9999)
-                    {
-                        // routing oil in x direction
-                        if ((oil_depth[x, y] > 0 | oil_depth[x - 1, y] > 0) && elev[x - 1, y] > -9999) // assess cells containing oil
                         {
-                            // max oil depth routing between cells
-                            double oil_hflow = Math.Max(water_depth[x, y] + elev[x, y] + oil_depth[x, y], water_depth[x - 1, y] + elev[x - 1, y] + oil_depth[x - 1, y]) - Math.Max(elev[x, y] + water_depth[x, y], elev[x - 1, y] + water_depth[x - 1, y]);
+                            for (int y = 1; y < ymax; y++)
+                            {*/
 
-                            double oil_hx_prev = oil_hx[x, y];
-                            // advection-dispersion equation x-direction
-                            oil_hx[x, y] = oil_hx_prev - (local_time_factor * (oil_hflow * qx_prev[x, y] / (DX * DX) - oil_D * (oil_hflow + oil_hx[x, y]) / (DX * DX)));
+                    // routing oil in x direction
+                    if ((oil_depth[x, y] > 0 | oil_depth[x - 1, y] > 0) && elev[x - 1, y] > -9999) // assess cells containing oil
+                    {
+                        // max oil depth routing between cells
+                        double oil_hflow = Math.Max(water_depth[x, y] + elev[x, y] + oil_depth[x, y], water_depth[x - 1, y] + elev[x - 1, y] + oil_depth[x - 1, y]) - Math.Max(elev[x, y] + water_depth[x, y], elev[x - 1, y] + water_depth[x - 1, y]);
 
-                            // Adjust sign based on qx - force the oil in the same direction of water
-                            if (qx[x, y] < 0)
-                            {
-                                oil_hx[x, y] = -(Math.Abs(oil_hx[x, y]));
-                            }
-                            else if (qx[x, y] >= 0)
-                            {
-                                oil_hx[x, y] = (Math.Abs(oil_hx[x, y]));
-                            }
+                        // advection-dispersion equation x-direction
+                        double oil_hx_prev = oil_hx[x, y];
+                        oil_hx[x, y] = oil_hx_prev - (local_time_factor * (oil_hflow * (qx[x, y]) / (DX * DX) - oil_D * (oil_hflow) / (DX * DX))) /*- Ev* oil_hx_prev*/;
 
+                        // Adjust sign based on qx - force the oil in the same direction of water
+                        if (qx[x, y] < 0)
+                        {
+                            oil_hx[x, y] = -(Math.Abs(oil_hx[x, y]));
+                        }
+                        else if (qx[x, y] >= 0)
+                        {
+                            oil_hx[x, y] = (Math.Abs(oil_hx[x, y]));
                         }
 
-                        // routing in y direction
-                        if ((oil_depth[x, y] > 0 | oil_depth[x, y - 1] > 0) && elev[x, y - 1] > -9999)
-                        {
-                            // max oil depth routing between cells
-                            double oil_hflow = Math.Max(water_depth[x, y] + elev[x, y] + oil_depth[x, y], water_depth[x, y - 1] + elev[x, y - 1] + oil_depth[x, y - 1]) - Math.Max(elev[x, y] + water_depth[x, y], elev[x, y - 1] + water_depth[x, y - 1]);
-
-                            double oil_hy_prev = oil_hy[x, y];
-
-                            // advection-dispersion equation x-direction
-                            oil_hy[x, y] = oil_hy_prev - (local_time_factor * (oil_hflow * qy_prev[x, y] / (DX * DX) - oil_D * (oil_hflow + oil_hy[x, y]) / (DX * DX)));
-
-                            // Adjust sign based on qy - force the oil in the same direction of water
-                            if (qy[x, y] < 0)
-                            {
-                                oil_hy[x, y] = -(Math.Abs(oil_hy[x, y]));
-                            }
-                            else if (qy[x, y] >= 0)
-                            {
-                                oil_hy[x, y] = (Math.Abs(oil_hy[x, y]));
-                            }
-
-                        }
                     }
+
+                    // routing in y direction
+                    if ((oil_depth[x, y] > 0 | oil_depth[x, y - 1] > 0) && elev[x, y - 1] > -9999)
+                    {
+                        // max oil depth routing between cells
+                        double oil_hflow = Math.Max(water_depth[x, y] + elev[x, y] + oil_depth[x, y], water_depth[x, y - 1] + elev[x, y - 1] + oil_depth[x, y - 1]) - Math.Max(elev[x, y] + water_depth[x, y], elev[x, y - 1] + water_depth[x, y - 1]);
+
+                        // advection-dispersion equation y-direction
+                        double oil_hy_prev = oil_hy[x, y];
+                        oil_hy[x, y] = oil_hy_prev - (local_time_factor * (oil_hflow * (qy[x, y]) / (DX * DX) - oil_D * (oil_hflow) / (DX * DX))) /*- Ev* oil_hy_prev*/;
+
+                        // Adjust sign based on qy - force the oil in the same direction of water
+                        if (qy[x, y] < 0)
+                        {
+                            oil_hy[x, y] = -(Math.Abs(oil_hy[x, y]));
+                        }
+                        else if (qy[x, y] >= 0)
+                        {
+                            oil_hy[x, y] = (Math.Abs(oil_hy[x, y]));
+                        }
+
+                    }
+
 
                 }
             });
         }
 
-        void oil_update(double local_time_factor)
+        void oil_update()
         {
             totalOilVolume = 0;
+
 
 
             for (int x = 1; x < xmax; x++)
             {
                 for (int y = 1; y < ymax; y++)
                 {
-                    oil_depth[x, y] += (oil_hx[x + 1, y] - oil_hx[x, y] + oil_hy[x, y + 1] - oil_hy[x, y]);
 
-                    /*if (oil_depth[x,y] > 5 * water_depth[x,y])
-                    {
-                        oil_depth[x, y] = 0;
-                    }*/
+                    oil_depth[x, y] += (oil_hx[x + 1, y] - oil_hx[x, y] + oil_hy[x, y + 1] - oil_hy[x, y]);
 
                     if (oil_depth[x, y] < 0)
                     {
                         oil_depth[x, y] = 0;
                     }
+
                     if (oil_depth[x, y] > 0)
 
                     {
                         // line to remove any oil depth on nodata cells (that shouldn't get there!)
-                        //if (elev[x, y] == -9999) oil_depth[x, y] = 0;
+                        if (elev[x, y] == -9999) oil_depth[x, y] = 0;
 
                         // check if it is right
                         totalOilVolume += oil_depth[x, y] * DX * DX;
@@ -11580,9 +11580,9 @@ namespace caesar1
                           Math.Max(Math.Max(oil_fromy, oil_toy) - Math.Min(oil_fromy, oil_toy), 1);
 
             // Initialise other parameters - to be added to interface
-            oil_D = 0.0005;
-            oil_density = 0.839; //then to be defined in the graphical interface input
-            ro_water = 1.000;
+            oil_D = 0.000002;
+            oil_density = 839; //then to be defined in the graphical interface input
+            ro_water = 1000;
             cinematic_v = 9.2;
             oil_T = 295;
             vel_wind = 2.5;
@@ -11615,7 +11615,7 @@ namespace caesar1
 
 
             oil_exp = new double[xmax + 2, ymax + 2];// for oil_evaporation ()
-            Ev = new double[xmax + 2, ymax + 2];
+            //Ev = new double[xmax + 2, ymax + 2];
             //oil_S = new double[xmax + 2, ymax + 2];
 
 
