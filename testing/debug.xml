@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <Parms>
     <General-Parms>
-        <headeroverride>false</headeroverride>
+        <headeroverride>true</headeroverride>
         <x-coordinate>593</x-coordinate>
         <y-coordinate>358</y-coordinate>
         <initscans>0</initscans>
@@ -89,11 +89,11 @@
         </SaveOptions>
         <SaveOptions>
             <Option>water depth</Option>
-            <Checked>false</Checked>
+            <Checked>true</Checked>
         </SaveOptions>
         <SaveOptions>
             <Option>d50</Option>
-            <Checked>false</Checked>
+            <Checked>true</Checked>
         </SaveOptions>
         <SaveOptions>
             <Option>flow velocity</Option>
@@ -347,7 +347,7 @@
         <raindatatimestep>60</raindatatimestep>
         <activelayerthickness>0.1</activelayerthickness>
         <downstreamshift>5</downstreamshift>
-        <courantnumber>0.399</courantnumber>
+        <courantnumber>0.3</courantnumber>
         <hflow>0.0001</hflow>
         <lateralsmoothing>0.0001</lateralsmoothing>
         <froude_limit>0.6</froude_limit>
@@ -392,14 +392,14 @@
         <OutputDirectory>debug</OutputDirectory>
         <OutDirDateTime>true</OutDirDateTime>
         <OilSimulation>true</OilSimulation>
-        <OilYmin>0</OilYmin>
-        <OilYmax>0</OilYmax>
-        <OilXmin>0</OilXmin>
-        <OilXmax>0</OilXmax>
+        <OilYmin>50</OilYmin>
+        <OilYmax>48</OilYmax>
+        <OilXmin>50</OilXmin>
+        <OilXmax>52</OilXmax>
         <OilTimeMin>0</OilTimeMin>
         <OilDepthStart>1.5</OilDepthStart>
-        <OilVolume>0</OilVolume>
-        <OilSpillDuration>0</OilSpillDuration>
+        <OilVolume>1000</OilVolume>
+        <OilSpillDuration>600</OilSpillDuration>
         <SaveOptions>
             <Option>water tracers</Option>
             <Checked>false</Checked>
@@ -410,6 +410,10 @@
         </SaveOptions>
         <SaveOptions>
             <Option>solute tracers</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>oil depth</Option>
             <Checked>false</Checked>
         </SaveOptions>
         <Filenames>
