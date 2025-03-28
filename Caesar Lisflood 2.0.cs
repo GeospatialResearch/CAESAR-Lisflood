@@ -346,6 +346,7 @@ namespace caesar1
 
         public static bool simLoadState = false;
 
+        // xxx
         // OIL_V1
         public int oil_fromx, oil_tox, oil_fromy, oil_toy, oil_n_cells, count_cells;
         public static bool isOilSimulation, oil_eventtriggered = false;
