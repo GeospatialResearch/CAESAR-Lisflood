@@ -58,6 +58,7 @@ using System.Windows.Forms;
 using System.Xml;  //JMW
 using System.Xml.Linq;
 using System.Xml.Schema;
+using System.Threading;//PDF
 
 namespace caesar1
 {
@@ -234,6 +235,7 @@ namespace caesar1
 
         // toms global arrays
         public static double[,] elev, bedrock, init_elevs, water_depth, area, tempcreep, Tau, Vel, qx, qy,
+            qx_prev, qy_prev, // OIL_V1 so that we can save the previous timestep of water routing
             /* dune arrays */ area_depth, sand, elev2, sand2, elev_diff, spat_var_mannings, erodetot, erodetot3, temp_elev;
         int[,] index, cross_scan, down_scan, rfarea, tracer_area, angle_threshold, grain_area;
         bool[,] inputpointsarray;
@@ -311,6 +313,7 @@ namespace caesar1
         private bool outdirDateTime = false;
         private string googleAnimationDir = "animation"; // MDW_V2 - added to handle user folder
 
+
         // stage/tidal variables
         int fromx, tox, fromy, toy;
         double stage_input_time_step = 1;
@@ -341,14 +344,17 @@ namespace caesar1
         int nHydroChecked = 0; //MDW_V2 - needed to correctly index extra sources
         public static int sourceIndexAddition = 2; //MDW_V2 - source numbering adjustment to accrount for whether if rain/ tide is on
 
+        public static bool simLoadState = false;
+
         // OIL_V1
-        public int oil_fromx, oil_tox, oil_fromy, oil_toy;
+        public int oil_fromx, oil_tox, oil_fromy, oil_toy, oil_n_cells, count_cells;
         public static bool isOilSimulation, oil_eventtriggered = false;
-        public double oil_startt, oil_starth, oil_totalv, oil_spillt;
-        public static double[,] oildepth;
-
-
-
+        public double oil_startt, oil_starth, oil_spillt, ro_water, oil_density, oil_T, cinematic_v, oil_ratev, oil_totalv, Cf,
+            oil_Tg, oil_To, oil_B, oil_A, oil_transf_coeff, vel_wind, API, totalOilVolume, oil_out_t, oil_out_sum, oil_evap_t,
+            oil_evap_sum, oil_in_sum, Vout_1, Vout_2, Vout_3, Vout_4, error_negative, error_negative_sum, error_edge, error_edge_sum,
+            oil_S, oil_D, iteration_t, Ev, oil_exp, oil_depth_init, Ev_prev;
+        public static double[,] oil_hx, oil_hy, oil_hx_prev, oil_hy_prev, oil_depth, oil_depth_prev, oil_evap_fraction, oil_conc;
+        double Vout = 0;
         // TC mining
         int minesitenumber = 0;
 
@@ -769,9 +775,14 @@ namespace caesar1
         private CheckBox checkBox11;
         private CheckBox checkBox10;
         private MenuItem menuItem10;
+        private MenuItem menuItemOilVisualisation; // OIL_V1_MDW
+        private MenuItem menuItemOilconcVisualisation; // OIL_V1_PDF
         private MenuItem menuItem6;
         private MenuItem menuItem15;
         private MenuItem menuItemSoluteTracer; //MDW_V2
+        private MenuItem menuItemOilSpill; //OIL_V1_PDF
+        private MenuItem menuItem17; //OIL_V1_PDF
+        private MenuItem menuItemOilconc; //OIL_V1_PDF
         private Label label111;
         private Label label112;
         private Label label113;
@@ -823,6 +834,8 @@ namespace caesar1
         private Label OilVolumelabel;
         private TextBox OilSpillDuration;
         private Label OilSpillDurationlabel;
+
+
         #endregion
 
 
@@ -873,6 +886,8 @@ namespace caesar1
             this.menuItem4 = new System.Windows.Forms.MenuItem();
             this.menuItem5 = new System.Windows.Forms.MenuItem();
             this.menuItem10 = new System.Windows.Forms.MenuItem();
+            this.menuItemOilVisualisation = new System.Windows.Forms.MenuItem(); // OIL_V1_MDW
+            this.menuItemOilconcVisualisation = new System.Windows.Forms.MenuItem(); // OIL_V1_PDF
             this.menuItem2 = new System.Windows.Forms.MenuItem();
             this.menuItem7 = new System.Windows.Forms.MenuItem();
             this.menuItem8 = new System.Windows.Forms.MenuItem();
@@ -893,6 +908,9 @@ namespace caesar1
             this.menuItem15 = new System.Windows.Forms.MenuItem();
             this.menuItem16 = new System.Windows.Forms.MenuItem();
             this.menuItemSoluteTracer = new System.Windows.Forms.MenuItem();
+            this.menuItemOilSpill = new System.Windows.Forms.MenuItem(); //OIL_V1_PDF
+            this.menuItem17 = new System.Windows.Forms.MenuItem(); //OIL_V1_PDF
+            this.menuItemOilconc = new System.Windows.Forms.MenuItem(); //OIL_V1_PDF
             this.tabControl1 = new System.Windows.Forms.TabControl();
             this.FilesTab = new System.Windows.Forms.TabPage();
             this.label123 = new System.Windows.Forms.Label();
@@ -1262,6 +1280,25 @@ namespace caesar1
             this.checkBox5 = new System.Windows.Forms.CheckBox();
             this.checkBox4 = new System.Windows.Forms.CheckBox();
             this.soildevbox = new System.Windows.Forms.CheckBox();
+            this.OilTab = new System.Windows.Forms.TabPage();
+            this.OilTab_checkBox = new System.Windows.Forms.CheckBox();
+            this.OilTab_groupBox_controls = new System.Windows.Forms.GroupBox();
+            this.OilYmin = new System.Windows.Forms.TextBox();
+            this.OilYmax = new System.Windows.Forms.TextBox();
+            //this.OilSpillDuration = new System.Windows.Forms.TextBox();
+            this.OilXmin = new System.Windows.Forms.TextBox();
+            this.OilXmax = new System.Windows.Forms.TextBox();
+            this.OilYlabel = new System.Windows.Forms.Label();
+            this.OilXlabel = new System.Windows.Forms.Label();
+            this.OilTextlabel = new System.Windows.Forms.Label();
+            this.OilTimeMin = new System.Windows.Forms.TextBox();
+            this.OilTimeMinlabel = new System.Windows.Forms.Label();
+            this.OilDepthStart = new System.Windows.Forms.TextBox();
+            this.OilDepthStartlabel = new System.Windows.Forms.Label();
+            this.OilVolume = new System.Windows.Forms.TextBox();
+            this.OilVolumelabel = new System.Windows.Forms.Label();
+            this.OilSpillDuration = new System.Windows.Forms.TextBox();
+            this.OilSpillDurationlabel = new System.Windows.Forms.Label();
             this.folderBrowserOutDir = new System.Windows.Forms.FolderBrowserDialog();
             this.label107 = new System.Windows.Forms.Label();
             this.label106 = new System.Windows.Forms.Label();
@@ -1305,26 +1342,6 @@ namespace caesar1
             this.comboBox4 = new System.Windows.Forms.ComboBox();
             this.comboBox3 = new System.Windows.Forms.ComboBox();
             this.comboBox2 = new System.Windows.Forms.ComboBox();
-
-            this.OilTab = new System.Windows.Forms.TabPage(); // OIL_V1
-            this.OilTab_checkBox = new System.Windows.Forms.CheckBox();
-            this.OilTab_groupBox_controls = new System.Windows.Forms.GroupBox();
-            this.OilYmin = new System.Windows.Forms.TextBox();
-            this.OilYmax = new System.Windows.Forms.TextBox();
-            this.OilXmax = new System.Windows.Forms.TextBox();
-            this.OilXmin = new System.Windows.Forms.TextBox();
-            this.OilYlabel = new System.Windows.Forms.Label();
-            this.OilXlabel = new System.Windows.Forms.Label();
-            this.OilTextlabel = new System.Windows.Forms.Label();
-            this.OilTimeMin = new System.Windows.Forms.TextBox();
-            this.OilTimeMinlabel = new System.Windows.Forms.Label();
-            this.OilDepthStart = new System.Windows.Forms.TextBox();
-            this.OilDepthStartlabel = new System.Windows.Forms.Label();
-            this.OilVolume = new System.Windows.Forms.TextBox();
-            this.OilVolumelabel = new System.Windows.Forms.Label();
-            this.OilSpillDuration = new System.Windows.Forms.TextBox();
-            this.OilSpillDurationlabel = new System.Windows.Forms.Label();
-
             this.tabControl1.SuspendLayout();
             this.FilesTab.SuspendLayout();
             this.groupBox6.SuspendLayout();
@@ -1345,12 +1362,9 @@ namespace caesar1
             this.tabPage5.SuspendLayout();
             this.tabPage1.SuspendLayout();
             this.tabPage3.SuspendLayout();
+            this.OilTab.SuspendLayout();
+            this.OilTab_groupBox_controls.SuspendLayout();
             this.Panel1.SuspendLayout();
-
-            this.OilTab.SuspendLayout(); // OIL_V1
-            this.OilTab_groupBox_controls.SuspendLayout(); // OIL_V1
-
-
             ((System.ComponentModel.ISupportInitialize)(this.InfoStatusPanel)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.IterationStatusPanel)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.TimeStatusPanel)).BeginInit();
@@ -1418,7 +1432,9 @@ namespace caesar1
             this.menuItem3,
             this.menuItem4,
             this.menuItem5,
-            this.menuItem10});
+            this.menuItem10,
+            this.menuItemOilVisualisation,
+            this.menuItemOilconcVisualisation});
             this.menuItem1.Text = "&Top Graphics";
             //
             // menuItem30
@@ -1462,7 +1478,9 @@ namespace caesar1
             this.menuItem26,
             this.menuItem27,
             this.menuItem28,
-            this.menuItem31});
+            this.menuItem31,
+            this.menuItemOilVisualisation,
+            this.menuItemOilconcVisualisation});
             this.menuItem2.Text = "&Top graphics II";
             //
             // menuItem7
@@ -1507,6 +1525,18 @@ namespace caesar1
             this.menuItem31.Text = "flow velocity";
             this.menuItem31.Click += new System.EventHandler(this.menuItem31_Click);
             //
+            // menuItemOilVisualisation OIL_V1_MDW
+            //
+            this.menuItemOilVisualisation.Index = 7;
+            this.menuItemOilVisualisation.Text = "oil spill";
+            this.menuItemOilVisualisation.Click += new System.EventHandler(this.menuItemOilVisualisation_Click);
+            //
+            // menuItemOilconcVisualisation OIL_V1_PDF
+            //
+            this.menuItemOilconcVisualisation.Index = 8;
+            this.menuItemOilconcVisualisation.Text = "oil concentration";
+            this.menuItemOilconcVisualisation.Click += new System.EventHandler(this.menuItemOilconcVisualisation_Click);
+            //
             // menuItem11
             //
             this.menuItem11.Index = 3;
@@ -1521,7 +1551,11 @@ namespace caesar1
             this.menuItem6,
             this.menuItem15,
             this.menuItem16,
-            this.menuItemSoluteTracer});
+            this.menuItemSoluteTracer,
+            this.menuItemOilSpill,
+            this.menuItem17,
+            this.menuItemOilconc});
+            //OIL_V1_PDF
             this.menuItem11.Text = "Save Options";
             //
             // menuItem12
@@ -1594,8 +1628,32 @@ namespace caesar1
             this.menuItemSoluteTracer.Text = "solute tracers";
             this.menuItemSoluteTracer.Click += new System.EventHandler(this.menuItemSoluteTracer_Click);
             //
-            // tabControl1
+            //menuItemOilSpill
+            // 
+            //OILV1_PDF
             //
+            this.menuItemOilSpill.Index = 11;
+            this.menuItemOilSpill.Text = "oil depth";
+            this.menuItemOilSpill.Click += new System.EventHandler(this.menuItemOilSpill_Click);
+            // 
+            //menuItem17
+            // 
+            //OIL_V1_PDF
+            //
+            this.menuItem17.Index = 12;
+            this.menuItem17.Text = "mass balance";
+            this.menuItem17.Click += new System.EventHandler(this.menuItem17_Click);
+            // 
+            //menuItemOilconc
+            // 
+            //OIL_V1_PDF
+            //
+            this.menuItemOilconc.Index = 13;
+            this.menuItemOilconc.Text = "oil concentration";
+            this.menuItemOilconc.Click += new System.EventHandler(this.menuItemOilconc_Click);
+            // 
+            // tabControl1
+            // 
             this.tabControl1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
             | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
@@ -2587,6 +2645,7 @@ namespace caesar1
             //
             this.gp8_box.Location = new System.Drawing.Point(997, 236);
             this.gp8_box.Name = "gp8_box";
+            this.gp8_box.Name = "gp8_box";
             this.gp8_box.Size = new System.Drawing.Size(130, 20);
             this.gp8_box.TabIndex = 238;
             this.gp8_box.Text = "0.231";
@@ -3473,7 +3532,7 @@ namespace caesar1
             this.DescriptionTab.UseVisualStyleBackColor = true;
             //
             // DescBox
-            //
+            // 
             this.DescBox.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
             | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
@@ -5247,144 +5306,14 @@ namespace caesar1
             this.soildevbox.TabIndex = 0;
             this.soildevbox.Text = "Soil Development Model?";
             this.soildevbox.UseVisualStyleBackColor = true;
-            //
-            // label107
-            //
-            this.label107.AutoSize = true;
-            this.label107.Enabled = false;
-            this.label107.Location = new System.Drawing.Point(180, 15);
-            this.label107.Name = "label107";
-            this.label107.Size = new System.Drawing.Size(14, 13);
-            this.label107.TabIndex = 6;
-            this.label107.Text = "B";
-            //
-            // label106
-            //
-            this.label106.AutoSize = true;
-            this.label106.Enabled = false;
-            this.label106.Location = new System.Drawing.Point(126, 15);
-            this.label106.Name = "label106";
-            this.label106.Size = new System.Drawing.Size(15, 13);
-            this.label106.TabIndex = 4;
-            this.label106.Text = "G";
-            //
-            // label110
-            //
-            this.label110.AutoSize = true;
-            this.label110.Enabled = false;
-            this.label110.Location = new System.Drawing.Point(4, 13);
-            this.label110.Name = "label110";
-            this.label110.Size = new System.Drawing.Size(69, 13);
-            this.label110.TabIndex = 0;
-            this.label110.Text = "Water tracer:";
-            this.label110.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            this.toolTip1.SetToolTip(this.label110, "Select tracer layers to use in RGB image. Rain is layer 1; Stage is layer 2; Hydr" +
-        "o inputs are layers 3+.");
-            //
-            // label109
-            //
-            this.label109.AutoSize = true;
-            this.label109.Enabled = false;
-            this.label109.Location = new System.Drawing.Point(72, 15);
-            this.label109.Name = "label109";
-            this.label109.Size = new System.Drawing.Size(15, 13);
-            this.label109.TabIndex = 2;
-            this.label109.Text = "R";
-            //
-            // label108
-            //
-            this.label108.AutoSize = true;
-            this.label108.Enabled = false;
-            this.label108.Location = new System.Drawing.Point(494, 13);
-            this.label108.Name = "label108";
-            this.label108.Size = new System.Drawing.Size(50, 13);
-            this.label108.TabIndex = 155;
-            this.label108.Text = "Enhance";
-            //
-            // Panel1
-            //
-            this.Panel1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-            this.Panel1.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
-            this.Panel1.Controls.Add(this.tempdata2);
-            this.Panel1.Controls.Add(this.tempdata1);
-            this.Panel1.Controls.Add(this.graphicToGoogleEarthButton);
-            this.Panel1.Controls.Add(this.button4);
-            this.Panel1.Controls.Add(this.button3);
-            this.Panel1.Controls.Add(this.recirculatebox);
-            this.Panel1.Controls.Add(this.flowonlybox);
-            this.Panel1.Location = new System.Drawing.Point(7, 493);
-            this.Panel1.Name = "Panel1";
-            this.Panel1.Size = new System.Drawing.Size(822, 49);
-            this.Panel1.TabIndex = 145;
-            this.Panel1.Visible = false;
-            //
-            // tempdata2
-            //
-            this.tempdata2.Location = new System.Drawing.Point(548, 7);
-            this.tempdata2.Name = "tempdata2";
-            this.tempdata2.Size = new System.Drawing.Size(39, 20);
-            this.tempdata2.TabIndex = 145;
-            this.tempdata2.Text = "358";
-            //
-            // tempdata1
-            //
-            this.tempdata1.Location = new System.Drawing.Point(503, 7);
-            this.tempdata1.Name = "tempdata1";
-            this.tempdata1.Size = new System.Drawing.Size(39, 20);
-            this.tempdata1.TabIndex = 98;
-            this.tempdata1.Text = "358";
-            //
-            // graphicToGoogleEarthButton
-            //
-            this.graphicToGoogleEarthButton.Location = new System.Drawing.Point(693, 8);
-            this.graphicToGoogleEarthButton.Name = "graphicToGoogleEarthButton";
-            this.graphicToGoogleEarthButton.Size = new System.Drawing.Size(119, 28);
-            this.graphicToGoogleEarthButton.TabIndex = 150;
-            this.graphicToGoogleEarthButton.Text = "graphic to google earth";
-            this.graphicToGoogleEarthButton.UseVisualStyleBackColor = true;
-            this.graphicToGoogleEarthButton.Click += new System.EventHandler(this.graphicToGoogleEarthButton_Click);
-            //
-            // button4
-            //
-            this.button4.Location = new System.Drawing.Point(8, 4);
-            this.button4.Name = "button4";
-            this.button4.Size = new System.Drawing.Size(112, 28);
-            this.button4.TabIndex = 144;
-            this.button4.Text = "update graphics";
-            this.button4.Click += new System.EventHandler(this.button4_Click_1);
-            //
-            // button3
-            //
-            this.button3.Font = new System.Drawing.Font("Monotype Corsiva", 8.25F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.button3.Location = new System.Drawing.Point(604, 5);
-            this.button3.Name = "button3";
-            this.button3.Size = new System.Drawing.Size(82, 29);
-            this.button3.TabIndex = 99;
-            this.button3.Text = "Grass now!";
-            this.button3.Click += new System.EventHandler(this.button3_Click);
-            //
-            // recirculatebox
-            //
-            this.recirculatebox.Location = new System.Drawing.Point(221, 6);
-            this.recirculatebox.Name = "recirculatebox";
-            this.recirculatebox.Size = new System.Drawing.Size(128, 24);
-            this.recirculatebox.TabIndex = 89;
-            this.recirculatebox.Text = "recirculate sediment";
-            //
-            // flowonlybox
-            //
-            this.flowonlybox.Location = new System.Drawing.Point(370, 5);
-            this.flowonlybox.Name = "flowonlybox";
-            this.flowonlybox.Size = new System.Drawing.Size(104, 24);
-            this.flowonlybox.TabIndex = 97;
-            this.flowonlybox.Text = "flow only?";
-            //
-            // OilTab // OIL_V1
-            //
+            // 
+            // OilTab
+            // 
             this.OilTab.Controls.Add(this.OilTab_checkBox);
             this.OilTab.Controls.Add(this.OilTab_groupBox_controls);
             this.OilTab.Location = new System.Drawing.Point(4, 22);
             this.OilTab.Name = "OilTab";
+            this.OilTab.Size = new System.Drawing.Size(1323, 504);
             this.OilTab.TabIndex = 5;
             this.OilTab.Text = "Oil spill";
             this.OilTab.UseVisualStyleBackColor = true;
@@ -5441,15 +5370,7 @@ namespace caesar1
             this.OilYmax.Size = new System.Drawing.Size(32, 20);
             this.OilYmax.TabIndex = 1002;
             this.OilYmax.Text = "0";
-            //
-            // OilXmax
-            //
-            this.OilXmax.Location = new System.Drawing.Point(248, 62);
-            this.OilXmax.Name = "OilXmax";
-            this.OilXmax.Size = new System.Drawing.Size(31, 20);
-            this.OilXmax.TabIndex = 1003;
-            this.OilXmax.Text = "0";
-            //
+            // 
             // OilXmin
             //
             this.OilXmin.Location = new System.Drawing.Point(174, 62);
@@ -5457,7 +5378,15 @@ namespace caesar1
             this.OilXmin.Size = new System.Drawing.Size(31, 20);
             this.OilXmin.TabIndex = 1004;
             this.OilXmin.Text = "0";
-            //
+            // 
+            // OilXmax
+            // 
+            this.OilXmax.Location = new System.Drawing.Point(248, 62);
+            this.OilXmax.Name = "OilXmax";
+            this.OilXmax.Size = new System.Drawing.Size(31, 20);
+            this.OilXmax.TabIndex = 1003;
+            this.OilXmax.Text = "0";
+            // 
             // OilYlabel
             //
             this.OilYlabel.Location = new System.Drawing.Point(220, 21);
@@ -5543,9 +5472,141 @@ namespace caesar1
             this.OilSpillDurationlabel.Location = new System.Drawing.Point(32, 240);
             this.OilSpillDurationlabel.Name = "OilSpillDurationlabel";
             this.OilSpillDurationlabel.Size = new System.Drawing.Size(130, 30);
-            this.OilSpillDurationlabel.TabIndex = 1013;
-            this.OilSpillDurationlabel.Text = "Duration of oil spill (s):";
-            //
+            this.OilSpillDurationlabel.TabIndex = 1015;
+            this.OilSpillDurationlabel.Text = "Oil Spill duration (s):";
+
+            // 
+            // label107
+            // 
+            this.label107.AutoSize = true;
+            this.label107.Enabled = false;
+            this.label107.Location = new System.Drawing.Point(180, 15);
+            this.label107.Name = "label107";
+            this.label107.Size = new System.Drawing.Size(14, 13);
+            this.label107.TabIndex = 6;
+            this.label107.Text = "B";
+            // 
+            // label106
+            // 
+            this.label106.AutoSize = true;
+            this.label106.Enabled = false;
+            this.label106.Location = new System.Drawing.Point(126, 15);
+            this.label106.Name = "label106";
+            this.label106.Size = new System.Drawing.Size(15, 13);
+            this.label106.TabIndex = 4;
+            this.label106.Text = "G";
+            // 
+            // label110
+            // 
+            this.label110.AutoSize = true;
+            this.label110.Enabled = false;
+            this.label110.Location = new System.Drawing.Point(4, 13);
+            this.label110.Name = "label110";
+            this.label110.Size = new System.Drawing.Size(69, 13);
+            this.label110.TabIndex = 0;
+            this.label110.Text = "Water tracer:";
+            this.label110.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.toolTip1.SetToolTip(this.label110, "Select tracer layers to use in RGB image. Rain is layer 1; Stage is layer 2; Hydr" +
+        "o inputs are layers 3+.");
+            // 
+            // label109
+            // 
+            this.label109.AutoSize = true;
+            this.label109.Enabled = false;
+            this.label109.Location = new System.Drawing.Point(72, 15);
+            this.label109.Name = "label109";
+            this.label109.Size = new System.Drawing.Size(15, 13);
+            this.label109.TabIndex = 2;
+            this.label109.Text = "R";
+            // 
+            // label108
+            // 
+            this.label108.AutoSize = true;
+            this.label108.Enabled = false;
+            this.label108.Location = new System.Drawing.Point(494, 13);
+            this.label108.Name = "label108";
+            this.label108.Size = new System.Drawing.Size(50, 13);
+            this.label108.TabIndex = 155;
+            this.label108.Text = "Enhance";
+            // 
+            // Panel1
+            // 
+            this.Panel1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.Panel1.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
+            this.Panel1.Controls.Add(this.tempdata2);
+            this.Panel1.Controls.Add(this.tempdata1);
+            this.Panel1.Controls.Add(this.graphicToGoogleEarthButton);
+            this.Panel1.Controls.Add(this.button4);
+            this.Panel1.Controls.Add(this.button3);
+            this.Panel1.Controls.Add(this.recirculatebox);
+            this.Panel1.Controls.Add(this.flowonlybox);
+            this.Panel1.Location = new System.Drawing.Point(7, 493);
+            this.Panel1.Name = "Panel1";
+            this.Panel1.Size = new System.Drawing.Size(822, 49);
+            this.Panel1.TabIndex = 145;
+            this.Panel1.Visible = false;
+            // 
+            // tempdata2
+            // 
+            this.tempdata2.Location = new System.Drawing.Point(548, 7);
+            this.tempdata2.Name = "tempdata2";
+            this.tempdata2.Size = new System.Drawing.Size(39, 20);
+            this.tempdata2.TabIndex = 145;
+            this.tempdata2.Text = "358";
+            // 
+            // tempdata1
+            // 
+            this.tempdata1.Location = new System.Drawing.Point(503, 7);
+            this.tempdata1.Name = "tempdata1";
+            this.tempdata1.Size = new System.Drawing.Size(39, 20);
+            this.tempdata1.TabIndex = 98;
+            this.tempdata1.Text = "358";
+            // 
+            // graphicToGoogleEarthButton
+            // 
+            this.graphicToGoogleEarthButton.Location = new System.Drawing.Point(693, 8);
+            this.graphicToGoogleEarthButton.Name = "graphicToGoogleEarthButton";
+            this.graphicToGoogleEarthButton.Size = new System.Drawing.Size(119, 28);
+            this.graphicToGoogleEarthButton.TabIndex = 150;
+            this.graphicToGoogleEarthButton.Text = "graphic to google earth";
+            this.graphicToGoogleEarthButton.UseVisualStyleBackColor = true;
+            this.graphicToGoogleEarthButton.Click += new System.EventHandler(this.graphicToGoogleEarthButton_Click);
+            // 
+            // button4
+            // 
+            this.button4.Location = new System.Drawing.Point(8, 4);
+            this.button4.Name = "button4";
+            this.button4.Size = new System.Drawing.Size(112, 28);
+            this.button4.TabIndex = 144;
+            this.button4.Text = "update graphics";
+            this.button4.Click += new System.EventHandler(this.button4_Click_1);
+            // 
+            // button3
+            // 
+            this.button3.Font = new System.Drawing.Font("Monotype Corsiva", 8.25F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.button3.Location = new System.Drawing.Point(604, 5);
+            this.button3.Name = "button3";
+            this.button3.Size = new System.Drawing.Size(82, 29);
+            this.button3.TabIndex = 99;
+            this.button3.Text = "Grass now!";
+            this.button3.Click += new System.EventHandler(this.button3_Click);
+            // 
+            // recirculatebox
+            // 
+            this.recirculatebox.Location = new System.Drawing.Point(221, 6);
+            this.recirculatebox.Name = "recirculatebox";
+            this.recirculatebox.Size = new System.Drawing.Size(128, 24);
+            this.recirculatebox.TabIndex = 89;
+            this.recirculatebox.Text = "recirculate sediment";
+            // 
+            // flowonlybox
+            // 
+            this.flowonlybox.Location = new System.Drawing.Point(370, 5);
+            this.flowonlybox.Name = "flowonlybox";
+            this.flowonlybox.Size = new System.Drawing.Size(104, 24);
+            this.flowonlybox.TabIndex = 97;
+            this.flowonlybox.Text = "flow only?";
+            // 
             // statusBar1
             //
             this.statusBar1.Location = new System.Drawing.Point(0, 578);
@@ -5897,12 +5958,12 @@ namespace caesar1
             this.tabPage1.PerformLayout();
             this.tabPage3.ResumeLayout(false);
             this.tabPage3.PerformLayout();
-            this.Panel1.ResumeLayout(false);
-            this.Panel1.PerformLayout();
-            this.OilTab.ResumeLayout(false); // OIL_V1
+            this.OilTab.ResumeLayout(false);
+            this.OilTab.PerformLayout();
             this.OilTab_groupBox_controls.ResumeLayout(false);
             this.OilTab_groupBox_controls.PerformLayout();
-
+            this.Panel1.ResumeLayout(false);
+            this.Panel1.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.InfoStatusPanel)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.IterationStatusPanel)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.TimeStatusPanel)).EndInit();
@@ -6134,12 +6195,21 @@ namespace caesar1
                 if (isOilSimulation == true)
                 {
                     // check triggering of event
-                    if (cycle > oil_startt) // need to add check for depth trigger at input location
+                    if (cycle > oil_startt && oil_check_depth_threshold() == true)
                     {
                         oil_eventtriggered = true;
                     }
 
-                    if (oil_eventtriggered == true) update_oil_states();
+                    if (oil_eventtriggered == true)
+                    {
+                        oil_spill_input(local_time_factor);
+                        oil_area();
+                        oil_evaporation(local_time_factor);
+                        oilroute(local_time_factor);
+                        oil_update();
+                        oil_global_mass_balance();
+
+                    }
 
                 }
 
@@ -6213,6 +6283,47 @@ namespace caesar1
                 }
                 waterOut = temptot;
 
+                
+                double OilOut = 0;
+                for (y = 1; y <= ymax; y++)
+                {
+                    if (oil_depth[xmax, y] > 0)
+                    {
+                        OilOut += oil_depth[xmax, y] * DX * DX;
+                        oil_depth[xmax, y] = 0;
+
+                    }
+                    if (oil_depth[1, y] > 0)
+                    {
+                        OilOut += oil_depth[1, y] * DX * DX;
+                        oil_depth[1, y] = 0;
+                    }
+
+                    // Condition to avoid the oil accumulation at the edges
+
+
+                }
+
+                // Condition added to avoid the accumulation on the edge, a bit crude but it works. 
+                for (int x = 1; x <= xmax; x++)
+                {
+                    if (oil_depth[x, ymax] > 0)
+                    {
+                        // Oil out of the edges
+                        OilOut += oil_depth[x, ymax] * DX * DX;
+                        oil_depth[x, ymax] = 0;
+
+                    }
+                    if (oil_depth[x, 1] > 0)
+                    {
+                        OilOut += oil_depth[x, 1] * DX * DX;
+                        oil_depth[x, 1] = 0;
+                    }
+
+                }
+
+                Vout = OilOut;
+                //oil_out_sum += Vout;
                 // then carry out soil creep.
                 //- also growing grass...
                 // and dunes...
@@ -6731,69 +6842,116 @@ namespace caesar1
 
                         // Adjust water proportions following the addition of stage input - MDW 13/03/16
                         if (isTraceWater == true)
-                        {
-                            // MDW_V2 - updated source index of stage input to zero
-
-                            if (water_depth[x, y] == dhdt) // if depth was zero, all water in this cell is from this input
+                            if (isTraceWater == true)
                             {
-                                watertracer[x, y, 0] = 1.0; // stage input is assigned to the second layer
+                                // MDW_V2 - updated source index of stage input to zero
 
-                                // MDW_Apr24: reset other tracers to zero here: edge cells could be zero depth as tide is flows out
-                                for (int src = 1; src < nSources; src++)
+                                if (water_depth[x, y] == dhdt) // if depth was zero, all water in this cell is from this input
                                 {
-                                    watertracer[x, y, src] = 0.0;
-                                }
-                            }
-                            else if (watertracer[x, y, 0] < 1.0) // if all water is already from this source, no need to update
-                            {
-                                h_from_this_source = watertracer[x, y, 0] * prev_depth; // amount of water
+                                    watertracer[x, y, 0] = 1.0; // stage input is assigned to the second layer
 
-                                // update this layer water proportion - i.e. increase
-                                watertracer[x, y, 0] = (h_from_this_source + dhdt) / water_depth[x, y];
-
-                                // update other layers water proportions - i.e. reduce
-                                for (int src = 1; src < nSources; src++) // MDW_V2 updated to zero index, starts at 1 to skip this layer
-                                {
-                                    //if (src != 2) // skip this source layer // check not needed now
-                                    //{
-                                    watertracer[x, y, src] = (watertracer[x, y, src] * prev_depth) / water_depth[x, y];
-                                    //}
-                                }
-
-                                // MDW_DEBUG
-                                // check for error
-                                /* double tracersum = 0.0;
-                                for (int src = 0; src < nSources; src++)
-                                {
-                                    tracersum += watertracer[x, y, src];
-                                    if (tracersum > 1.0000001)
+                                    // MDW_Apr24: reset other tracers to zero here: edge cells could be zero depth as tide is flows out
+                                    for (int src = 1; src < nSources; src++)
                                     {
-                                        MessageBox.Show("Tracer exception caught: tracersum = " + Convert.ToString(tracersum) +
-                                            ", counter = " + Convert.ToString(counter) + ", cycle = " + Convert.ToString(cycle));
-                                    }
-                                } */
-                            }
-
-                            // MDW_V2 adjust solute concentrations given stage/ tidal input
-                            if ((isTraceSolutes == true) && (water_depth[x, y] > 0.0))
-                            {
-                                for (int solute = 0; solute < nSolutes; solute++)
-                                {
-                                    if (solutetracer[x, y, solute] > 0 && dhdt > 0) // if nothing is in the cell, and there's no input, skip
-                                    {
-                                        // update solute concentration in cell: dilution with additional stage input
-                                        solutetracer[x, y, solute] = prev_depth * solutetracer[x, y, solute] / water_depth[x, y];
+                                        watertracer[x, y, src] = 0.0;
                                     }
                                 }
-                            }
+                                else if (watertracer[x, y, 0] < 1.0) // if all water is already from this source, no need to update
+                                {
+                                    h_from_this_source = watertracer[x, y, 0] * prev_depth; // amount of water
 
-                        }
+                                    // update this layer water proportion - i.e. increase
+                                    watertracer[x, y, 0] = (h_from_this_source + dhdt) / water_depth[x, y];
+
+                                    // update other layers water proportions - i.e. reduce
+                                    for (int src = 1; src < nSources; src++) // MDW_V2 updated to zero index, starts at 1 to skip this layer
+                                    {
+                                        //if (src != 2) // skip this source layer // check not needed now
+                                        //{
+                                        watertracer[x, y, src] = (watertracer[x, y, src] * prev_depth) / water_depth[x, y];
+                                        //}
+                                    }
+
+                                    // MDW_DEBUG
+                                    // check for error
+                                    /* double tracersum = 0.0;
+                                    for (int src = 0; src < nSources; src++)
+                                    {
+                                        tracersum += watertracer[x, y, src];
+                                        if (tracersum > 1.0000001)
+                                        {
+                                            MessageBox.Show("Tracer exception caught: tracersum = " + Convert.ToString(tracersum) +
+                                                ", counter = " + Convert.ToString(counter) + ", cycle = " + Convert.ToString(cycle));
+                                        }
+                                    } */
+                                }
+
+                                // MDW_V2 adjust solute concentrations given stage/ tidal input
+                                if ((isTraceSolutes == true) && (water_depth[x, y] > 0.0))
+                                {
+                                    for (int solute = 0; solute < nSolutes; solute++)
+                                    {
+                                        if (solutetracer[x, y, solute] > 0 && dhdt > 0) // if nothing is in the cell, and there's no input, skip
+                                        {
+                                            // update solute concentration in cell: dilution with additional stage input
+                                            solutetracer[x, y, solute] = prev_depth * solutetracer[x, y, solute] / water_depth[x, y];
+                                        }
+                                    }
+                                }
+
+                            }
                     }
                 }
 
             }
 
         }
+
+        void oil_spill_input(double local_time_factor)
+
+        {
+
+            //double local_time_factor = time_factor;
+
+            // MDW : note to check : we're changing the value of dt used here, so it is different to the one used for Q
+            // see stage_tide_input(): local_time_factor is passed into the function rather than calculated within it
+            iteration_t += local_time_factor;
+            //if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
+
+            for (int x = Math.Min(oil_fromx, oil_tox); x <= Math.Max(oil_fromx, oil_tox); x++)
+            {
+                for (int y = Math.Min(oil_fromy, oil_toy); y <= Math.Max(oil_fromy, oil_toy); y++)
+                {
+
+                    // formula used below rather than being assigned
+                    //oil_input = oil_ratev * local_time_factor /  (DX * DX);
+
+                    // here oil_depth_init is set to the rate, rather than adding some new oil on top of existing oil.
+                    // the value is also overwritten on each iteration here, rather than being assigned to cells.
+                    // it is also not referenced within oilroute(), so nothing will happen with the input
+                    //oil_depth_init = oil_input / oil_n_cells; 
+
+                    // I think it is better to add the input onto the exiting oil depth, then route all the only in oilroute()
+
+                    oil_depth_init = oil_ratev * local_time_factor / (oil_n_cells * DX * DX);
+
+                    // after the oil spill duration stop to add oil from the source
+
+
+                    if (iteration_t > oil_spillt)
+                    {
+                        oil_ratev = 0;
+
+                    }
+
+                    oil_depth[x, y] += oil_ratev * local_time_factor / (oil_n_cells * DX * DX);
+                    //oil_in_sum += oil_ratev * local_time_factor;
+
+
+                }
+            }
+        }
+
 
         void soil_development() // all based on Vanwalleghem et al., 2013 (JoGR:ES)
         {
@@ -6980,6 +7138,9 @@ namespace caesar1
             if (menuItem15.Checked == true) save_data(19, 0); // save rain zone tracers - MDW 13-04-2016
             if (menuItem16.Checked == true) save_data(6, 0); // save tracer file
             if (menuItemSoluteTracer.Checked == true) save_data(20, 0); // save solute tracers - MDW_V2
+            if (menuItemOilSpill.Checked == true) save_data(7, 0); // save oildepth file //OIL_V1_PDF
+            if (menuItem17.Checked == true) save_data(8, 0); // save mass balance file //OIL_V1_PDF
+            if (menuItemOilconc.Checked == true) save_data(9, 0); // save oil concentration file //OIL_V1_PDF)
             slide_5();
 
         }
@@ -6997,6 +7158,11 @@ namespace caesar1
             if (menuItem15.Checked == true) save_data(19, Math.Abs(cycle)); // save rain zone tracers - MDW 13-04-2016
             if (menuItem16.Checked == true) save_data(6, Math.Abs(cycle)); // save tracer file
             if (menuItemSoluteTracer.Checked == true) save_data(20, Math.Abs(cycle)); // save solute tracers - MDW_V2
+            if (menuItemOilSpill.Checked == true) save_data(7, Math.Abs(cycle)); // save oil depth - PDF
+            if (menuItem17.Checked == true) save_data(8, Math.Abs(cycle)); // save mass balance - PDF
+            if (menuItemOilconc.Checked == true) save_data(9, Math.Abs(cycle)); // save oil concentration - PDF
+
+
 
         }
 
@@ -8594,6 +8760,9 @@ namespace caesar1
             if (typeflag == 19 && tempcycle == 0) FILENAME = "watersource_rainzone"; // MDW 13-04-2016 // MDW_V2
             if (typeflag == 20 && tempcycle == 0) FILENAME = "watersource_solute"; // MDW_V2
             if (typeflag == 6 && tempcycle == 0) FILENAME = "tracer.asc";
+            if (typeflag == 7 && tempcycle == 0) FILENAME = "oildepth.asc"; // OIL_V1_PDF
+            if (typeflag == 8) FILENAME = "massbalance.txt"; // OIL_V1_PDF
+
 
 
             if (typeflag == 1 && tempcycle > 0) FILENAME = "waterdepth" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc";
@@ -8608,6 +8777,9 @@ namespace caesar1
             if (typeflag == 19 && tempcycle > 0) FILENAME = "watersource" + Convert.ToString(Convert.ToInt64(tempcycle)) + "_rainzone"; //MDW_V2
             if (typeflag == 20 && tempcycle > 0) FILENAME = "watersource" + Convert.ToString(Convert.ToInt64(tempcycle)) + "_solute"; //MDW_V2
             if (typeflag == 6 && tempcycle > 0) FILENAME = "tracer" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc";
+            if (typeflag == 7 && tempcycle > 0) FILENAME = "oildepth" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc"; //OIL_V1_PDF
+            //if (typeflag == 8 && tempcycle > 0) FILENAME = "massbalance" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".txt"; //OIL_V1_PDF
+
 
 
             // MDW_V2 add folder to filename string here
@@ -8988,9 +9160,57 @@ namespace caesar1
                 }
 
             }
+            if (typeflag == 7)  //OIL_V1_PDF
+            {
 
+                using (StreamWriter sw = new StreamWriter(FILENAME))
+                {
+                    sw.Write("ncols         " + xmax);
+                    sw.Write("\n");
+                    sw.Write("nrows         " + ymax);
+                    sw.Write("\n");
+
+                    for (nn = 2; nn <= 5; nn++)
+                    {
+                        sw.Write(inputheader[nn]); sw.Write("\n");
+                    }
+
+                    for (y = 1; y <= ymax; y++)
+                    {
+                        for (x = 1; x <= xmax; x++)
+                        {
+                            if (typeflag == 7)
+                            {
+
+                                if (oil_depth[x, y] > 0)
+                                {
+
+                                    sw.Write(oil_depth[x, y]);
+
+                                    sw.Write(" ");
+                                }
+                                else
+                                {
+                                    sw.Write("-9999.0");
+                                    sw.Write(" ");
+                                }
+                            }
+                        }
+                    }
+
+                }
+            }
+
+            if (typeflag == 8)
+            {
+
+
+                using (StreamWriter sw = new StreamWriter(FILENAME, append: true))
+                {
+                    sw.WriteLine($"{save_time}, {oil_in_sum}, {oil_evap_sum},{oil_out_sum}, {Ev}");
+                }
+            }
         }
-
 
         private void initialise()
         {
@@ -9311,6 +9531,9 @@ namespace caesar1
 
             qx = new double[xmax + 2, ymax + 2];
             qy = new double[xmax + 2, ymax + 2];
+
+            qx_prev = new double[xmax + 2, ymax + 2]; // OIL_V1 for saving of previous water routing
+            qy_prev = new double[xmax + 2, ymax + 2];
 
             qxs = new double[xmax + 2, ymax + 2, tracers + 1];
             qys = new double[xmax + 2, ymax + 2, tracers + 1];
@@ -10803,6 +11026,9 @@ namespace caesar1
 
         }
 
+
+
+
         void qroute()
         {
             double local_time_factor = time_factor;
@@ -10810,127 +11036,129 @@ namespace caesar1
 
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax + 1, options, delegate (int y)
-              {
-                  int inc = 1;
-                  while (down_scan[y, inc] > 0)
-                  {
-                      int x = down_scan[y, inc];
-                      inc++;
+            {
+                int inc = 1;
+                while (down_scan[y, inc] > 0)
+                {
+                    int x = down_scan[y, inc];
+                    inc++;
 
-                      if (elev[x, y] > -9999) // to stop moving water in to -9999's on elev
-                      {
-                          // add spatial mannings here
-                          double temp_mannings = mannings;
-                          if (SpatVarManningsCheckbox.Checked == true) temp_mannings = spat_var_mannings[x, y];
+                    if (elev[x, y] > -9999) // to stop moving water in to -9999's on elev
+                    {
+                        // add spatial mannings here
+                        double temp_mannings = mannings;
+                        if (SpatVarManningsCheckbox.Checked == true) temp_mannings = spat_var_mannings[x, y];
 
-                          // routing in x direction
-                          if ((water_depth[x, y] > 0 || water_depth[x - 1, y] > 0) && elev[x - 1, y] > -9999)  // need to check water and not -9999 on elev
-                          {
-                              double hflow = Math.Max(elev[x, y] + water_depth[x, y], elev[x - 1, y] + water_depth[x - 1, y]) -
-                                              Math.Max(elev[x - 1, y], elev[x, y]);
-                              if (hflow > DX / 2) hflow = DX / 2; // contreversial line...
+                        // routing in x direction
+                        if ((water_depth[x, y] > 0 || water_depth[x - 1, y] > 0) && elev[x - 1, y] > -9999)  // need to check water and not -9999 on elev
+                        {
+                            double hflow = Math.Max(elev[x, y] + water_depth[x, y], elev[x - 1, y] + water_depth[x - 1, y]) -
+                                            Math.Max(elev[x - 1, y], elev[x, y]);
+                            if (hflow > DX / 2) hflow = DX / 2; // contreversial line...
 
-                              if (hflow > hflow_threshold)
-                              {
-                                  double tempslope = (((elev[x - 1, y] + water_depth[x - 1, y])) -
-                                          (elev[x, y] + water_depth[x, y])) / DX;
+                            if (hflow > hflow_threshold)
+                            {
+                                double tempslope = (((elev[x - 1, y] + water_depth[x - 1, y])) -
+                                        (elev[x, y] + water_depth[x, y])) / DX;
 
-                                  if (x == xmax) tempslope = edgeslope;
-                                  if (x <= 2) tempslope = 0 - edgeslope;
+                                if (x == xmax) tempslope = edgeslope;
+                                if (x <= 2) tempslope = 0 - edgeslope;
 
-                                  //double oldqx = qx[x, y];
-                                  qx[x, y] = ((qx[x, y] - (gravity * hflow * local_time_factor * tempslope)) /
-                                            (1 + gravity * hflow * local_time_factor * (temp_mannings * temp_mannings) * Math.Abs(qx[x, y]) /
-                                            Math.Pow(hflow, (10 / 3))));
-                                  //if (oldqx != 0) qx[x, y] = (oldqx + qx[x, y]) / 2;
+                                //double oldqx = qx[x, y];
+                                qx_prev[x, y] = qx[x, y]; // OIL_V1 save q state
+                                qx[x, y] = ((qx[x, y] - (gravity * hflow * local_time_factor * tempslope)) /
+                                          (1 + gravity * hflow * local_time_factor * (temp_mannings * temp_mannings) * Math.Abs(qx[x, y]) /
+                                          Math.Pow(hflow, (10 / 3))));
+                                //if (oldqx != 0) qx[x, y] = (oldqx + qx[x, y]) / 2;
 
-                                  // need to have these lines to stop too much water moving from one cellt o another - resulting in -ve discharges
-                                  // whihc causes a large instability to develop - only in steep catchments really
-                                  if (qx[x, y] > 0 && (qx[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qx[x, y] = hflow * (Math.Sqrt(gravity * hflow) * froude_limit);
-                                  if (qx[x, y] < 0 && Math.Abs(qx[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qx[x, y] = 0 - (hflow * (Math.Sqrt(gravity * hflow) * froude_limit));
+                                // need to have these lines to stop too much water moving from one cellt o another - resulting in -ve discharges
+                                // whihc causes a large instability to develop - only in steep catchments really
+                                if (qx[x, y] > 0 && (qx[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qx[x, y] = hflow * (Math.Sqrt(gravity * hflow) * froude_limit);
+                                if (qx[x, y] < 0 && Math.Abs(qx[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qx[x, y] = 0 - (hflow * (Math.Sqrt(gravity * hflow) * froude_limit));
 
-                                  if (qx[x, y] > 0 && (qx[x, y] * local_time_factor / DX) > (water_depth[x, y] / 4)) qx[x, y] = ((water_depth[x, y] * DX) / 5) / local_time_factor;
-                                  if (qx[x, y] < 0 && Math.Abs(qx[x, y] * local_time_factor / DX) > (water_depth[x - 1, y] / 4)) qx[x, y] = 0 - ((water_depth[x - 1, y] * DX) / 5) / local_time_factor;
+                                if (qx[x, y] > 0 && (qx[x, y] * local_time_factor / DX) > (water_depth[x, y] / 4)) qx[x, y] = ((water_depth[x, y] * DX) / 5) / local_time_factor;
+                                if (qx[x, y] < 0 && Math.Abs(qx[x, y] * local_time_factor / DX) > (water_depth[x - 1, y] / 4)) qx[x, y] = 0 - ((water_depth[x - 1, y] * DX) / 5) / local_time_factor;
 
-                                  if (isSuspended[1])
-                                  {
-                                      for (int T = 0; T <= tracers; T++)
-                                      {
-                                          if (qx[x, y] > 0) qxs[x, y, T] = qx[x, y] * (Vsusptot[x, y, T] / water_depth[x, y]);
-                                          if (qx[x, y] < 0) qxs[x, y, T] = qx[x, y] * (Vsusptot[x - 1, y, T] / water_depth[x - 1, y]);
+                                if (isSuspended[1])
+                                {
+                                    for (int T = 0; T <= tracers; T++)
+                                    {
+                                        if (qx[x, y] > 0) qxs[x, y, T] = qx[x, y] * (Vsusptot[x, y, T] / water_depth[x, y]);
+                                        if (qx[x, y] < 0) qxs[x, y, T] = qx[x, y] * (Vsusptot[x - 1, y, T] / water_depth[x - 1, y]);
 
-                                          if (qxs[x, y, T] > 0 && qxs[x, y, T] * local_time_factor > (Vsusptot[x, y, T] * DX) / 4) qxs[x, y, T] = ((Vsusptot[x, y, T] * DX) / 5) / local_time_factor;
-                                          if (qxs[x, y, T] < 0 && Math.Abs(qxs[x, y, T] * local_time_factor) > (Vsusptot[x - 1, y, T] * DX) / 4) qxs[x, y, T] = 0 - ((Vsusptot[x - 1, y, T] * DX) / 5) / local_time_factor;
-                                      }
-                                  }
+                                        if (qxs[x, y, T] > 0 && qxs[x, y, T] * local_time_factor > (Vsusptot[x, y, T] * DX) / 4) qxs[x, y, T] = ((Vsusptot[x, y, T] * DX) / 5) / local_time_factor;
+                                        if (qxs[x, y, T] < 0 && Math.Abs(qxs[x, y, T] * local_time_factor) > (Vsusptot[x - 1, y, T] * DX) / 4) qxs[x, y, T] = 0 - ((Vsusptot[x - 1, y, T] * DX) / 5) / local_time_factor;
+                                    }
+                                }
 
-                                  // calc velocity now
-                                  if (qx[x, y] > 0) vel_dir[x, y, 7] = qx[x, y] / hflow;
-                                  if (qx[x, y] < 0) vel_dir[x - 1, y, 3] = (0 - qx[x, y]) / hflow;
+                                // calc velocity now
+                                if (qx[x, y] > 0) vel_dir[x, y, 7] = qx[x, y] / hflow;
+                                if (qx[x, y] < 0) vel_dir[x - 1, y, 3] = (0 - qx[x, y]) / hflow;
 
-                              }
-                              else
-                              {
-                                  qx[x, y] = 0;
-                                  for (int T = 0; T <= tracers; T++) qxs[x, y, T] = 0;
-                              }
-                          }
+                            }
+                            else
+                            {
+                                qx[x, y] = 0;
+                                for (int T = 0; T <= tracers; T++) qxs[x, y, T] = 0;
+                            }
+                        }
 
-                          //routing in the y direction
-                          if ((water_depth[x, y] > 0 || water_depth[x, y - 1] > 0) && elev[x, y - 1] > -9999)
-                          {
-                              double hflow = Math.Max(elev[x, y] + water_depth[x, y], elev[x, y - 1] + water_depth[x, y - 1]) -
-                                              Math.Max(elev[x, y], elev[x, y - 1]);
-                              if (hflow > DX / 2) hflow = DX / 2;
+                        //routing in the y direction
+                        if ((water_depth[x, y] > 0 || water_depth[x, y - 1] > 0) && elev[x, y - 1] > -9999)
+                        {
+                            double hflow = Math.Max(elev[x, y] + water_depth[x, y], elev[x, y - 1] + water_depth[x, y - 1]) -
+                                            Math.Max(elev[x, y], elev[x, y - 1]);
+                            if (hflow > DX / 2) hflow = DX / 2;
 
-                              if (hflow > hflow_threshold)
-                              {
-                                  double tempslope = (((elev[x, y - 1] + water_depth[x, y - 1])) -
-                                      (elev[x, y] + water_depth[x, y])) / DX;
-                                  if (y == ymax) tempslope = edgeslope;
-                                  if (y <= 2) tempslope = 0 - edgeslope;
+                            if (hflow > hflow_threshold)
+                            {
+                                double tempslope = (((elev[x, y - 1] + water_depth[x, y - 1])) -
+                                    (elev[x, y] + water_depth[x, y])) / DX;
+                                if (y == ymax) tempslope = edgeslope;
+                                if (y <= 2) tempslope = 0 - edgeslope;
 
-                                  //double oldqy = qy[x, y];
-                                  qy[x, y] = ((qy[x, y] - (gravity * hflow * local_time_factor * tempslope)) /
-                                            (1 + gravity * hflow * local_time_factor * (temp_mannings * temp_mannings) * Math.Abs(qy[x, y]) /
-                                            Math.Pow(hflow, (10 / 3))));
-                                  //if (oldqy != 0) qy[x, y] = (oldqy + qy[x, y]) / 2;
+                                //double oldqy = qy[x, y];
+                                qy_prev[x, y] = qy[x, y]; // OIL_V1 save q state
+                                qy[x, y] = ((qy[x, y] - (gravity * hflow * local_time_factor * tempslope)) /
+                                          (1 + gravity * hflow * local_time_factor * (temp_mannings * temp_mannings) * Math.Abs(qy[x, y]) /
+                                          Math.Pow(hflow, (10 / 3))));
+                                //if (oldqy != 0) qy[x, y] = (oldqy + qy[x, y]) / 2;
 
-                                  // need to have these lines to stop too much water moving from one cellt o another - resulting in -ve discharges
-                                  // whihc causes a large instability to develop - only in steep catchments really
-                                  if (qy[x, y] > 0 && (qy[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qy[x, y] = hflow * (Math.Sqrt(gravity * hflow) * froude_limit);
-                                  if (qy[x, y] < 0 && Math.Abs(qy[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qy[x, y] = 0 - (hflow * (Math.Sqrt(gravity * hflow) * froude_limit));
+                                // need to have these lines to stop too much water moving from one cellt o another - resulting in -ve discharges
+                                // whihc causes a large instability to develop - only in steep catchments really
+                                if (qy[x, y] > 0 && (qy[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qy[x, y] = hflow * (Math.Sqrt(gravity * hflow) * froude_limit);
+                                if (qy[x, y] < 0 && Math.Abs(qy[x, y] / hflow) / Math.Sqrt(gravity * hflow) > froude_limit) qy[x, y] = 0 - (hflow * (Math.Sqrt(gravity * hflow) * froude_limit));
 
-                                  if (qy[x, y] > 0 && (qy[x, y] * local_time_factor / DX) > (water_depth[x, y] / 4)) qy[x, y] = ((water_depth[x, y] * DX) / 5) / local_time_factor;
-                                  if (qy[x, y] < 0 && Math.Abs(qy[x, y] * local_time_factor / DX) > (water_depth[x, y - 1] / 4)) qy[x, y] = 0 - ((water_depth[x, y - 1] * DX) / 5) / local_time_factor;
+                                if (qy[x, y] > 0 && (qy[x, y] * local_time_factor / DX) > (water_depth[x, y] / 4)) qy[x, y] = ((water_depth[x, y] * DX) / 5) / local_time_factor;
+                                if (qy[x, y] < 0 && Math.Abs(qy[x, y] * local_time_factor / DX) > (water_depth[x, y - 1] / 4)) qy[x, y] = 0 - ((water_depth[x, y - 1] * DX) / 5) / local_time_factor;
 
 
-                                  if (isSuspended[1])
-                                  {
-                                      for (int T = 0; T <= tracers; T++)
-                                      {
-                                          if (qy[x, y] > 0) qys[x, y, T] = qy[x, y] * (Vsusptot[x, y, T] / water_depth[x, y]);
-                                          if (qy[x, y] < 0) qys[x, y, T] = qy[x, y] * (Vsusptot[x, y - 1, T] / water_depth[x, y - 1]);
+                                if (isSuspended[1])
+                                {
+                                    for (int T = 0; T <= tracers; T++)
+                                    {
+                                        if (qy[x, y] > 0) qys[x, y, T] = qy[x, y] * (Vsusptot[x, y, T] / water_depth[x, y]);
+                                        if (qy[x, y] < 0) qys[x, y, T] = qy[x, y] * (Vsusptot[x, y - 1, T] / water_depth[x, y - 1]);
 
-                                          if (qys[x, y, T] > 0 && qys[x, y, T] * local_time_factor > (Vsusptot[x, y, T] * DX) / 4) qys[x, y, T] = ((Vsusptot[x, y, T] * DX) / 5) / local_time_factor;
-                                          if (qys[x, y, T] < 0 && Math.Abs(qys[x, y, T] * local_time_factor) > (Vsusptot[x, y - 1, T] * DX) / 4) qys[x, y, T] = 0 - ((Vsusptot[x, y - 1, T] * DX) / 5) / local_time_factor;
-                                      }
-                                  }
+                                        if (qys[x, y, T] > 0 && qys[x, y, T] * local_time_factor > (Vsusptot[x, y, T] * DX) / 4) qys[x, y, T] = ((Vsusptot[x, y, T] * DX) / 5) / local_time_factor;
+                                        if (qys[x, y, T] < 0 && Math.Abs(qys[x, y, T] * local_time_factor) > (Vsusptot[x, y - 1, T] * DX) / 4) qys[x, y, T] = 0 - ((Vsusptot[x, y - 1, T] * DX) / 5) / local_time_factor;
+                                    }
+                                }
 
-                                  // calc velocity now
-                                  if (qy[x, y] > 0) vel_dir[x, y, 1] = qy[x, y] / hflow;
-                                  if (qy[x, y] < 0) vel_dir[x, y - 1, 5] = (0 - qy[x, y]) / hflow;
-                              }
-                              else
-                              {
-                                  qy[x, y] = 0;
-                                  for (int T = 0; T <= tracers; T++) qys[x, y, T] = 0;
-                              }
-                          }
+                                // calc velocity now
+                                if (qy[x, y] > 0) vel_dir[x, y, 1] = qy[x, y] / hflow;
+                                if (qy[x, y] < 0) vel_dir[x, y - 1, 5] = (0 - qy[x, y]) / hflow;
+                            }
+                            else
+                            {
+                                qy[x, y] = 0;
+                                for (int T = 0; T <= tracers; T++) qys[x, y, T] = 0;
+                            }
+                        }
 
-                      }
-                  }
-              });
+                    }
+                }
+            });
 
 
         }
@@ -10946,41 +11174,41 @@ namespace caesar1
 
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax + 1, options, delegate (int y)
-              {
-                  int inc = 1;
-                  double tempmaxdepth = 0;
-                  while (down_scan[y, inc] > 0)
-                  {
-                      int x = down_scan[y, inc];
-                      inc++;
+            {
+                int inc = 1;
+                double tempmaxdepth = 0;
+                while (down_scan[y, inc] > 0)
+                {
+                    int x = down_scan[y, inc];
+                    inc++;
 
-                      if (isTraceWater == true)// for water tracing, we need to record the volumes of water moving between cells - MDW
-                      {
+                    if (isTraceWater == true)// for water tracing, we need to record the volumes of water moving between cells - MDW
+                    {
 
-                          dhdt_x[x + 1, y] = local_time_factor * qx[x + 1, y] / DX;
-                          dhdt_x[x, y] = local_time_factor * qx[x, y] / DX;
-                          dhdt_y[x, y + 1] = local_time_factor * qy[x, y + 1] / DX;
-                          dhdt_y[x, y] = local_time_factor * qy[x, y] / DX;
-                      }
+                        dhdt_x[x + 1, y] = local_time_factor * qx[x + 1, y] / DX;
+                        dhdt_x[x, y] = local_time_factor * qx[x, y] / DX;
+                        dhdt_y[x, y + 1] = local_time_factor * qy[x, y + 1] / DX;
+                        dhdt_y[x, y] = local_time_factor * qy[x, y] / DX;
+                    }
 
-                      // update water depths
-                      water_depth[x, y] += local_time_factor * (qx[x + 1, y] - qx[x, y] + qy[x, y + 1] - qy[x, y]) / DX;
-                      // now update SS concs
-                      if (isSuspended[1])
-                      {
-                          for (int T = 0; T <= tracers; T++) Vsusptot[x, y, T] += local_time_factor * (qxs[x + 1, y, T] - qxs[x, y, T] + qys[x, y + 1, T] - qys[x, y, T]) / DX;
-                      }
+                    // update water depths
+                    water_depth[x, y] += local_time_factor * (qx[x + 1, y] - qx[x, y] + qy[x, y + 1] - qy[x, y]) / DX;
+                    // now update SS concs
+                    if (isSuspended[1])
+                    {
+                        for (int T = 0; T <= tracers; T++) Vsusptot[x, y, T] += local_time_factor * (qxs[x + 1, y, T] - qxs[x, y, T] + qys[x, y + 1, T] - qys[x, y, T]) / DX;
+                    }
 
-                      if (water_depth[x, y] > 0)
-                      {
-                          // line to remove any water depth on nodata cells (that shouldnt get there!)
-                          if (elev[x, y] == -9999) water_depth[x, y] = 0;
-                          // calc max flow depth for time step calc
-                          if (water_depth[x, y] > tempmaxdepth) tempmaxdepth = water_depth[x, y];
-                      }
-                  }
-                  tempmaxdepth2[y] = tempmaxdepth;
-              });
+                    if (water_depth[x, y] > 0)
+                    {
+                        // line to remove any water depth on nodata cells (that shouldnt get there!)
+                        if (elev[x, y] == -9999) water_depth[x, y] = 0;
+                        // calc max flow depth for time step calc
+                        if (water_depth[x, y] > tempmaxdepth) tempmaxdepth = water_depth[x, y];
+                    }
+                }
+                tempmaxdepth2[y] = tempmaxdepth;
+            });
             // reduction
             for (int y = 1; y <= ymax; y++) if (tempmaxdepth2[y] > maxdepth) maxdepth = tempmaxdepth2[y];
         }
@@ -11024,6 +11252,241 @@ namespace caesar1
                 }
             });
         }
+        void oil_area()
+        {
+
+            /*var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+            Parallel.For(1, ymax + 1, options, delegate (int y)
+            {
+                int inc = 1;
+                while (down_scan[y, inc] > 0)
+                {
+                    int x = down_scan[y, inc];
+                    inc++;*/
+
+            count_cells = 0;
+
+            for (int x = 1; x < xmax; x++)
+            {
+                for (int y = 1; y < ymax; y++)
+                {
+
+                    if (oil_depth[x, y] > 0)
+                    {
+                        count_cells++;
+                    }
+                    oil_S = count_cells * DX * DX; // MDW : note to check : this will accumulate as the loop scans across the array. oil_S is a 2D array 
+
+                }
+
+
+            }//);
+        }
+
+
+        void oil_evaporation(double local_time_factor)
+
+        {
+
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+            Parallel.For(1, ymax + 1, options, delegate (int y)
+            {
+                int inc = 1;
+                while (down_scan[y, inc] > 0)
+                {
+                    int x = down_scan[y, inc];
+                    inc++;
+
+            /*for (int x = 1; x < xmax; x++)
+            {
+                for (int y = 1; y < ymax; y++)
+                {*/
+
+
+                    if (oil_depth[x, y] > 0)
+                    {
+                        iteration_t += local_time_factor / 60;
+                        //evaporation rate - no wind influence from Fingas studies
+                       // Ev = (3.24 + 0.054 * 15) * Math.Log(iteration_t)/100;
+
+
+                        // Evaporation rate from Mackey experiments - takes into account wind, area of oil slick, oil charachteristics (API).
+                        // Evaporaion expuosure
+                        /*oil_exp = oil_transf_coeff * oil_S  * (local_time_factor) / oil_totalv;
+
+                        // Evaporation Rate
+                        Ev = ((oil_T / (oil_B * oil_Tg)) * Math.Log(oil_exp * (oil_B * oil_Tg / oil_T) * Math.Exp(oil_A - (oil_B * oil_To / oil_T)) + 1));*/
+
+                        //evaporation exposure
+                        oil_exp = oil_transf_coeff * oil_S * (local_time_factor/60)  / oil_totalv;
+                        //oil_exp = /*0.1 **/ oil_transf_coeff * oil_S * (local_time_factor) / (oil_totalv);
+                        //evaporation rate 
+                        //Ev_prev = Ev;
+                        //Ev =  Ev_prev + local_time_factor * (oil_transf_coeff * oil_S / oil_totalv) * Math.Exp(oil_A - (oil_B / oil_T) * (oil_To - oil_Tg * Ev_prev));
+
+                        Ev = (oil_T / (oil_B * oil_Tg)) * Math.Log(oil_exp * (oil_B * oil_Tg / oil_T) * Math.Exp(oil_A - (oil_B * oil_To / oil_T)) + 1);
+                       
+                    }
+
+
+                }
+            });
+        }
+
+
+        void oilroute(double local_time_factor)
+        {
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+            Parallel.For(1, ymax + 1, options, delegate (int y)
+            {
+                int inc = 1;
+                while (down_scan[y, inc] > 0)
+                {
+                    int x = down_scan[y, inc];
+                    inc++;
+
+                    /*for (int x = 1; x < xmax; x++)
+                        {
+                            for (int y = 1; y < ymax; y++)
+                            {*/
+
+                    if (elev[x, y] > -9999)
+                    {
+
+                        // routing oil in x direction
+                        if ((oil_depth[x, y] > 0 | oil_depth[x - 1, y] > 0) && elev[x - 1, y] > -9999) // assess cells containing oil
+                        {
+                            // max oil depth routing between cells
+                            double oil_hflow = Math.Max(water_depth[x, y] + elev[x, y] + oil_depth[x, y], water_depth[x - 1, y] + elev[x - 1, y] + oil_depth[x - 1, y]) - Math.Max(elev[x, y] + water_depth[x, y], elev[x - 1, y] + water_depth[x - 1, y]);
+
+                            //spreading - diffusion function in y direction
+                            double oil_Dx = gravity * (oil_depth_init * oil_depth_init) * (ro_water - oil_density) * (oil_density / ro_water) * qx[x, y] / (ro_water * Cf);
+
+                            // advection-dispersion equation x-direction
+                            oil_hx_prev[x, y] = oil_hx[x, y];
+                            oil_hx[x, y] = oil_hx_prev[x, y] - (local_time_factor * (oil_hflow * (qx[x, y]) / (DX * DX ) - 0.0000001 * (oil_hflow) / (DX * DX)));
+
+                            // Adjust sign based on qx - force the oil in the same direction of water
+                            if (qx[x, y] < 0)
+                            {
+                                oil_hx[x, y] = -(Math.Abs(oil_hx[x, y]));
+                            }
+                            else if (qx[x, y] >= 0)
+                            {
+                                oil_hx[x, y] = (Math.Abs(oil_hx[x, y]));
+                            }
+
+
+                        }
+
+                        // routing in y direction
+                        if ((oil_depth[x, y] > 0 | oil_depth[x, y - 1] > 0) && elev[x, y - 1] > -9999)
+                        {
+                            // max oil depth routing between cells
+                            double oil_hflow = Math.Max(water_depth[x, y] + elev[x, y] + oil_depth[x, y], water_depth[x, y - 1] + elev[x, y - 1] + oil_depth[x, y - 1]) - Math.Max(elev[x, y] + water_depth[x, y], elev[x, y - 1] + water_depth[x, y - 1]);
+
+                            //spreading - diffusion function in y direction
+                            double oil_Dy = gravity * (oil_depth_init * oil_depth_init) * (ro_water - oil_density) * (oil_density / ro_water) * qy[x, y] / (ro_water * Cf);
+
+                            // advection-dispersion equation y-direction
+                            oil_hy_prev[x, y] = oil_hy[x, y];
+                            oil_hy[x, y] = oil_hy_prev[x, y] - (local_time_factor * (oil_hflow * (qy[x, y]) / (DX * DX ) - 0.0000001 * (oil_hflow) / (DX * DX)));
+
+                            // Adjust sign based on qy - force the oil in the same direction of water
+                            if (qy[x, y] < 0)
+                            {
+                                oil_hy[x, y] = -(Math.Abs(oil_hy[x, y]));
+                            }
+                            else if (qy[x, y] >= 0)
+                            {
+                                oil_hy[x, y] = (Math.Abs(oil_hy[x, y]));
+                            }
+
+
+                        }
+
+
+
+                    }
+                }
+            });
+        }
+
+        //private readonly object _lock = new object(); // Lock object for thread safety
+
+        void oil_update()
+
+        {
+            error_negative = 0;
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+            Parallel.For(1, ymax + 1, options, delegate (int y)
+            {
+                int inc = 1;
+                while (down_scan[y, inc] > 0)
+                {
+                    int x = down_scan[y, inc];
+                    inc++;
+
+                    /*for (int x = 1; x < xmax; x++)
+            {
+                for (int y = 1; y < ymax; y++)
+                {*/
+
+                    if (elev[x, y] > -9999)
+                    {
+                        oil_depth_prev[x, y] = oil_depth[x, y];
+                        oil_depth[x, y] += (oil_hx[x + 1, y] - oil_hx[x, y] + oil_hy[x, y + 1] - oil_hy[x, y]);
+
+                        if (oil_depth[x, y] > 0)
+                        {
+                            oil_evap_fraction[x, y] = Ev * oil_depth[x, y]/count_cells ;
+                            oil_depth[x, y] -= oil_evap_fraction[x, y];
+                            
+                        }
+
+                        if (oil_depth[x, y] < 0)
+                        {
+
+                            error_negative += oil_depth[x, y] * DX * DX;
+                            oil_depth[x, y] = 0;
+                        }
+
+                        oil_conc[x, y] = ((oil_depth[x, y]* oil_density) / (oil_depth[x, y] * oil_density + water_depth[x, y]* ro_water )); //conversion to kg/m3 to g/l
+
+                    }
+                }
+            });            
+        }
+
+
+        void oil_global_mass_balance()
+        {
+            
+            oil_evap_t = 0;
+            //oil_out_sum = 0;
+            //oil_evap_sum = 0;
+
+
+            for (int x = 1; x < xmax; x++)
+            {
+                for (int y = 1; y < ymax; y++)
+                {
+
+                    oil_evap_t += DX * DX * oil_evap_fraction[x, y];
+                    
+                }
+
+            }
+
+            //Vout = Vout_1 + Vout_2 + Vout_3 + Vout_4;
+            oil_out_sum = Vout;
+            oil_evap_sum += oil_evap_t;
+            error_negative_sum += Math.Abs(error_negative);
+            oil_in_sum = oil_totalv - oil_out_sum - oil_evap_sum /*- error_negative_sum*/;
+
+
+        }
+
 
         void update_tracer_states()
         {
@@ -11057,7 +11520,7 @@ namespace caesar1
                         dhdt_sumInSrc = new Double[nSources + 1];
                         double[] dhdt_sumInSrcRainZone = new Double[nRainZones + 1];
                         double[] dhdt_sumInSrcSolutes = new Double[nSolutes];
-                        double solute_after_outflows;
+                        //double solute_after_outflows;
 
                         // work out total outflows for this cell - source not important here
                         dhdt_sumOut = 0.0;
@@ -11065,7 +11528,7 @@ namespace caesar1
                         if (dhdt_x[x, y] > 0.0) { dhdt_sumOut -= dhdt_x[x, y]; }      // Flow from left:  +ve = outflow
                         if (dhdt_y[x, y + 1] < 0.0) { dhdt_sumOut += dhdt_y[x, y + 1]; }  // Flow from up:    -ve = outflow
                         if (dhdt_y[x, y] > 0.0) { dhdt_sumOut -= dhdt_y[x, y]; }      // Flow from down:  +ve = outflow
-                        // n.b. sum of outflows will be negative
+                                                                                      // n.b. sum of outflows will be negative
 
                         // get depth of cell from previous iteration after outflows
                         depth_after_outflows = water_depth_prev[x, y] + dhdt_sumOut;
@@ -11215,30 +11678,140 @@ namespace caesar1
         void initialise_oil_simulation() // OIL_V1
         {
 
-            // error checking using Int32.TryParse would be better
-            oil_fromy = Convert.ToInt32(OilYmin.Text);
-            oil_toy = Convert.ToInt32(OilYmax.Text);
-            oil_fromx = Convert.ToInt32(OilXmin.Text);
-            oil_tox = Convert.ToInt32(OilXmax.Text);
-            oil_startt = Convert.ToDouble(OilTimeMin.Text) / 60; // convert to minutes, same unit as time counter
-            oil_starth = Convert.ToDouble(OilDepthStart.Text);
-            oil_totalv = Convert.ToDouble(OilVolume.Text);
-            oil_spillt = Convert.ToDouble(OilSpillDuration.Text);
-            oildepth = new double[xmax, ymax];
+            // Read in input cell coordinates, checking for valid values. Disable oil spill and skip rest if parse fails
+            if (!int.TryParse(OilYmin.Text, out oil_fromy) |
+                !int.TryParse(OilYmax.Text, out oil_toy) |
+                !int.TryParse(OilXmin.Text, out oil_fromx) |
+                !int.TryParse(OilXmax.Text, out oil_tox))
+            {
+                MessageBox.Show("Oil spill simulation: invalid values found in location of cell inputs. Disabling.");
+                isOilSimulation = false;
+                return;
+            }
+
+            // Check for out of bound input cells
+            if (Math.Min(oil_fromy, oil_toy) < 0 |
+                Math.Max(oil_fromy, oil_toy) > ymax |
+                Math.Min(oil_fromx, oil_tox) < 0 |
+                Math.Max(oil_fromx, oil_tox) > xmax)
+            {
+                MessageBox.Show("Oil spill simulation: input locations are out of bounds. Disabling.");
+                isOilSimulation = false;
+                return;
+            }
+
+            // Read in timings/ volumes, checking for valid values. Disable oil spill and skip rest if parse fails
+            if (!double.TryParse(OilTimeMin.Text, out oil_startt) |
+                !double.TryParse(OilDepthStart.Text, out oil_starth) |
+                !double.TryParse(OilVolume.Text, out oil_totalv) |
+                !double.TryParse(OilSpillDuration.Text, out oil_spillt))
+            {
+                MessageBox.Show("Oil spill simulation: invalid values found in start/ minimum depth/ volume/ duration inputs. Disabling.");
+                isOilSimulation = false;
+                return;
+            }
+            oil_startt /= 60; // convert to minutes, same unit as time counter
+
+            // Check volume, duration:  zero or negative leads to disabling oil simulation
+            if (oil_totalv <= 0 | oil_spillt <= 0)
+            {
+                MessageBox.Show("Oil spill simulation: volume and/or duration is zero or negative. Disabling.");
+                isOilSimulation = false;
+                return;
+            }
+
+            // Check start time: negative values is invalid
+            if (oil_startt < 0)
+            {
+                MessageBox.Show("Oil spill simulation: start time is negative. Disabling.");
+                isOilSimulation = false;
+                return;
+            }
+
+            // Check start time against length of simulation
+            if (oil_startt > (maxcycle * 60))
+            {
+                MessageBox.Show("Oil spill simulation: start time is set to after the end of the simulation, so the spill will never occur. Disabling.");
+                isOilSimulation = false;
+                return;
+            }
+
+            // Check depth threshold: minimum default value
+            if (oil_starth < 0.01)
+            {
+                MessageBox.Show("Oil spill simulation: depth threshold must be at least 0.01 m. Updating and continuing.");
+                oil_starth = 0.01;
+            }
+
+            // All ok at this point
+
+            // Initialise the constant spill rate
+            oil_ratev = oil_totalv / oil_spillt;
+
+            // initialise the input number of cells, taking account of a 1x1 input
+            oil_n_cells = Math.Max(Math.Max(oil_fromx, oil_tox) - Math.Min(oil_fromx, oil_tox), 1) *
+                          Math.Max(Math.Max(oil_fromy, oil_toy) - Math.Min(oil_fromy, oil_toy), 1);
+
+            // Initialise other parameters - to be added to interface
+            //oil_D = 0.000002;
+            oil_density = 839; //then to be defined in the graphical interface input
+            ro_water = 1000;
+            cinematic_v = 9.2;
+            oil_T = 288;
+            vel_wind = 2;
+            //Initialise parameters for oil_evaporation
+            oil_A = 6.3;
+            oil_B = 10.3;
+            Cf = 0.02;
+            API = 141.5 / (oil_density / ro_water) - 131.5;
+
+            //Crude oil
+            //oil_To = 457 - 3.3447 * API;
+            //oil_Tg = 1356.7 - 247.36 * Math.Log(API);
+
+            //refined oil
+            oil_To = (645.45 - 4.6588 * API);
+            oil_Tg = (388.19 - 3.8725 * API);
+
+            //oil_transf_coeff =   0.0025 * Math.Pow(vel_wind, 0.78); // wind to be considered variable in the future
+            //oil_transf_coeff = 0.0107 * Math.Pow(vel_wind, 0.78) * Math.Pow(DX, -0.11) * Math.Pow(0.6, -0.67);
+            oil_transf_coeff =  0.0025 * Math.Pow(vel_wind, 0.78);
+            
+
+
+
+            // Assign arrays
+
+            //oil_D = new double[xmax + 2, ymax + 2];
+
+            oil_hx_prev = new double[xmax + 2, ymax + 2];
+            oil_hy_prev = new double[xmax + 2, ymax + 2];
+
+            oil_hx = new double[xmax + 2, ymax + 2];
+            oil_hy = new double[xmax + 2, ymax + 2];
+
+            oil_depth_prev = new double[xmax + 2, ymax + 2];
+            oil_evap_fraction = new double[xmax + 2, ymax + 2];
+            oil_depth = new double[xmax + 2, ymax + 2]; // same as declaration for water_depth. I think the others will need to be as well
+            oil_conc = new double[xmax + 2, ymax + 2];
+            //oil_exp = new double[xmax + 2, ymax + 2];// for oil_evaporation ()
+            //Ev = new double[xmax + 2, ymax + 2];
+            //oil_S = new double[xmax + 2, ymax + 2];
+
+
+
 
         }
-        void update_oil_states() // OIL_V1
+        bool oil_check_depth_threshold()
         {
-
-            MessageBox.Show("update_oil_states() triggered"); // for debug/ testing
-
-            // add oil to input location
-
-            // update oil fluxes
-
-
-
-
+            for (int x = Math.Min(oil_fromx, oil_tox); x <= Math.Max(oil_fromx, oil_tox); x++)
+            {
+                for (int y = Math.Min(oil_fromy, oil_toy); y <= Math.Max(oil_fromy, oil_toy); y++)
+                {
+                    if (water_depth[x, y] > oil_starth) return true;
+                }
+            }
+            return false;
         }
 
         void scan_area()
@@ -11246,29 +11819,29 @@ namespace caesar1
             double tempW = 0;// water_depth_erosion_threshold;
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax + 1, options, delegate (int y)
-              {
-                  int inc = 1;
+            {
+                int inc = 1;
 
-                  for (int x = 1; x <= xmax; x++)
-                  {
-                      // zero scan bit..
-                      down_scan[y, x] = 0;
-                      // and work out scanned area.
-                      if (water_depth[x, y] > tempW
-                            || water_depth[x - 1, y] > tempW
-                            //|| water_depth[x - 1, y - 1] > tempW
-                            //|| water_depth[x - 1, y + 1] > tempW
-                            //|| water_depth[x + 1, y - 1] > tempW
-                            //|| water_depth[x + 1, y + 1] > tempW
-                            || water_depth[x, y - 1] > tempW
-                            || water_depth[x + 1, y] > tempW
-                            || water_depth[x, y + 1] > tempW)
-                      {
-                          down_scan[y, inc] = x;
-                          inc++;
-                      }
-                  }
-              });
+                for (int x = 1; x <= xmax; x++)
+                {
+                    // zero scan bit..
+                    down_scan[y, x] = 0;
+                    // and work out scanned area.
+                    if (water_depth[x, y] > tempW
+                          || water_depth[x - 1, y] > tempW
+                          //|| water_depth[x - 1, y - 1] > tempW
+                          //|| water_depth[x - 1, y + 1] > tempW
+                          //|| water_depth[x + 1, y - 1] > tempW
+                          //|| water_depth[x + 1, y + 1] > tempW
+                          || water_depth[x, y - 1] > tempW
+                          || water_depth[x + 1, y] > tempW
+                          || water_depth[x, y + 1] > tempW)
+                    {
+                        down_scan[y, inc] = x;
+                        inc++;
+                    }
+                }
+            });
 
 
 
@@ -11364,6 +11937,7 @@ namespace caesar1
                 catchment_input_x_coord[x] = 0;
                 catchment_input_y_coord[x] = 0;
             }
+
 
             for (x = 1; x <= rfnum; x++)
             {
@@ -11959,6 +12533,8 @@ namespace caesar1
 
         void drawwater(System.Drawing.Graphics graphics)// <JMW 20041018>
         {
+            if (!simLoadState) return; // MDW: if data are not loaded, do nothing (fixes an exception which happens when selecting an item from the graphics menu before data are loaded)
+
             Graphics objGraphics;
             objGraphics = Graphics.FromImage(m_objDrawingSurface);
             objGraphics.Clear(SystemColors.Control);
@@ -11988,7 +12564,7 @@ namespace caesar1
 
             // These loop through the entire grid
             // DEM <JOE 20050905>
-            if (menuItem30.Checked == true)
+            if (menuItem30.Checked == true) // DEM
             {
                 double zDEM;
                 double zCalc, zMin = 100000.0, zMax = -9990.0, zRange, hsMin = 0, hsMax = 255, hsRange, hs;
@@ -12100,6 +12676,54 @@ namespace caesar1
             }
             wdRange = wdMax - wdMin;
 
+            // OIL_V1_MDW
+            // Find range of oil depths if needed
+            double oilCalc, oilMin = 1000.0, oilMax = -10, oilRange = 1;
+            if (isOilSimulation && menuItemOilVisualisation.Checked == true)
+            {
+                for (x = 1; x < xmax; x++)
+                {
+                    for (y = 1; y <= ymax; y++)
+                    {
+                        oilCalc = oil_depth[x, y];
+
+
+                        if (oilCalc > 0)
+                        {
+                            if (oilCalc < oilMin) oilMin = oilCalc;
+                            if (oilCalc > oilMax) oilMax = oilCalc;
+
+
+                        }
+                    }
+                }
+                if (oilMax > 0) oilRange = oilMax - oilMin;
+            }
+
+            // OIL_V1_PDF
+            // Find range of oil concentration if needed
+            double oilConc, oilCMin = 0.01, oilCMax = 0.00001, oilCRange = 1;
+            if (isOilSimulation && menuItemOilconcVisualisation.Checked == true)
+            {
+                for (x = 1; x < xmax; x++)
+                {
+                    for (y = 1; y <= ymax; y++)
+                    {
+                        oilConc = oil_conc[x, y];
+
+
+                        if (oilConc > 0)
+                        {
+                            if (oilConc < oilCMin) oilCMin = oilConc;
+                            if (oilConc > oilCMax) oilCMax = oilConc;
+
+
+                        }
+                    }
+                }
+                if (oilCMax > 0) oilCRange = oilCMax - oilCMin;
+            }
+
 
 
             // All these loop through just the 'Active Area'
@@ -12189,7 +12813,6 @@ namespace caesar1
 
 
                         }
-
 
                         // Water Source Tracers - MDW 17-03-2016
                         if (menuItem10.Checked == true && water_depth[x, y] > water_depth_erosion_threshold)
@@ -12561,6 +13184,89 @@ namespace caesar1
                                 }
                             }
                         }
+
+                        // Oil spill - OIL_V1_MDW
+                        if (menuItemOilVisualisation.Checked == true)
+                        {
+                            if (index[x, y] != -9999)
+                            {
+                                if (oil_depth[x, y] > 0.001 && water_depth[x, y] > water_depth_erosion_threshold)
+                                {
+                                    z = (int)(oil_depth[x, y] * (128 / oilRange)); // using lower half of grey range for darker cells
+                                    if (comboBox1.Text == "oil spill") // display only the oil spill for this cell (opaque cell)
+                                    {
+                                        alphacol = 255;
+                                    }
+                                    else // display on top of whatever else is selected (semi-transparent cell)
+                                    {
+                                        alphacol = 128;
+                                    }
+                                    if (z < 0) z = 0;
+                                    if (z > 128) z = 128;
+                                    greencol = redcol = bluecol = 128 - z; // deep oil is black, shallow oil is mid-grey
+                                    //if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                                    //if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+
+                                    SolidBrush brush = new SolidBrush(Color.FromArgb(alphacol, redcol, greencol, bluecol));
+                                    objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+                                }
+                            }
+                        }
+
+                        // Definizione della scala di colori Viridis
+                        Color[] viridisColors = new Color[]
+                        {
+                             Color.FromArgb(68, 1, 84),
+                             Color.FromArgb(68, 2, 85),
+                             Color.FromArgb(65, 40, 104),
+                             Color.FromArgb(60, 81, 139),
+                             Color.FromArgb(50, 113, 176),
+                             Color.FromArgb(32, 144, 203),
+                             Color.FromArgb(14, 184, 227),
+                             Color.FromArgb(253, 231, 37)
+                        };
+
+                        // Funzione per ottenere il colore dalla scala Viridis
+                        Color GetViridisColor(double value, double minValue, double maxValue)
+                        {
+                            // Normalizza il valore tra 0 e 1
+                            double normalizedValue = (value - minValue) / (maxValue - minValue);
+                            normalizedValue = Math.Max(0, Math.Min(1, normalizedValue)); // Assicurati che sia tra 0 e 1
+
+                            // Calcola l'indice del colore
+                            int colorIndex = (int)(normalizedValue * (viridisColors.Length - 1));
+                            return viridisColors[colorIndex];
+                        }
+
+                        // Oil concentration - OIL_V1_PDF
+                        if (menuItemOilconcVisualisation.Checked == true)
+                        {
+                            if (index[x, y] != -9999)
+                            {
+                                //if (oil_conc[x, y] > 0.00001 && water_depth[x, y] > water_depth_erosion_threshold)
+                                if (oil_conc[x, y] > 0.000001 && oil_depth[x, y] > 0.001)
+                                {
+                                    // Ottieni il colore dalla scala Viridis
+                                    Color viridisColor = GetViridisColor(oil_conc[x, y], 0.1, oilCRange); 
+
+                                    // Imposta l'alfa
+                                    if (comboBox1.Text == "oil concentration") // display only the oil concentration for this cell (opaque cell)
+                                    {
+                                        alphacol = 255;
+                                    }
+                                    else // display on top of whatever else is selected (semi-transparent cell)
+                                    {
+                                        alphacol = 128;
+                                    }
+
+                                    // Crea il pennello con il colore Viridis
+                                    SolidBrush brush = new SolidBrush(Color.FromArgb(alphacol, viridisColor.R, viridisColor.G, viridisColor.B));
+                                    objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+                                }
+                            }
+                        }
+
+
 
 
                     }           // Close of nodata check for 'active' grid only
@@ -14023,23 +14729,23 @@ namespace caesar1
             // now determine edge cells on the new grid..
 
             Parallel.For(2, ymax * 2, options, delegate (int y)
-              {
-                  Parallel.For(2, xmax * 2, options, delegate (int x)
-                  {
-                      upscale_edge[x, y] = 0;
-                      if (upscale[x, y] == 0)
-                      {
-                          if (upscale[x, y - 1] == 1 ||
-                              upscale[x - 1, y] == 1 ||
-                              upscale[x + 1, y] == 1 ||
-                              upscale[x, y + 1] == 1)
-                          {
-                              upscale[x, y] = 2;
-                          }
-                      }
-                  });
+            {
+                Parallel.For(2, xmax * 2, options, delegate (int x)
+                {
+                    upscale_edge[x, y] = 0;
+                    if (upscale[x, y] == 0)
+                    {
+                        if (upscale[x, y - 1] == 1 ||
+                            upscale[x - 1, y] == 1 ||
+                            upscale[x + 1, y] == 1 ||
+                            upscale[x, y + 1] == 1)
+                        {
+                            upscale[x, y] = 2;
+                        }
+                    }
+                });
 
-              });
+            });
 
 
 
@@ -14082,21 +14788,21 @@ namespace caesar1
             // now update normal edge array..
 
             Parallel.For(1, ymax + 1, options, delegate (int y)
-              {
-                  Parallel.For(1, xmax + 1, options, delegate (int x)
-                  {
-                      if (edge[x, y] == 0)
-                      {
-                          edge[x, y] = (double)(upscale_edge[(x * 2), (y * 2)] +
-                              upscale_edge[(x * 2), (y * 2) - 1] +
-                              upscale_edge[(x * 2) - 1, (y * 2)] +
-                              upscale_edge[(x * 2) - 1, (y * 2) - 1]);
-                          if (edge[x, y] > 2) edge[x, y] = 2; // important line to stop too great inside bends...
-                          if (edge[x, y] < -2) edge[x, y] = -2;
+            {
+                Parallel.For(1, xmax + 1, options, delegate (int x)
+                {
+                    if (edge[x, y] == 0)
+                    {
+                        edge[x, y] = (double)(upscale_edge[(x * 2), (y * 2)] +
+                            upscale_edge[(x * 2), (y * 2) - 1] +
+                            upscale_edge[(x * 2) - 1, (y * 2)] +
+                            upscale_edge[(x * 2) - 1, (y * 2) - 1]);
+                        if (edge[x, y] > 2) edge[x, y] = 2; // important line to stop too great inside bends...
+                        if (edge[x, y] < -2) edge[x, y] = -2;
 
-                      }
-                  });
-              });
+                    }
+                });
+            });
 
             //then apply a smoothing filter over the top of this. here its done X number of times -
 
@@ -14392,8 +15098,8 @@ namespace caesar1
                 }
                 //});
             } while (tempdiff > lateral_cross_channel_smoothing); //this makes it loop until the averaging across the stream stabilises
-            // so that the difference between the old and new values are < 0.0001
-            //tempStatusPanel.Text = Convert.ToString(counter);
+                                                                  // so that the difference between the old and new values are < 0.0001
+                                                                  //tempStatusPanel.Text = Convert.ToString(counter);
 
         }
 
@@ -15061,6 +15767,9 @@ namespace caesar1
             if (menuItem15.Checked == true) save_data(19, 0); // save rain zone tracers - MDW 13-04-2016
             if (menuItem16.Checked == true) save_data(6, 0);  // save tracer file <Jun 20200527>
             if (menuItemSoluteTracer.Checked == true) save_data(20, 0);  // save solute tracers - MDW_V2
+            if (menuItemOilSpill.Checked == true) save_data(7, 0);  // save oildepth file OIL_V1_PDF
+            if (menuItem17.Checked == true) save_data(8, 0);   // save oildepth file OIL_V1_PDF
+            if (menuItemOilconc.Checked == true) save_data(9, 0);   // save oildepth file OIL_V1_PDF
 
             this.Close();
         }
@@ -15197,9 +15906,9 @@ namespace caesar1
                 tabControl1.Visible = false;
                 checkBox1.Checked = false;
                 zoomPanImageBox1.Visible = true;// MJ 14/01/05
-                Panel1.Visible = true;						// MJ 14/01/05
-                button2.Enabled = false;					// MJ 17/01/05
-                start_button.Enabled = true;				// MJ 17/01/05
+                Panel1.Visible = true;                      // MJ 14/01/05
+                button2.Enabled = false;                    // MJ 17/01/05
+                start_button.Enabled = true;                // MJ 17/01/05
                 groupBox2.Visible = true;
                 groupBox3.Visible = true;
             }
@@ -15250,6 +15959,7 @@ namespace caesar1
             MessageBox.Show(message);
 
             //main_loop(this, null);
+            simLoadState = true; // MDW: added to signify that data are loaded, allowing a fix to an exception which happens when selecting an item from the graphics menu before data are loaded
 
         }
         private void buttonOutDir_Click(object sender, System.EventArgs e) // MDW_V2
@@ -15498,6 +16208,18 @@ namespace caesar1
         {
             menuItemSoluteTracer.Checked = (!menuItemSoluteTracer.Checked);
         }
+        private void menuItemOilSpill_Click(object sender, System.EventArgs e)
+        {
+            menuItemOilSpill.Checked = (!menuItemOilSpill.Checked);// OIL_V1_PDF
+        }
+        private void menuItemOilconc_Click(object sender, System.EventArgs e)
+        {
+            menuItemOilconc.Checked = (!menuItemOilconc.Checked);
+        }
+        private void menuItem17_Click(object sender, System.EventArgs e)
+        {
+            menuItem17.Checked = (!menuItem17.Checked);
+        }
         private void menuItem6_Click(object sender, System.EventArgs e) // MDW
         {
             menuItem6.Checked = (!menuItem6.Checked);
@@ -15712,6 +16434,14 @@ namespace caesar1
                     dum = xreader.ReadElementString("Option");
                     menuItemSoluteTracer.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
                     xreader.ReadEndElement();
+                    xreader.ReadStartElement("SaveOptions"); // OIL_V1_PDF
+                    dum = xreader.ReadElementString("Option");
+                    menuItemOilSpill.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    /*xreader.ReadStartElement("SaveOptions"); // OIL_V1_PDF
+                    dum = xreader.ReadElementString("Option");
+                    menuItem17.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();*/
                     try
                     {
                         xreader.ReadStartElement("SaveOptions");
@@ -16749,6 +17479,27 @@ namespace caesar1
                 //
                 //xwriter.WriteElementString();
 
+                //PDF
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "oil depth");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItemOilSpill.Checked));
+                xwriter.WriteEndElement();
+                //
+
+                //PDF
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "mass balance");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItem17.Checked));
+                xwriter.WriteEndElement();
+                //
+
+                //PDF
+                xwriter.WriteStartElement("SaveOptions");
+                xwriter.WriteElementString("Option", "oil concentration");
+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItemOilconc.Checked));
+                xwriter.WriteEndElement();
+                //
+
                 //additional from Jun LS tracing
                 xwriter.WriteStartElement("Filenames");
                 xwriter.WriteElementString("Desc", "Angle Data File");
@@ -17163,7 +17914,7 @@ namespace caesar1
                 checkBox11.Enabled = true; //MDW_V2 changed from visible, so it shows greyed out by default
                 textBox20.Enabled = true;  //
                 checkBoxSoluteTracer.Enabled = true; //MDW_V2
-                //labelSoluteNumber.Enabled = true;
+                                                     //labelSoluteNumber.Enabled = true;
             }
             else
             {
@@ -17171,7 +17922,7 @@ namespace caesar1
                 checkBox11.Enabled = false; //MDW_V2 changed from visible, so it shows greyed out by default
                 textBox20.Enabled = false;  //
                 checkBoxSoluteTracer.Enabled = false; //MDW_V2
-                //labelSoluteNumber.Enabled = false;
+                                                      //labelSoluteNumber.Enabled = false;
             }
         }
 
@@ -17439,7 +18190,45 @@ namespace caesar1
             this.Refresh();
             drawwater(mygraphics);
         }
+
+        //OIL_V1_MDW
+        private void menuItemOilVisualisation_Click(object sender, EventArgs e)
+        {
+            menuItemOilVisualisation.Checked = (!menuItemOilVisualisation.Checked);
+            if (menuItemOilVisualisation.Checked == true)
+            {
+                comboBox1.Items.Add("oil spill");
+            }
+            else
+            {
+                comboBox1.Items.Remove("oil spill");
+            }
+            popComboBox1();
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
+
+        //OIL_V1_PDF
+        private void menuItemOilconcVisualisation_Click(object sender, EventArgs e)
+        {
+            menuItemOilconcVisualisation.Checked = (!menuItemOilconcVisualisation.Checked);
+            if (menuItemOilconcVisualisation.Checked == true)
+            {
+                comboBox1.Items.Add("oil concentration");
+            }
+            else
+            {
+                comboBox1.Items.Remove("oil concentration");
+            }
+            popComboBox1();
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
     }
+
+
 
     class point
     {
@@ -17536,7 +18325,7 @@ namespace caesar1
             //Console.WriteLine();
             //Console.WriteLine(helmertX);
             //Console.WriteLine(helmertY);
-            //WGS84 Cartesian XYZ to WGS84 Latitude, longitude and Ellipsoidal height								
+            //WGS84 Cartesian XYZ to WGS84 Latitude, longitude and Ellipsoidal height
             rootXYSqr = Math.Sqrt((Math.Pow(helmertX, 2)) + (Math.Pow(helmertY, 2)));
             eSquared2 = (Math.Pow(a2, 2) - Math.Pow(b2, 2)) / Math.Pow(a2, 2);
             PHI1 = Math.Atan(helmertZ / (rootXYSqr * (1 - eSquared2)));
@@ -17567,7 +18356,7 @@ namespace caesar1
             // Then calculates corresponding latitude and longitude in radians
             // Before converting back to degrees
 
-            // first version ArT 12-06-09 
+            // first version ArT 12-06-09
 
             double footpointlatitude = 0;
             double UTMscalefactor = 0.9996;
@@ -17640,5 +18429,3 @@ namespace caesar1
 
 
 }
-
-

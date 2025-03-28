@@ -1,0 +1,1015 @@
+diff --git a/Caesar Lisflood 2.0.cs b/Caesar Lisflood 2.0.cs
+index dde2bb1..dd4991f 100644
+--- a/Caesar Lisflood 2.0.cs	
++++ b/Caesar Lisflood 2.0.cs	
+@@ -43,6 +43,8 @@
+// 5. Added debug info and stack trace to error messages (which are mostly due to input file errors)
+
+
+
+
+using System;
+using System.Collections;
+using System.Collections.Generic; // MDW
+@@ -342,12 +344,10 @@ namespace caesar1
+        public static int sourceIndexAddition = 2; //MDW_V2 - source numbering adjustment to accrount for whether if rain/ tide is on
+
+        // OIL_V1
+        public int oil_fromx, oil_tox, oil_fromy, oil_toy{+, oil_n_cells+};
+        public static bool isOilSimulation, oil_eventtriggered = false;
+        public double oil_startt, oil_starth, oil_{+spillt, ro_oil, ro_wa+}t{+er,+} o{+il_densi+}t{+y, oil_T, cinem+}a{+tic_v, oi+}l{+_D, oil_rate+}v, oil_[-sp-]{+totalv, o+}il{+_depth_init, oi+}l{+_inpu+}t;
+        public static double[,]  oil{+_Mx, oil_My, oil_M, oil_+}depth{+_x, oil_depth_y, oil_depth_update, oil_depth, oil_V+}; 
+
+        // TC mining 
+        int minesitenumber = 0;
+@@ -772,6 +772,7 @@ namespace caesar1
+        private MenuItem menuItem6;
+        private MenuItem menuItem15;
+        private MenuItem menuItemSoluteTracer; //MDW_V2
+        {+private MenuItem menuItemOilSpill; //OIL_V1_PDF+}
+        private Label label111;
+        private Label label112;
+        private Label label113;
+@@ -823,6 +824,18 @@ namespace caesar1
+        private Label OilVolumelabel;
+        private TextBox OilSpillDuration;
+        private Label OilSpillDurationlabel;
+        {+/*private TextBox WaterDensity; //OIL_V1_PDF+}
+{+        private Label WaterDensitylabel;+}
+{+        private TextBox DiffusiveCoefficient;+}
+{+        private Label DiffusiveCoefficientlabel;+}
+{+        private TextBox OilViscosity;+}
+{+        private Label OilViscositylabel;+}
+{+        private TextBox OilTemperature;+}
+{+        private Label OilTemperaturelabel;*/+}
+        
+
+
+
+        #endregion
+
+
+@@ -893,6 +906,7 @@ namespace caesar1
+            this.menuItem15 = new System.Windows.Forms.MenuItem();
+            this.menuItem16 = new System.Windows.Forms.MenuItem();
+            this.menuItemSoluteTracer = new System.Windows.Forms.MenuItem();
+            {+this.menuItemOilSpill = new System.Windows.Forms.MenuItem();+}
+            this.tabControl1 = new System.Windows.Forms.TabControl();
+            this.FilesTab = new System.Windows.Forms.TabPage();
+            this.label123 = new System.Windows.Forms.Label();
+@@ -1262,6 +1276,25 @@ namespace caesar1
+            this.checkBox5 = new System.Windows.Forms.CheckBox();
+            this.checkBox4 = new System.Windows.Forms.CheckBox();
+            this.soildevbox = new System.Windows.Forms.CheckBox();
+            {+this.OilTab = new System.Windows.Forms.TabPage();+}
+{+            this.OilTab_checkBox = new System.Windows.Forms.CheckBox();+}
+{+            this.OilTab_groupBox_controls = new System.Windows.Forms.GroupBox();+}
+{+            this.OilYmin = new System.Windows.Forms.TextBox();+}
+{+            this.OilYmax = new System.Windows.Forms.TextBox();+}
+{+            //this.OilSpillDuration = new System.Windows.Forms.TextBox();+}
+{+            this.OilXmin = new System.Windows.Forms.TextBox();+}
+{+            this.OilXmax = new System.Windows.Forms.TextBox();+}
+{+            this.OilYlabel = new System.Windows.Forms.Label();+}
+{+            this.OilXlabel = new System.Windows.Forms.Label();+}
+{+            this.OilTextlabel = new System.Windows.Forms.Label();+}
+{+            this.OilTimeMin = new System.Windows.Forms.TextBox();+}
+{+            this.OilTimeMinlabel = new System.Windows.Forms.Label();+}
+{+            this.OilDepthStart = new System.Windows.Forms.TextBox();+}
+{+            this.OilDepthStartlabel = new System.Windows.Forms.Label();+}
+{+            this.OilVolume = new System.Windows.Forms.TextBox();+}
+{+            this.OilVolumelabel = new System.Windows.Forms.Label();+}
+{+            this.OilSpillDuration = new System.Windows.Forms.TextBox();+}
+{+            this.OilSpillDurationlabel = new System.Windows.Forms.Label();+}
+            this.folderBrowserOutDir = new System.Windows.Forms.FolderBrowserDialog();
+            this.label107 = new System.Windows.Forms.Label();
+            this.label106 = new System.Windows.Forms.Label();
+@@ -1305,26 +1338,6 @@ namespace caesar1
+            this.comboBox4 = new System.Windows.Forms.ComboBox();
+            this.comboBox3 = new System.Windows.Forms.ComboBox();
+            this.comboBox2 = new System.Windows.Forms.ComboBox();
+
+[-            this.OilTab = new System.Windows.Forms.TabPage(); // OIL_V1-]
+[-            this.OilTab_checkBox = new System.Windows.Forms.CheckBox();-]
+[-            this.OilTab_groupBox_controls = new System.Windows.Forms.GroupBox();-]
+[-            this.OilYmin = new System.Windows.Forms.TextBox();-]
+[-            this.OilYmax = new System.Windows.Forms.TextBox();-]
+[-            this.OilXmax = new System.Windows.Forms.TextBox();-]
+[-            this.OilXmin = new System.Windows.Forms.TextBox();-]
+[-            this.OilYlabel = new System.Windows.Forms.Label();-]
+[-            this.OilXlabel = new System.Windows.Forms.Label();-]
+[-            this.OilTextlabel = new System.Windows.Forms.Label();-]
+[-            this.OilTimeMin = new System.Windows.Forms.TextBox();-]
+[-            this.OilTimeMinlabel = new System.Windows.Forms.Label();-]
+[-            this.OilDepthStart = new System.Windows.Forms.TextBox();-]
+[-            this.OilDepthStartlabel = new System.Windows.Forms.Label();-]
+[-            this.OilVolume = new System.Windows.Forms.TextBox();-]
+[-            this.OilVolumelabel = new System.Windows.Forms.Label();-]
+[-            this.OilSpillDuration = new System.Windows.Forms.TextBox();-]
+[-            this.OilSpillDurationlabel = new System.Windows.Forms.Label();-]
+
+            this.tabControl1.SuspendLayout();
+            this.FilesTab.SuspendLayout();
+            this.groupBox6.SuspendLayout();
+@@ -1345,12 +1358,9 @@ namespace caesar1
+            this.tabPage5.SuspendLayout();
+            this.tabPage1.SuspendLayout();
+            this.tabPage3.SuspendLayout();
+            {+this.OilTab.SuspendLayout();+}
+{+            this.OilTab_groupBox_controls.SuspendLayout();+}
+            this.Panel1.SuspendLayout();
+
+[-            this.OilTab.SuspendLayout(); // OIL_V1-]
+[-            this.OilTab_groupBox_controls.SuspendLayout(); // OIL_V1-]
+
+
+            ((System.ComponentModel.ISupportInitialize)(this.InfoStatusPanel)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.IterationStatusPanel)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.TimeStatusPanel)).BeginInit();
+@@ -1521,7 +1531,9 @@ namespace caesar1
+            this.menuItem6,
+            this.menuItem15,
+            this.menuItem16,
+            this.menuItemSoluteTracer{+,+}
+{+            this.menuItemOilSpill+}});
+          {+//OIL_V1_PDF+}
+            this.menuItem11.Text = "Save Options";
+            // 
+            // menuItem12
+@@ -1594,6 +1606,14 @@ namespace caesar1
+            this.menuItemSoluteTracer.Text = "solute tracers";
+            this.menuItemSoluteTracer.Click += new System.EventHandler(this.menuItemSoluteTracer_Click);
+            //
+            {+//menuItemOilSpill+}
+{+            // +}
+{+            //OILV1_PDF+}
+{+            //+}
+{+            this.menuItemOilSpill.Index = 11;+}
+{+            this.menuItemOilSpill.Text = "oil depth";+}
+{+            this.menuItemOilSpill.Click += new System.EventHandler(this.menuItemOilSpill_Click);+}
+{+            //+} 
+            // tabControl1
+            // 
+            this.tabControl1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+@@ -2587,6 +2607,7 @@ namespace caesar1
+            // 
+            this.gp8_box.Location = new System.Drawing.Point(997, 236);
+            this.gp8_box.Name = "gp8_box";
+            {+this.gp8_box.Name = "gp8_box";+}
+            this.gp8_box.Size = new System.Drawing.Size(130, 20);
+            this.gp8_box.TabIndex = 238;
+            this.gp8_box.Text = "0.231";
+@@ -5248,143 +5269,13 @@ namespace caesar1
+            this.soildevbox.Text = "Soil Development Model?";
+            this.soildevbox.UseVisualStyleBackColor = true;
+            // 
+            //[-label107-]
+[-            //-]
+[-            this.label107.AutoSize = true;-]
+[-            this.label107.Enabled = false;-]
+[-            this.label107.Location = new System.Drawing.Point(180, 15);-]
+[-            this.label107.Name = "label107";-]
+[-            this.label107.Size = new System.Drawing.Size(14, 13);-]
+[-            this.label107.TabIndex = 6;-]
+[-            this.label107.Text = "B";-]
+[-            //-]
+[-            // label106-]
+[-            //-]
+[-            this.label106.AutoSize = true;-]
+[-            this.label106.Enabled = false;-]
+[-            this.label106.Location = new System.Drawing.Point(126, 15);-]
+[-            this.label106.Name = "label106";-]
+[-            this.label106.Size = new System.Drawing.Size(15, 13);-]
+[-            this.label106.TabIndex = 4;-]
+[-            this.label106.Text = "G";-]
+[-            //-]
+[-            // label110-]
+[-            //-]
+[-            this.label110.AutoSize = true;-]
+[-            this.label110.Enabled = false;-]
+[-            this.label110.Location = new System.Drawing.Point(4, 13);-]
+[-            this.label110.Name = "label110";-]
+[-            this.label110.Size = new System.Drawing.Size(69, 13);-]
+[-            this.label110.TabIndex = 0;-]
+[-            this.label110.Text = "Water tracer:";-]
+[-            this.label110.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;-]
+[-            this.toolTip1.SetToolTip(this.label110, "Select tracer layers to use in RGB image. Rain is layer 1; Stage is layer 2; Hydr" +-]
+[-        "o inputs are layers 3+.");-]
+[-            //-]
+[-            // label109-]
+[-            //-]
+[-            this.label109.AutoSize = true;-]
+[-            this.label109.Enabled = false;-]
+[-            this.label109.Location = new System.Drawing.Point(72, 15);-]
+[-            this.label109.Name = "label109";-]
+[-            this.label109.Size = new System.Drawing.Size(15, 13);-]
+[-            this.label109.TabIndex = 2;-]
+[-            this.label109.Text = "R";-]
+[-            //-]
+[-            // label108-]
+[-            //-]
+[-            this.label108.AutoSize = true;-]
+[-            this.label108.Enabled = false;-]
+[-            this.label108.Location = new System.Drawing.Point(494, 13);-]
+[-            this.label108.Name = "label108";-]
+[-            this.label108.Size = new System.Drawing.Size(50, 13);-]
+[-            this.label108.TabIndex = 155;-]
+[-            this.label108.Text = "Enhance";-]
+[-            //-]
+[-            // Panel1-]
+[-            //-]
+[-            this.Panel1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));-]
+[-            this.Panel1.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;-]
+[-            this.Panel1.Controls.Add(this.tempdata2);-]
+[-            this.Panel1.Controls.Add(this.tempdata1);-]
+[-            this.Panel1.Controls.Add(this.graphicToGoogleEarthButton);-]
+[-            this.Panel1.Controls.Add(this.button4);-]
+[-            this.Panel1.Controls.Add(this.button3);-]
+[-            this.Panel1.Controls.Add(this.recirculatebox);-]
+[-            this.Panel1.Controls.Add(this.flowonlybox);-]
+[-            this.Panel1.Location = new System.Drawing.Point(7, 493);-]
+[-            this.Panel1.Name = "Panel1";-]
+[-            this.Panel1.Size = new System.Drawing.Size(822, 49);-]
+[-            this.Panel1.TabIndex = 145;-]
+[-            this.Panel1.Visible = false;-]
+[-            //-]
+[-            // tempdata2-]
+[-            //-]
+[-            this.tempdata2.Location = new System.Drawing.Point(548, 7);-]
+[-            this.tempdata2.Name = "tempdata2";-]
+[-            this.tempdata2.Size = new System.Drawing.Size(39, 20);-]
+[-            this.tempdata2.TabIndex = 145;-]
+[-            this.tempdata2.Text = "358";-]
+[-            //-]
+[-            // tempdata1-]
+[-            //-]
+[-            this.tempdata1.Location = new System.Drawing.Point(503, 7);-]
+[-            this.tempdata1.Name = "tempdata1";-]
+[-            this.tempdata1.Size = new System.Drawing.Size(39, 20);-]
+[-            this.tempdata1.TabIndex = 98;-]
+[-            this.tempdata1.Text = "358";-]
+[-            //-]
+[-            // graphicToGoogleEarthButton-]
+[-            //-]
+[-            this.graphicToGoogleEarthButton.Location = new System.Drawing.Point(693, 8);-]
+[-            this.graphicToGoogleEarthButton.Name = "graphicToGoogleEarthButton";-]
+[-            this.graphicToGoogleEarthButton.Size = new System.Drawing.Size(119, 28);-]
+[-            this.graphicToGoogleEarthButton.TabIndex = 150;-]
+[-            this.graphicToGoogleEarthButton.Text = "graphic to google earth";-]
+[-            this.graphicToGoogleEarthButton.UseVisualStyleBackColor = true;-]
+[-            this.graphicToGoogleEarthButton.Click += new System.EventHandler(this.graphicToGoogleEarthButton_Click);-]
+[-            //-]
+[-            // button4-]
+[-            //-]
+[-            this.button4.Location = new System.Drawing.Point(8, 4);-]
+[-            this.button4.Name = "button4";-]
+[-            this.button4.Size = new System.Drawing.Size(112, 28);-]
+[-            this.button4.TabIndex = 144;-]
+[-            this.button4.Text = "update graphics";-]
+[-            this.button4.Click += new System.EventHandler(this.button4_Click_1);-]
+[-            //-]
+[-            // button3-]
+[-            //-]
+[-            this.button3.Font = new System.Drawing.Font("Monotype Corsiva", 8.25F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));-]
+[-            this.button3.Location = new System.Drawing.Point(604, 5);-]
+[-            this.button3.Name = "button3";-]
+[-            this.button3.Size = new System.Drawing.Size(82, 29);-]
+[-            this.button3.TabIndex = 99;-]
+[-            this.button3.Text = "Grass now!";-]
+[-            this.button3.Click += new System.EventHandler(this.button3_Click);-]
+[-            //-]
+[-            // recirculatebox-]
+[-            //-]
+[-            this.recirculatebox.Location = new System.Drawing.Point(221, 6);-]
+[-            this.recirculatebox.Name = "recirculatebox";-]
+[-            this.recirculatebox.Size = new System.Drawing.Size(128, 24);-]
+[-            this.recirculatebox.TabIndex = 89;-]
+[-            this.recirculatebox.Text = "recirculate sediment";-]
+[-            //-]
+[-            // flowonlybox-]
+[-            //-]
+[-            this.flowonlybox.Location = new System.Drawing.Point(370, 5);-]
+[-            this.flowonlybox.Name = "flowonlybox";-]
+[-            this.flowonlybox.Size = new System.Drawing.Size(104, 24);-]
+[-            this.flowonlybox.TabIndex = 97;-]
+[-            this.flowonlybox.Text = "flow only?";-]
+[-            //-]
+[-            //-] OilTab[-// OIL_V1-]
+            // 
+            this.OilTab.Controls.Add(this.OilTab_checkBox);
+            this.OilTab.Controls.Add(this.OilTab_groupBox_controls);
+            this.OilTab.Location = new System.Drawing.Point(4, 22);
+            this.OilTab.Name = "OilTab";
+            {+this.OilTab.Size = new System.Drawing.Size(1323, 504);+}
+            this.OilTab.TabIndex = 5;
+            this.OilTab.Text = "Oil spill";
+            this.OilTab.UseVisualStyleBackColor = true;
+@@ -5395,7 +5286,7 @@ namespace caesar1
+            this.OilTab_checkBox.AutoSize = true;
+            this.OilTab_checkBox.Location = new System.Drawing.Point(20, 24);
+            this.OilTab_checkBox.Name = "OilTab_checkBox";
+            this.OilTab_checkBox.Size = new System.Drawing.Size(1[-23-]{+07+}, 17);
+            this.OilTab_checkBox.TabIndex = 226;
+            this.OilTab_checkBox.Text = "Oil spill simulation";
+            this.toolTip1.SetToolTip(this.OilTab_checkBox, "Activate oil spill simulation (model runs slower)");
+@@ -5442,14 +5333,6 @@ namespace caesar1
+            this.OilYmax.TabIndex = 1002;
+            this.OilYmax.Text = "0";
+            // 
+[-            // OilXmax-]
+[-            //-]
+[-            this.OilXmax.Location = new System.Drawing.Point(248, 62);-]
+[-            this.OilXmax.Name = "OilXmax";-]
+[-            this.OilXmax.Size = new System.Drawing.Size(31, 20);-]
+[-            this.OilXmax.TabIndex = 1003;-]
+[-            this.OilXmax.Text = "0";-]
+[-            //-]
+            // OilXmin
+            // 
+            this.OilXmin.Location = new System.Drawing.Point(174, 62);
+@@ -5458,6 +5341,14 @@ namespace caesar1
+            this.OilXmin.TabIndex = 1004;
+            this.OilXmin.Text = "0";
+            // 
+            {+// OilXmax+}
+{+            // +}
+{+            this.OilXmax.Location = new System.Drawing.Point(248, 62);+}
+{+            this.OilXmax.Name = "OilXmax";+}
+{+            this.OilXmax.Size = new System.Drawing.Size(31, 20);+}
+{+            this.OilXmax.TabIndex = 1003;+}
+{+            this.OilXmax.Text = "0";+}
+{+            //+} 
+            // OilYlabel
+            // 
+            this.OilYlabel.Location = new System.Drawing.Point(220, 21);
+@@ -5509,42 +5400,174 @@ namespace caesar1
+            // OilDepthStartlabel
+            // 
+            this.OilDepthStartlabel.Location = new System.Drawing.Point(32, 180);
+            this.OilDepthStartlabel.Name = "Oil[-Tim-]{+D+}e[-Min-]{+pthStart+}label";
+            this.OilDepthStartlabel.Size = new System.Drawing.Size(130, 30);
+            this.OilDepthStartlabel.TabIndex = 1011;
+            this.OilDepthStartlabel.Text = "Start at critical depth (m):";
+            // 
+            // OilVolume
+            {+// +}
+{+            this.OilVolume.Location = new System.Drawing.Point(213, 210);+}
+{+            this.OilVolume.Name = "OilVolume";+}
+{+            this.OilVolume.Size = new System.Drawing.Size(31, 20);+}
+{+            this.OilVolume.TabIndex = 1012;+}
+{+            this.OilVolume.Text = "0";+}
+{+            // +}
+{+            // OilVolumelabel+}
+{+            // +}
+{+            this.OilVolumelabel.Location = new System.Drawing.Point(32, 210);+}
+{+            this.OilVolumelabel.Name = "OilVolumelabel";+}
+{+            this.OilVolumelabel.Size = new System.Drawing.Size(130, 30);+}
+{+            this.OilVolumelabel.TabIndex = 1013;+}
+{+            this.OilVolumelabel.Text = "Volume of oil spill (m3):";+}
+{+            // +}
+{+            // OilSpillDuration+}
+{+            // +}
+{+            this.OilSpillDuration.Location = new System.Drawing.Point(213, 240);+}
+{+            this.OilSpillDuration.Name = "OilSpillDuration";+}
+{+            this.OilSpillDuration.Size = new System.Drawing.Size(31, 20);+}
+{+            this.OilSpillDuration.TabIndex = 1014;+}
+{+            this.OilSpillDuration.Text = "0";+}
+{+            // +}
+{+            // OilSpillDurationlabel+}
+{+            // +}
+{+            this.OilSpillDurationlabel.Location = new System.Drawing.Point(32, 240);+}
+{+            this.OilSpillDurationlabel.Name = "OilSpillDurationlabel";+}
+{+            this.OilSpillDurationlabel.Size = new System.Drawing.Size(130, 30);+}
+{+            this.OilSpillDurationlabel.TabIndex = 1015;+}
+{+            this.OilSpillDurationlabel.Text = "Oil Spill duration (s):";+}
+
+{+            // +}
+{+            // label107+}
+{+            // +}
+{+            this.label107.AutoSize = true;+}
+{+            this.label107.Enabled = false;+}
+{+            this.label107.Location = new System.Drawing.Point(180, 15);+}
+{+            this.label107.Name = "label107";+}
+{+            this.label107.Size = new System.Drawing.Size(14, 13);+}
+{+            this.label107.TabIndex = 6;+}
+{+            this.label107.Text = "B";+}
+{+            // +}
+{+            // label106+}
+{+            // +}
+{+            this.label106.AutoSize = true;+}
+{+            this.label106.Enabled = false;+}
+{+            this.label106.Location = new System.Drawing.Point(126, 15);+}
+{+            this.label106.Name = "label106";+}
+{+            this.label106.Size = new System.Drawing.Size(15, 13);+}
+{+            this.label106.TabIndex = 4;+}
+{+            this.label106.Text = "G";+}
+{+            // +}
+{+            // label110+}
+{+            // +}
+{+            this.label110.AutoSize = true;+}
+{+            this.label110.Enabled = false;+}
+{+            this.label110.Location = new System.Drawing.Point(4, 13);+}
+{+            this.label110.Name = "label110";+}
+{+            this.label110.Size = new System.Drawing.Size(69, 13);+}
+{+            this.label110.TabIndex = 0;+}
+{+            this.label110.Text = "Water tracer:";+}
+{+            this.label110.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;+}
+{+            this.toolTip1.SetToolTip(this.label110, "Select tracer layers to use in RGB image. Rain is layer 1; Stage is layer 2; Hydr" ++}
+{+        "o inputs are layers 3+.");+}
+{+            // +}
+{+            // label109+}
+{+            // +}
+{+            this.label109.AutoSize = true;+}
+{+            this.label109.Enabled = false;+}
+{+            this.label109.Location = new System.Drawing.Point(72, 15);+}
+{+            this.label109.Name = "label109";+}
+{+            this.label109.Size = new System.Drawing.Size(15, 13);+}
+{+            this.label109.TabIndex = 2;+}
+{+            this.label109.Text = "R";+}
+{+            // +}
+{+            // label108+}
+{+            // +}
+{+            this.label108.AutoSize = true;+}
+{+            this.label108.Enabled = false;+}
+{+            this.label108.Location = new System.Drawing.Point(494, 13);+}
+{+            this.label108.Name = "label108";+}
+{+            this.label108.Size = new System.Drawing.Size(50, 13);+}
+{+            this.label108.TabIndex = 155;+}
+{+            this.label108.Text = "Enhance";+}
+{+            // +}
+{+            // Panel1+}
+{+            // +}
+{+            this.Panel1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));+}
+{+            this.Panel1.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;+}
+{+            this.Panel1.Controls.Add(this.tempdata2);+}
+{+            this.Panel1.Controls.Add(this.tempdata1);+}
+{+            this.Panel1.Controls.Add(this.graphicToGoogleEarthButton);+}
+{+            this.Panel1.Controls.Add(this.button4);+}
+{+            this.Panel1.Controls.Add(this.button3);+}
+{+            this.Panel1.Controls.Add(this.recirculatebox);+}
+{+            this.Panel1.Controls.Add(this.flowonlybox);+}
+{+            this.Panel1.Location = new System.Drawing.Point(7, 493);+}
+{+            this.Panel1.Name = "Panel1";+}
+{+            this.Panel1.Size = new System.Drawing.Size(822, 49);+}
+{+            this.Panel1.TabIndex = 145;+}
+{+            this.Panel1.Visible = false;+}
+{+            // +}
+{+            // tempdata2+}
+{+            // +}
+{+            this.tempdata2.Location = new System.Drawing.Point(548, 7);+}
+{+            this.tempdata2.Name = "tempdata2";+}
+{+            this.tempdata2.Size = new System.Drawing.Size(39, 20);+}
+{+            this.tempdata2.TabIndex = 145;+}
+{+            this.tempdata2.Text = "358";+}
+{+            // +}
+{+            // tempdata1+}
+{+            // +}
+{+            this.tempdata1.Location = new System.Drawing.Point(503, 7);+}
+{+            this.tempdata1.Name = "tempdata1";+}
+{+            this.tempdata1.Size = new System.Drawing.Size(39, 20);+}
+{+            this.tempdata1.TabIndex = 98;+}
+{+            this.tempdata1.Text = "358";+}
+{+            // +}
+{+            // graphicToGoogleEarthButton+}
+            // 
+            this.[-O-]{+graph+}i[-lV-]{+cToGo+}o{+g+}l[-um-]e{+EarthButton+}.Location = new System.Drawing.Point([-21-]{+69+}3, [-210-]{+8+});
+            this.[-O-]{+graph+}i[-lV-]{+cToG+}o{+og+}l[-um-]e{+EarthButton+}.Name = "[-O-]{+graph+}i[-lV-]{+cT+}o{+Goog+}l[-um-]e{+EarthButton+}";
+            this.[-O-]{+graph+}i[-lV-]{+cToG+}o{+og+}l[-um-]e{+EarthButton+}.Size = new System.Drawing.Size([-3-]1{+19+}, 2[-0-]{+8+});
+            this.[-O-]{+graph+}i[-lV-]{+cT+}o{+Goog+}l[-um-]e{+EarthButton+}.TabIndex = 1{+5+}0[-12-];
+            this.[-O-]{+graph+}i[-lV-]{+cT+}o{+Goog+}l[-um-]e{+EarthButton+}.Text = "[-0-]{+graphic to google earth+}";
+            {+this.graphicToGoogleEarthButton.UseVisualStyleBackColor = true;+}
+{+            this.graphicToGoogleEarthButton.Click += new System.EventHandler(this.graphicToGoogleEarthButton_Click);+}
+            // 
+            //[-OilVolumela-] b[-el-]{+utton4+}
+            // 
+            this.[-OilVolumela-]b[-el-]{+utton4+}.Location = new System.Drawing.Point([-32-]{+8+}, [-210-]{+4+});
+            this.[-OilVolumela-]b[-el-]{+utton4+}.Name = "[-OilVolumela-]b[-el-]{+utton4+}";
+            this.[-OilVolumela-]b[-el-]{+utton4+}.Size = new System.Drawing.Size(1[-30-]{+12+}, [-30-]{+28+});
+            this.[-OilVolumela-]b[-el-]{+utton4+}.TabIndex = 1[-013-]{+44+};
+            this.[-OilVolumela-]b[-el-]{+utton4+}.Text = "[-Vol-]u[-m-]{+pdat+}e [-of o-]{+graph+}i[-l-]{+c+}s[-p-]{+";+}
+{+            th+}i{+s.button4.C+}l{+ick += new System.EventHand+}l{+er+}([-m3-]{+this.button4_Click_1+})[-:"-];
+            // 
+            // [-OilSpillD-]{+b+}u[-ra-]t[-i-]{+t+}on{+3+}
+            // 
+            this.[-Oil-]{+button3.Font = new+} S{+ystem.Drawing.Font("Monoty+}p{+e Corsiva", 8.25F, System.Draw+}i{+ng.FontSty+}l{+e.Ita+}l{+ic, System.+}D[-u-]ra{+wing.GraphicsUni+}t{+.Point, ((byte)(0)));+}
+{+            th+}i{+s.butt+}on{+3+}.Location = new System.Drawing.Point([-213, 24-]{+6+}0{+4, 5+});
+            this.[-OilSpillD-]{+b+}u[-ra-]t[-i-]{+t+}on{+3+}.Name = "[-OilSpillD-]{+b+}u[-ra-]t[-i-]{+t+}on{+3+}";
+            this.[-OilSpillD-]{+b+}u[-ra-]t[-i-]{+t+}on{+3+}.Size = new System.Drawing.Size([-31-]{+82+}, 2[-0-]{+9+});
+            this.[-OilSpillD-]{+b+}u[-ra-]t[-i-]{+t+}on{+3+}.TabIndex = [-1012-]{+99+};
+            this.[-OilSpillD-]{+b+}u[-ra-]t[-i-]{+t+}on{+3+}.Text = "[-0-]{+Grass now!+}";
+            {+this.button3.Click += new System.EventHandler(this.button3_Click);+}
+            // 
+            //[-OilSpillDu-] r[-at-]{+ec+}i[-on-]{+rcu+}la[-b-]{+t+}e[-l-]{+box+}
+            // 
+            this.[-OilSpillDu-]r[-at-]{+ec+}i[-on-]{+rcu+}la[-b-]{+t+}e[-l-]{+box+}.Location = new System.Drawing.Point([-3-]2[-,-]2[-40-]{+1, 6+});
+            this.[-OilSpillDu-]r[-at-]{+ec+}i[-on-]{+rcu+}la[-b-]{+t+}e[-l-]{+box+}.Name = "[-O-]{+rec+}i{+rcu+}l[-Sp-]{+atebox";+}
+{+            th+}i{+s.recircu+}l[-l-]{+atebox.Size = new System.+}D[-u-]ra{+wing.Size(128, 24);+}
+            t{+his.rec+}i{+rculateb+}o{+x.TabI+}n{+dex = 89;+}
+{+            this.recircu+}la{+te+}b{+ox.T+}e{+xt = "recircu+}l{+ate sediment+}";
+            {+// +}
+{+            // flowonlybox+}
+{+            //+} 
+            this.[-OilSpi-]{+f+}l{+owon+}l{+ybox.Location = new System.+}D[-u-]ra{+wing.Poin+}t{+(370, 5);+}
+{+            th+}i{+s.flow+}onl[-a-]{+y+}b{+ox.Nam+}e {+= "f+}l{+owonlybox";+}
+{+            this.flowonlybox+}.Size = new System.Drawing.Size(1[-3-]0{+4+}, [-30-]{+24+});
+            this.[-OilSpil-]{+f+}l[-Durati-]{+ow+}onl[-a-]{+y+}b[-el-]{+ox+}.TabIndex = [-1013-]{+97+};
+            this.[-OilSpil-]{+f+}l[-Durati-]{+ow+}onl[-a-]{+y+}b[-el-]{+ox+}.Text = "[-Duration o-]f[-oil spi-]l{+ow on+}l[-(s):-]{+y?+}";
+            // 
+            // statusBar1
+            // 
+@@ -5897,12 +5920,12 @@ namespace caesar1
+            this.tabPage1.PerformLayout();
+            this.tabPage3.ResumeLayout(false);
+            this.tabPage3.PerformLayout();
+            this.[-Pane-]{+Oi+}l[-1-]{+Tab+}.ResumeLayout(false);
+            this.[-Panel1.PerformLayout();-]
+[-            this.-]OilTab.[-R-]{+P+}e[-su-]{+rfor+}m[-e-]Layout([-false-]);[-// OIL_V1-]
+            this.OilTab_groupBox_controls.ResumeLayout(false);
+            this.OilTab_groupBox_controls.PerformLayout();
+            {+this.Panel1.ResumeLayout(false);+}
+{+            this.Panel1.PerformLayout();+}
+            ((System.ComponentModel.ISupportInitialize)(this.InfoStatusPanel)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.IterationStatusPanel)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.TimeStatusPanel)).EndInit();
+@@ -6127,6 +6150,7 @@ namespace caesar1
+                qroute();
+                depth_update();
+
+
+                // update water tracers
+                if (isTraceWater == true) update_tracer_states();
+                
+@@ -6134,12 +6158,18 @@ namespace caesar1
+                if (isOilSimulation == true) 
+                {
+                    // check triggering of event
+                    if (cycle > oil_startt [-) // need t-]{+&&+} o[-add-]{+il_+}check[-for-]{+_+}depth{+_+}t{+h+}r[-igg-]e[-r at input l-]{+sh+}o[-ca-]{+ld() ==+} t[-ion-]{+rue)+} 
+                    {
+                        oil_eventtriggered = true;
+                    }
+
+                    if (oil_eventtriggered == true)
+                    [-update_-]{+{+}
+                        
+                        oil_s{+pill_inpu+}t[-a-]{+();+}
+{+                        oilrou+}te[-s-]();
+                    {+}+}
+                        
+
+                }
+                
+@@ -6731,6 +6761,7 @@ namespace caesar1
+
+                        // Adjust water proportions following the addition of stage input - MDW 13/03/16
+                        if (isTraceWater == true)
+                        {+if (isTraceWater == true)+}
+                        {
+                            // MDW_V2 - updated source index of stage input to zero
+
+@@ -6795,6 +6826,41 @@ namespace caesar1
+
+        }
+        
+        {+void oil_spill_input()+}
+
+{+        {+}
+
+{+            double local_time_factor = time_factor;+}
+{+            if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));+}
+
+{+            // moved to initialise_oil_simulation+}
+{+            //oil_ratev = oil_totalv / oil_spillt;+}
+{+            //oil_n_cells = ((oil_tox - oil_fromx)) * ((oil_fromy- oil_toy)); // i've lost se condition for the cells :)+}
+{+            +}
+
+{+            for (int x = Math.Min(oil_fromx, oil_tox); x <= Math.Max(oil_fromx, oil_tox); x++)+}
+{+            {+}
+{+                for (int y = Math.Min(oil_fromy, oil_toy); y <= Math.Max(oil_fromy, oil_toy); y++)+}
+{+                {+}
+{+                   +}
+{+                    // formula used below rather than being assigned+}
+{+                    //oil_input = oil_ratev * local_time_factor /  (DX * DX);+}
+
+{+                    // here oil_depth_init is set to the rate, rather than adding some new oil on top of existing oil.+}
+{+                    // the value is also overwritten on each iteration here, rather than being assigned to cells.+}
+{+                    // it is also not referenced within oilroute(), so nothing will happen with the input+}
+{+                    //oil_depth_init = oil_input / oil_n_cells; +}
+
+{+                    // I think it is better to add the input onto the exiting oil depth, then route all the only in oilroute()+}
+{+                    oil_depth[x, y] += oil_ratev * local_time_factor / (DX * DX);+}
+
+
+
+{+                }+}
+{+            }+}
+{+        }+}
+             
+
+        void soil_development() // all based on Vanwalleghem et al., 2013 (JoGR:ES)
+        {
+            for (int x = 1; x <= xmax; x++)
+@@ -6980,6 +7046,7 @@ namespace caesar1
+            if (menuItem15.Checked == true) save_data(19, 0); // save rain zone tracers - MDW 13-04-2016   
+            if (menuItem16.Checked == true) save_data(6, 0); // save tracer file
+            if (menuItemSoluteTracer.Checked == true) save_data(20, 0); // save solute tracers - MDW_V2
+            {+if (menuItemOilSpill.Checked == true) save_data(7, 0); // save oildepth file //OIL_V1_PDF+}
+            slide_5();
+
+        }
+@@ -6997,6 +7064,8 @@ namespace caesar1
+            if (menuItem15.Checked == true) save_data(19, Math.Abs(cycle)); // save rain zone tracers - MDW 13-04-2016	 
+            if (menuItem16.Checked == true) save_data(6, Math.Abs(cycle)); // save tracer file
+            if (menuItemSoluteTracer.Checked == true) save_data(20, Math.Abs(cycle)); // save solute tracers - MDW_V2
+            {+if (menuItemOilSpill.Checked == true) save_data(11, Math.Abs(cycle)); // save solute tracers - MDW_V2+}
+
+
+        }
+
+@@ -8594,6 +8663,7 @@ namespace caesar1
+            if (typeflag == 19 && tempcycle == 0) FILENAME = "watersource_rainzone"; // MDW 13-04-2016 // MDW_V2
+            if (typeflag == 20 && tempcycle == 0) FILENAME = "watersource_solute"; // MDW_V2
+            if (typeflag == 6 && tempcycle == 0) FILENAME = "tracer.asc";
+            {+if (typeflag == 7 && tempcycle == 0) FILENAME = "oildepth.asc"; // OIL_V1_PDF+}
+
+
+            if (typeflag == 1 && tempcycle > 0) FILENAME = "waterdepth" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc";
+@@ -8608,6 +8678,8 @@ namespace caesar1
+            if (typeflag == 19 && tempcycle > 0) FILENAME = "watersource" + Convert.ToString(Convert.ToInt64(tempcycle)) + "_rainzone"; //MDW_V2
+            if (typeflag == 20 && tempcycle > 0) FILENAME = "watersource" + Convert.ToString(Convert.ToInt64(tempcycle)) + "_solute"; //MDW_V2
+            if (typeflag == 6 && tempcycle > 0) FILENAME = "tracer" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc";
+            {+if (typeflag == 7 && tempcycle > 0) FILENAME = "oildepth.asc" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc"; //OIL_V1_PDF+}
+
+
+
+            // MDW_V2 add folder to filename string here
+@@ -8780,6 +8852,8 @@ namespace caesar1
+                }
+            }
+
+
+
+            if (typeflag == 16)   // <JOE 20050605> Write velocity to a file
+            {
+
+@@ -8988,6 +9062,47 @@ namespace caesar1
+                }
+
+            }
+            {+if (typeflag == 7)+}
+{+            {+}
+
+{+                using (StreamWriter sw = new StreamWriter(FILENAME))+}
+{+                {+}
+{+                    sw.Write("ncols         " + xmax);+}
+{+                    sw.Write("\n");+}
+{+                    sw.Write("nrows         " + ymax);+}
+{+                    sw.Write("\n");+}
+
+{+                    for (nn = 2; nn <= 5; nn++)+}
+{+                    {+}
+{+                        sw.Write(inputheader[nn]); sw.Write("\n");+}
+{+                    }+}
+
+{+                    for (y = 1; y <= ymax; y++)+}
+{+                    {+}
+{+                        for (x = 1; x <= xmax; x++)+}
+{+                        {+}
+{+                            if (typeflag == 1)+}
+{+                            {+}
+{+                                //sw.Write(area[x, y]); sw.Write(" ");+}
+{+                                if (oil_depth[x, y] > 0)+}
+{+                                {+}
+{+                                    //sw.Write(vel_dir[x,y,0]);+}
+{+                                    sw.Write(oil_depth[x, y]);+}
+
+{+                                    sw.Write(" ");+}
+{+                                }+}
+{+                                else+}
+{+                                {+}
+{+                                    sw.Write("-9999.0");+}
+{+                                    sw.Write(" ");+}
+{+                                }+}
+{+                            }+}
+{+                        }+}
+{+                    }+}
+
+{+                }+}
+{+            }+}
+
+
+        }
+
+@@ -11025,6 +11140,122 @@ namespace caesar1
+            });
+        }
+
+        {+void oilroute()+}
+{+        {+}
+
+{+            double local_time_factor = time_factor;+}
+{+            if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));+}
+{+            // time factor recalled in different part of the code+}
+
+
+{+            // It might be good to put this in a function so that it is easier to get a dynamic temperature input later. +}
+{+            double Ev = (3.39 + 0.048 * oil_T) * Math.Log(local_time_factor); // this equation depends on type of oil+}
+
+{+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };+}
+
+{+            Parallel.For(1, ymax + 1, options, (y) =>+}
+{+            {+}
+{+                int inc = 1;+}
+
+{+                while (down_scan[y, inc] > 0)+}
+{+                {+}
+{+                    int x = down_scan[y, inc];+}
+{+                    inc++;+}
+
+{+                    //routing oil in x direction+}
+{+                    if ((oil_depth[x, y] > 0.0 || oil_depth[x - 1, y] > 0.0) && elev[x - 1, y] > -9999)+}
+{+                    {+}
+
+{+                        oil_Mx[x, y] = ((oil_Mx[x - 1, y] * oil_V[x - 1, y] / local_time_factor) + (qx[x, y] * oil_Mx[x, y] - qx[x - 1, y] * oil_Mx[x - 1, y]) ++}
+{+                          ((oil_Mx[x, y] - oil_Mx[x - 1, y]) - (oil_Mx[x + 1, y] - oil_Mx[x, y]) * oil_D * oil_V[x, y] / (DX * DX)) - (Ev * oil_Mx[x, y] * qx[x, y]) -+}
+{+                          (Math.Pow(27 * Math.PI / 2 * Math.Pow(oil_V[x, y], 3) * ((ro_water - oil_density) / ro_water) * gravity * local_time_factor / cinematic_v, 0.25) *+}
+{+                              oil_Mx[x, y] * DX / local_time_factor) * local_time_factor / oil_V[x, y]);+}
+{+                    }+}
+
+{+                    // routing in y direction+}
+{+                    if ((oil_depth[x, y] > 0.0 || oil_depth[x, y - 1] > 0.0) && elev[x, y - 1] > -9999)+}
+{+                    {+}
+{+                        oil_My[x, y] = ((oil_My[x, y - 1] * oil_V[x, y - 1] / local_time_factor) + (qy[x, y] * oil_My[x, y - 1] - qy[x, y] * oil_My[x, y - 1]) ++}
+{+                          ((oil_My[x, y] - oil_My[x, y - 1]) - (oil_My[x, y + 1] - oil_My[x, y]) * oil_D * oil_V[x, y] / (DX * DX)) - (Ev * oil_My[x, y] * qy[x, y]) -+}
+{+                          (Math.Pow(27 * Math.PI / 2 * Math.Pow(oil_V[x, y], 3) * ((ro_water - oil_density) / ro_water) * gravity * local_time_factor / cinematic_v, 0.25) *+}
+{+                              oil_My[x, y] * DX / local_time_factor) * local_time_factor / oil_V[x, y]);+}
+{+                    }+}
+{+                }+}
+{+            });+}
+
+{+        }+}
+
+{+        void oil_update ()+}
+{+        {+}
+{+            double local_time_factor = time_factor;+}
+{+            if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));+}
+{+            // time factor recalled in different part of the code+}
+
+{+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };+}
+{+            Parallel.For(1, ymax + 1, options, delegate (int y)+}
+{+            {+}
+{+                int inc = 1;+}
+{+                double tempmaxdepth = 0;+}
+{+                while (down_scan[y, inc] > 0)+}
+{+                {+}
+{+                    int x = down_scan[y, inc];+}
+{+                    inc++;+}
+
+{+                    if()+}
+
+{+                }+}
+
+
+
+
+{+        oil_My[x, y+1] = ((oil_My[x, y] * oil_V[x, y] / local_time_factor) + (qy[x, y+1] * oil_My[x + 1, y] - qy[x, y] * oil_My[x, y]) ++}
+{+                              ((oil_My[x, y+1] - oil_My[x, y]) - (oil_My[x, y+2] - oil_My[x, y+1]) * oil_D * oil_V[x, y] / (DX * DX)) - (Ev * oil_My[x, y+1] * qy[x, y+1]) -+}
+{+                          (Math.Pow(27 * Math.PI / 2 * Math.Pow(oil_V[x + 1, y], 3) * ((ro_water - oil_density) / ro_water) * gravity * local_time_factor / cinematic_v, 0.25) *+}
+{+                              oil_My[x + 1, y] * DX / local_time_factor) * local_time_factor / oil_V[x + 1, y]);+}
+
+{+                        +}
+
+{+                        //}+}
+{+                        //update oil depth+}
+{+                        //oil_M[x, y] = (oil_Mx[x + 1, y] - oil_Mx[x, y] + oil_My[x, y + 1] - oil_My[x, y]);+}
+{+                        // to declare in public static double+}
+{+                        // I don't think that oil_depth_x and oil_depth_y are needed - just update oil_depth directly. Or perhaps these are really dVdt arrays?+}
+
+
+{+                        oil_depth_x[x + 1, y] = (oil_Mx[x + 1, y] / (ro_oil * DX * DX));+}
+{+                    oil_depth_x[x, y] = (oil_Mx[x, y] / (ro_oil * DX * DX));+}
+{+                    oil_depth_y[x,y+1] = (oil_My[x, y+1] / (ro_oil * DX * DX));+}
+{+                    oil_depth_y[x,y] = (oil_My[x, y] / (ro_oil * DX * DX));+}
+
+{+                    oil_depth[x,y]= (oil_depth_x[x + 1, y] - oil_depth_x[x, y] + oil_depth_y[x, y + 1] - oil_depth_y[x, y]);+}
+
+
+
+{+                    /*+}
+{+                        //double oil_depth_out;+}
+{+                        oil_depth_out = 0.0;+}
+
+{+                        if (oil_depth_x[x + 1, y] < 0.0) { oil_depth_out += oil_depth_x[x + 1, y]; }  // mass from right: -ve = outflow+}
+{+                        if (oil_depth_x[x, y] > 0.0) { oil_depth_out -= oil_depth_x[x, y]; }      // mass from left:  +ve = outflow+}
+{+                        if (oil_depth_y[x, y + 1] < 0.0) { oil_depth_out += oil_depth_y[x, y + 1]; }  // mass from up:    -ve = outflow+}
+{+                        if (oil_depth_y[x, y] > 0.0) { oil_depth_out -= oil_depth_y[x, y]; }      // mass from down:  +ve = outflow+}
+
+{+                        oil_depth_update[x, y] += oil_depth[x, y] + oil_depth_out;+}
+{+                    */+}
+
+{+                    }+}
+
+{+                    //Update volume+}
+{+                    oil_V[x,y]= 0.0; // reset oil Volume?+}
+{+                    oil_V[x,y]+= oil_depth[x, y] * DX * DX; // Update oil volume+}
+
+{+                }+}
+
+
+{+            });+}
+{+            +}
+{+        }+}
+        
+        void update_tracer_states()
+        {
+            ///////////////////////////////////////////////////////////////////
+@@ -11057,7 +11288,7 @@ namespace caesar1
+                        dhdt_sumInSrc = new Double[nSources + 1];
+                        double[] dhdt_sumInSrcRainZone = new Double[nRainZones + 1];
+                        double[] dhdt_sumInSrcSolutes = new Double[nSolutes];
+                        {+//+}double solute_after_outflows;
+
+                        // work out total outflows for this cell - source not important here
+                        dhdt_sumOut = 0.0;
+@@ -11215,30 +11446,120 @@ namespace caesar1
+        void initialise_oil_simulation() // OIL_V1
+        {
+
+            /[-/ err-]{+*+}
+            o[-r checking us-]i[-ng Int32.TryParse wou-]l{+_+}d[-be bett-]e[-r-]
+[-            o-]{+ns+}i[-l_from-]{+t+}y = Convert.To[-Int32-]{+Double+}(Oil[-Ymin.T-]{+D+}e[-xt);-]
+[-            o-]{+ns+}i[-l_-]t[-o-]y[-= Convert.ToInt32(OilYmax-].Text);
+            {+r+}o[-il-]_[-f-]{+wate+}r[-omx-] = Convert.To[-Int32(OilXmin.Text);-]{+D+}o[-i-]{+ub+}l[-_-]{+e(Wa+}t[-ox = Conv-]er[-t.ToI-]{+De+}n[-t32(O-]{+s+}i[-lXmax-]{+ty+}.Text);
+            oil_[-startt-]{+D+} = Convert.ToDouble([-O-]{+D+}i[-lT-]{+ffus+}i[-m-]{+v+}e[-M-]{+Coeffic+}i{+e+}n{+t+}.Text)[-/ 60-];[-//-]
+            c[-onvert to m-]in[-ut-]e[-s, sa-]m[-e unit-]a[-s-]ti[-me-]c[-ounter-]
+[-            oil-]_[-starth-]{+v+} = Convert.ToDouble(Oil[-DepthStar-]{+Viscosi+}t{+y+}.Text);
+            oil_[-totalv-]{+T+} = Convert.ToDouble(Oil[-Volum-]{+Temperatur+}e.Text);
+            [-o-]{+*/+}
+
+{+            // Read+} i[-l_sp-]{+n+} i{+nput ce+}ll [-t = C-]{+co+}o{+rdi+}n[-v-]{+ates, ch+}e{+cking fo+}r [-t-]{+valid values+}.[-To-] D[-ou-]{+isa+}ble [-(O-]{+o+}il [-S-]{+s+}pill [-Du-]{+and skip rest if pa+}r{+se f+}a{+ils+}
+{+            if (!in+}t{+.TryParse(OilYm+}i[-o-]n.Text[-);-]{+, out+} oil[-d-]{+_fromy) |+}
+{+                !int.TryPars+}e[-p-]{+(OilYmax.Tex+}t[-h =-]{+, out oil_toy) |+}
+{+                !i+}n{+t.TryPars+}e[-w d-]{+(OilXmin.Text,+} ou[-b-]{+t oi+}l[-e[-]{+_from+}x{+) |+}
+{+                !int.TryParse(OilX+}max{+.Text+}, [-ym-]{+out oil_tox) )+}
+{+            {+}
+{+                Mess+}a{+geBo+}x[-]-]{+.Show("Oil spill simulation: invalid values found in location of cell inputs. Disabling.");+}
+{+                isOilSimulation = false;+}
+{+                return;+}
+{+            }+}
+
+{+            // Check for out of bound input cells+}
+{+            if (Math.Min(oil_fromy, oil_toy) < 0 |+}
+{+                Math.Max(oil_fromy, oil_toy) > ymax |+}
+{+                Math.Min(oil_fromx, oil_tox) < 0 |+}
+{+                Math.Max(oil_fromx, oil_tox) > xmax)+}
+{+            {+}
+{+                MessageBox.Show("Oil spill simulation: input locations are out of bounds. Disabling.");+}
+{+                isOilSimulation = false;+}
+{+                return;+}
+{+            }+}
+
+{+            // Read in timings/ volumes, checking for valid values. Disable oil spill and skip rest if parse fails+}
+{+            if (!double.TryParse(OilTimeMin.Text, out oil_startt) |+}
+{+                !double.TryParse(OilDepthStart.Text, out oil_starth) |+}
+{+                !double.TryParse(OilVolume.Text, out oil_totalv) |+}
+{+                !double.TryParse(OilSpillDuration.Text, out oil_spillt))+}
+{+            {+}
+{+                MessageBox.Show("Oil spill simulation: invalid values found in start/ minimum depth/ volume/ duration inputs. Disabling.");+}
+{+                isOilSimulation = false;+}
+{+                return;+}
+{+            }+}
+{+            oil_startt /= 60; // convert to minutes, same unit as time counter+}
+
+{+            // Check volume, duration:  zero or negative leads to disabling oil simulation+}
+{+            if (oil_totalv <= 0 | oil_spillt <= 0)+}
+{+            {+}
+{+                MessageBox.Show("Oil spill simulation: volume and/or duration is zero or negative. Disabling.");+}
+{+                isOilSimulation = false;+}
+{+                return;+}
+{+            }+}
+
+{+            // Check start time: negative values is invalid+}
+{+            if (oil_startt < 0)+}
+{+            {+}
+{+                MessageBox.Show("Oil spill simulation: start time is negative. Disabling.");+}
+{+                isOilSimulation = false;+}
+{+                return+};
+            {+}+}
+
+            {+// Check start time against length of simulation+}
+{+            if (oil_startt > (maxcycle * 60))+}
+{+            {+}
+{+                MessageBox.Show("Oil spill simulation: start time is set to after the end of the simulation, so the spill will never occur. Disabling.");+}
+{+                isOilSimulation = false;+}
+{+                return;+}
+            }
+
+            [-v-]{+// Check depth thresh+}o[-i-]{+l+}d{+: minim+}u[-p-]{+m+} d{+ef+}a{+ul+}t {+valu+}e
+            [-_-]{+if (+}oil_sta{+r+}t[-es() // OIL_V-]{+h < 0.0+}1{+)+}
+            {
+                {+MessageBox.Show("Oil spill simulation: depth threshold must be at least 0.01 m. Updating and continuing.");+}
+{+                oil_starth = 0.01;+}
+{+            }+}
+
+{+            // All ok at this point+}
+
+{+            // Initialise the constant spill rate+}
+{+            oil_ratev = oil_totalv / oil_spillt;+}
+
+{+            // initialise the input number of cells, taking account of a 1x1 input+}
+{+            oil_n_cells = Math.Max(Math.Max(oil_fromx, oil_tox) - Math.Min(oil_fromx, oil_tox), 1) *+}
+{+                          Math.Max(Math.Max(oil_fromy, oil_toy) - Math.Min(oil_fromy, oil_toy), 1);+}
+
+            [-Mess-]{+// Initi+}a[-g-]{+lis+}e[-B-] o[-x.S-]{+t+}h[-ow("u-]{+er+} p[-d-]a{+rame+}te[-_oil_-]{+r+}s {+-+} t{+o be+} a[-t-]{+dd+}e[-s()-]{+d+} t[-r-]{+o+} i[-gg-]{+nt+}er{+fac+}e
+            {+oil_+}d[-")-]{+ensity = 805+}; //[-f-]{+then t+}o [-r-]{+be+} de[-bu-]{+fined in the+} g[-/-]{+raphical in+}te[-s-]{+rface inpu+}t
+            {+ro_water = 1000;+}
+{+            oil_D = 0.0000002;+}
+{+            c+}in[-g-]{+ematic_v = 6;+}
+{+            oil_T = 20;+}
+
+            // {+Assign+} a[-dd-]{+rrays+}
+            oil[-t-]{+_M = new double[xmax, ymax];+}
+            oi{+l_Mx =+} n[-p-]{+ew do+}u[-t-]{+ble[xmax, ymax];+}
+{+            oi+}l{+_My = new d+}o[-c-]{+uble[xm+}a[-t-]{+x, ymax];+}
+{+            o+}i{+l_depth = new double[xmax, ymax];+}
+            o{+il_V =+} n{+ew double[xmax, ymax];+}
+
+            [-// u-]{+oil_de+}p{+th_y = new+} d{+ouble[xm+}a{+x, ymax];+}
+{+            oil_dep+}t{+h_x = n+}e{+w d+}o[-i-]{+ub+}l[-f-]{+e[xmax, ymax];+}
+{+            oi+}l{+_depth_+}u[-x-]{+pdat+}e [-s-]{+= new double[xmax, ymax];+}
+
+
+
+
+        {+}+}
+{+        bool oil_check_depth_threshold()+}
+{+        {+}
+{+            for (int x = Math.Min(oil_fromx, oil_tox); x <= Math.Max(oil_fromx, oil_tox); x++)+}
+{+            {+}
+{+                for (int y = Math.Min(oil_fromy, oil_toy); y <= Math.Max(oil_fromy, oil_toy); y++)+}
+{+                {+}
+{+                    if (water_depth[x, y] > oil_starth) return true;+}
+{+                }+}
+{+            }+}
+{+            return false;+}
+        }
+        
+        void scan_area()
+@@ -11354,6 +11675,7 @@ namespace caesar1
+                    for (int T = 0; T <= tracers; T++) grain[x, y, T] = 0;
+                }
+                for (z = 0; z <= 9; z++)
+
+                {
+                    for (y = 0; y <= G_MAX - 2; y++)
+                    {
+@@ -15061,6 +15383,7 @@ namespace caesar1
+            if (menuItem15.Checked == true) save_data(19, 0); // save rain zone tracers - MDW 13-04-2016	  
+            if (menuItem16.Checked == true) save_data(6, 0);  // save tracer file <Jun 20200527> 
+            if (menuItemSoluteTracer.Checked == true) save_data(20, 0);  // save solute tracers - MDW_V2
+            {+if (menuItemOilSpill.Checked == true) save_data(7, 0);  // save oildepth file OIL_V1_PDF+}
+
+            this.Close();
+        }
+@@ -15276,8 +15599,7 @@ namespace caesar1
+                outdir = textBoxOutDir.Text;
+                outdirDateTime = checkboxOutDirDateTime.Checked;
+
+                if (string.IsNullOrEmpty(outdir) == true && outdirDateTime == false) {
+                    outdir = "";
+                    return; 
+                }
+@@ -15498,6 +15820,10 @@ namespace caesar1
+        {
+            menuItemSoluteTracer.Checked = (!menuItemSoluteTracer.Checked);
+        }
+        {+private void menuItemOilSpill_Click(object sender, System.EventArgs e)+}
+{+        {+}
+{+            menuItemOilSpill.Checked = (!menuItemOilSpill.Checked);+}
+{+        }+}
+        private void menuItem6_Click(object sender, System.EventArgs e) // MDW
+        {
+            menuItem6.Checked = (!menuItem6.Checked);
+@@ -15712,6 +16038,10 @@ namespace caesar1
+                    dum = xreader.ReadElementString("Option");
+                    menuItemSoluteTracer.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));
+                    xreader.ReadEndElement();
+                    {+xreader.ReadStartElement("SaveOptions"); // OIL_V1_PDF+}
+{+                    dum = xreader.ReadElementString("Option");+}
+{+                    menuItemOilSpill.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked"));+}
+{+                    xreader.ReadEndElement();+}
+                    try
+                    {
+                        xreader.ReadStartElement("SaveOptions");
+@@ -16749,6 +17079,13 @@ namespace caesar1
+                //
+                //xwriter.WriteElementString();
+                
+                {+//PDF+}
+{+                xwriter.WriteStartElement("SaveOptions");+}
+{+                xwriter.WriteElementString("Option", "oil depth");+}
+{+                xwriter.WriteElementString("Checked", XmlConvert.ToString(menuItemOilSpill.Checked));+}
+{+                xwriter.WriteEndElement();+}
+{+                //+}
+
+                //additional from Jun LS tracing
+                xwriter.WriteStartElement("Filenames");
+                xwriter.WriteElementString("Desc", "Angle Data File");
