@@ -60,6 +60,11 @@ using System.Xml.Linq;
 using System.Xml.Schema;
 using System.Threading;//PDF
 
+// MDW: libraries for NetCDF : wrapper for https://docs.unidata.ucar.edu/netcdf-c/current/winbin.html
+using Microsoft.Research.Science.Data;
+using Microsoft.Research.Science.Data.Imperative;
+
+
 namespace caesar1
 {
     /// <summary>
@@ -362,6 +367,8 @@ namespace caesar1
         //private Boolean DoingGraphics;  // <JMW 20041108>
         //Form2 form2; // <JMW 20041018>
         // JMW end
+
+        public bool netcdf_output = true; // MDW: to enable/ disable netcdf
 
         #region windows_forms_and_controls
         private System.Windows.Forms.Button button2;
@@ -6283,47 +6290,50 @@ namespace caesar1
                 }
                 waterOut = temptot;
 
+                if (isOilSimulation)
+                {
+                    double OilOut = 0;
+                    for (y = 1; y <= ymax; y++)
+                    {
+                        if (oil_depth[xmax, y] > 0)
+                        {
+                            OilOut += oil_depth[xmax, y] * DX * DX;
+                            oil_depth[xmax, y] = 0;
+
+                        }
+                        if (oil_depth[1, y] > 0)
+                        {
+                            OilOut += oil_depth[1, y] * DX * DX;
+                            oil_depth[1, y] = 0;
+                        }
+
+                        // Condition to avoid the oil accumulation at the edges
+
+
+                    }
                 
-                double OilOut = 0;
-                for (y = 1; y <= ymax; y++)
-                {
-                    if (oil_depth[xmax, y] > 0)
+                    // Condition added to avoid the accumulation on the edge, a bit crude but it works. 
+                    for (int x = 1; x <= xmax; x++)
                     {
-                        OilOut += oil_depth[xmax, y] * DX * DX;
-                        oil_depth[xmax, y] = 0;
+                        if (oil_depth[x, ymax] > 0)
+                        {
+                            // Oil out of the edges
+                            OilOut += oil_depth[x, ymax] * DX * DX;
+                            oil_depth[x, ymax] = 0;
+
+                        }
+                        if (oil_depth[x, 1] > 0)
+                        {
+                            OilOut += oil_depth[x, 1] * DX * DX;
+                            oil_depth[x, 1] = 0;
+                        }
 
                     }
-                    if (oil_depth[1, y] > 0)
-                    {
-                        OilOut += oil_depth[1, y] * DX * DX;
-                        oil_depth[1, y] = 0;
-                    }
 
-                    // Condition to avoid the oil accumulation at the edges
-
-
+                    Vout = OilOut;
+                    //oil_out_sum += Vout;
                 }
 
-                // Condition added to avoid the accumulation on the edge, a bit crude but it works. 
-                for (int x = 1; x <= xmax; x++)
-                {
-                    if (oil_depth[x, ymax] > 0)
-                    {
-                        // Oil out of the edges
-                        OilOut += oil_depth[x, ymax] * DX * DX;
-                        oil_depth[x, ymax] = 0;
-
-                    }
-                    if (oil_depth[x, 1] > 0)
-                    {
-                        OilOut += oil_depth[x, 1] * DX * DX;
-                        oil_depth[x, 1] = 0;
-                    }
-
-                }
-
-                Vout = OilOut;
-                //oil_out_sum += Vout;
                 // then carry out soil creep.
                 //- also growing grass...
                 // and dunes...
@@ -6426,7 +6436,7 @@ namespace caesar1
                 }
 
                 // save data & draw graphics every specified interval. Passes the cycle whuch becomes the file extension
-                if (cycle >= save_time && uniquefilecheck.Checked == true)
+                if (cycle >= save_time) // && uniquefilecheck.Checked == true) // unique check not needed here as filename reset in save_data if false
                 {
                     save_data_and_draw_graphics();
                     save_time += saveinterval;
@@ -7161,7 +7171,58 @@ namespace caesar1
             if (menuItemOilSpill.Checked == true) save_data(7, Math.Abs(cycle)); // save oil depth - PDF
             if (menuItem17.Checked == true) save_data(8, Math.Abs(cycle)); // save mass balance - PDF
             if (menuItemOilconc.Checked == true) save_data(9, Math.Abs(cycle)); // save oil concentration - PDF
+            if (netcdf_output == true) save_netcdf(); // write netcdf file 
+        }
+        void save_netcdf()
+        {
+            MessageBox.Show("Netcdf output here");
 
+            // download a netCDF file from unidata web site
+            /*var client = new System.Net.Http.HttpClient();
+            var response = await client.GetAsync("https://www.unidata.ucar.edu/software/netcdf/examples/sresa1b_ncar_ccsm3-example.nc");
+            using (var stream = System.IO.File.OpenWrite("sresa1b_ncar_ccsm3-example.nc"))
+            {
+                await response.Content.CopyToAsync(stream);
+            }*/
+
+            // open the file and print some info
+            using (Microsoft.Research.Science.Data.DataSet ds = Microsoft.Research.Science.Data.DataSet.Open("msds:nc?file=test.nc&openMode=create")) // create will overwrite existing file
+            {
+                // elev grid is expanded by 1 cell on each side: start coordinates from -DX from yll and xll
+                double[] y_coords = Enumerable.Range(0, ymax+2).Select(i => 0.0 + ((i * (double)DX) - DX + (double)yll)).ToArray();
+                double[] x_coords = Enumerable.Range(0, xmax+2).Select(i => 0.0 + ((i * (double)DX) - DX + (double)xll)).ToArray();
+                //var lat_dim = ds.AddAxis<double[]>("y", "metres north", y_coords);
+                //var lon_dim = ds.AddAxis<double[]>("x", "metres east", x_coords);
+                ds.AddAxis<double[]>("y", "metres north", y_coords);
+                ds.AddAxis<double[]>("x", "metres east", x_coords);
+
+                // Create a variable 
+                //Variable<double> elevation = ds.AddVariable<double>("elevation", new string[] { "x", "y" }); //exception in here or next line - code from DataSet class
+                //Variable<double> elevation = ds.AddVariable<double>("elevation", "x", "y"); //Variable<int> v = dataSet.AddVariable<int>("v", "1", "2");
+                //var elevation = ds.AddVariable<double>("elevation", lon_dim, lat_dim);
+                var elevation = ds.AddVariable<double>("elevation", new string[] {"x", "y" });
+
+                ds.Variables.ToList().ForEach(v => Console.WriteLine(v.Name));
+                Console.WriteLine($"elev dimensions: [{elev.GetLength(0)}, {elev.GetLength(1)}]");
+                Console.WriteLine($"xmax: {xmax}, ymax: {ymax}");
+                Console.WriteLine($"elev.GetLength(0): {elev.GetLength(0)}, elev.GetLength(1): {elev.GetLength(1)}"); 
+
+                 elevation.PutData(elev.Cast<double>().ToArray());
+                //elevation.PutData(elev);
+
+                //var elevation = ds.AddVariable<double[,]>("elevation", "y", "x"); // throwing exception
+                //elevation.MissingValue = -9999.0;
+                //elevation.PutData(elev);
+
+                ds.Commit();
+
+                //inputheader, xmax, ymax, xll, yll, DX
+
+                /*Console.WriteLine(ds);
+                Console.WriteLine(ds.Metadata["comment"]);
+                var lat = ds.GetData<float[]>("lat");
+                Console.WriteLine($"latitude: len={lat.Length}, min={lat.Min()}, max={lat.Max()}");*/
+            }
 
 
         }
@@ -8744,7 +8805,6 @@ namespace caesar1
             string FILENAME1 = "";
 
             if (uniquefilecheck.Checked == false) tempcycle = 0;
-
             // turns file name into days from mins.
 
 
@@ -8799,7 +8859,7 @@ namespace caesar1
                     {
                         sw.Write(inputheader[nn]); sw.Write("\n");
                     }
-
+                    
                     for (y = 1; y <= ymax; y++)
                     {
                         for (x = 1; x <= xmax; x++)
