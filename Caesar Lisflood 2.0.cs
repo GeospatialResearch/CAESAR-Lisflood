@@ -7205,16 +7205,17 @@ namespace caesar1
                 ds.Variables.ToList().ForEach(v => Console.WriteLine(v.Name));
                 Console.WriteLine($"elev dimensions: [{elev.GetLength(0)}, {elev.GetLength(1)}]");
                 Console.WriteLine($"xmax: {xmax}, ymax: {ymax}");
-                Console.WriteLine($"elev.GetLength(0): {elev.GetLength(0)}, elev.GetLength(1): {elev.GetLength(1)}"); 
+                Console.WriteLine($"elev.GetLength(0): {elev.GetLength(0)}, elev.GetLength(1): {elev.GetLength(1)}");
 
-                 elevation.PutData(elev.Cast<double>().ToArray());
-                //elevation.PutData(elev);
+                //elevation.PutData(elev.Cast<double>().ToArray());
+                elevation.PutData(elev);
 
                 //var elevation = ds.AddVariable<double[,]>("elevation", "y", "x"); // throwing exception
                 //elevation.MissingValue = -9999.0;
                 //elevation.PutData(elev);
 
                 ds.Commit();
+                Console.WriteLine("netCDF file written");
 
                 //inputheader, xmax, ymax, xll, yll, DX
 
