@@ -358,6 +358,26 @@ namespace caesar1
             oil_S, oil_D, iteration_t, Ev, oil_exp, oil_depth_init, Ev_prev, Vout_total, Vout_1, Vout_2, Vout_3, Vout_4;
         public static double[,] oil_hx, oil_hy, oil_hx_prev, oil_hy_prev, oil_depth, oil_depth_prev, oil_evap_fraction, oil_conc, oil_concentration;
 
+        // TEMP_V1 - water temperature module (see water temperature module spec doc)
+        public static double[,] water_temp, water_temp_prev;
+        public static int[,] met_zonation;
+        public static int nMetZones = 1; 
+        public static int[] metZones = new int[0];
+        public static double[,] hourly_air_temp, hourly_shortwave, hourly_windspeed,
+            hourly_humidity, hourly_cloudcover, hourly_pressure, hourly_dewpoint;
+        public static bool isSimulateTemperature = false;
+        public static bool useSimplifiedTempScheme = false;
+        public static bool useHecRasLongwave = true;
+        public static bool useHecRasAlbedo = true;
+        public double met_data_time_step = 60;
+        public double thermal_update_interval = 60;
+        public double thermal_time = 0;
+        public double siteLatitude = 0, siteLongitude = 0, siteTimeZone = 0,
+            siteElevation = 0, windMeasurementHeight = 10;
+        public double diffusivityRatio = 1.0;
+        public double albedoWaterBase = 0.08, albedoSedimentCoeff = 0, suspCondRef = 1;
+        public double windFunc_a = 1e-6, windFunc_b = 1e-6, windFunc_c = 1;
+
         // TC mining
         int minesitenumber = 0;
 
@@ -838,6 +858,9 @@ namespace caesar1
         private TextBox OilSpillDuration;
         private Label OilSpillDurationlabel;
 
+        private TabPage TempTab; // TEMP_V1
+        private CheckBox TempTab_checkBox; // TEMP_V1
+
 
         #endregion
 
@@ -1302,6 +1325,8 @@ namespace caesar1
             this.OilVolumelabel = new System.Windows.Forms.Label();
             this.OilSpillDuration = new System.Windows.Forms.TextBox();
             this.OilSpillDurationlabel = new System.Windows.Forms.Label();
+            this.TempTab = new System.Windows.Forms.TabPage(); // TEMP_V1
+            this.TempTab_checkBox = new System.Windows.Forms.CheckBox(); // TEMP_V1
             this.folderBrowserOutDir = new System.Windows.Forms.FolderBrowserDialog();
             this.label107 = new System.Windows.Forms.Label();
             this.label106 = new System.Windows.Forms.Label();
@@ -1672,6 +1697,7 @@ namespace caesar1
             this.tabControl1.Controls.Add(this.tabPage1);
             this.tabControl1.Controls.Add(this.tabPage3);
             this.tabControl1.Controls.Add(this.OilTab);
+            this.tabControl1.Controls.Add(this.TempTab); // TEMP_V1
             this.tabControl1.Location = new System.Drawing.Point(6, 1);
             this.tabControl1.Name = "tabControl1";
             this.tabControl1.SelectedIndex = 0;
@@ -5477,7 +5503,27 @@ namespace caesar1
             this.OilSpillDurationlabel.Size = new System.Drawing.Size(130, 30);
             this.OilSpillDurationlabel.TabIndex = 1015;
             this.OilSpillDurationlabel.Text = "Oil Spill duration (s):";
-
+            //
+            // TempTab - TEMP_V1
+            //
+            this.TempTab.Controls.Add(this.TempTab_checkBox);
+            this.TempTab.Location = new System.Drawing.Point(4, 22);
+            this.TempTab.Name = "TempTab";
+            this.TempTab.Size = new System.Drawing.Size(1323, 504);
+            this.TempTab.TabIndex = 13;
+            this.TempTab.Text = "Water Quality";
+            this.TempTab.UseVisualStyleBackColor = true;
+            //
+            // TempTab_checkBox - TEMP_V1
+            //
+            this.TempTab_checkBox.AutoSize = true;
+            this.TempTab_checkBox.Location = new System.Drawing.Point(20, 24);
+            this.TempTab_checkBox.Name = "TempTab_checkBox";
+            this.TempTab_checkBox.Size = new System.Drawing.Size(180, 17);
+            this.TempTab_checkBox.TabIndex = 1;
+            this.TempTab_checkBox.Text = "Simulate water temperature";
+            this.TempTab_checkBox.UseVisualStyleBackColor = true;
+            this.TempTab_checkBox.CheckedChanged += new System.EventHandler(this.TempTab_checkBox_CheckedChanged);
             // 
             // label107
             // 
@@ -6194,6 +6240,9 @@ namespace caesar1
                 // update water tracers
                 if (isTraceWater == true) update_tracer_states();
 
+                // TEMP_V1 - fine-cadence temperature advection/mixing, every hydraulic iteration
+                if (isSimulateTemperature == true) update_water_temperature_advection(local_time_factor);
+
                 // update oil state
                 if (isOilSimulation == true)
                 {
@@ -6415,6 +6464,14 @@ namespace caesar1
 
                     }
 
+                }
+
+                // TEMP_V1 - coarse-cadence surface energy balance, checked every iteration,
+                // independent of creep_time2's daily schedule
+                if (isSimulateTemperature == true && cycle > thermal_time)
+                {
+                    update_water_temperature_energybalance();
+                    thermal_time += thermal_update_interval;
                 }
 
                 // Gez
@@ -8766,6 +8823,56 @@ namespace caesar1
 
         }
 
+
+        // TEMP_V1 - loads a text time-series met file into the corresponding hourly_* array
+        // (mirrors load_hydrofile()). One value per zone per row; no leading index column.
+        // Rows are zero-indexed (row 0 = first time step) - NOTE this differs from the
+        // 1-indexed convention used by hourly_rain_data/hourly_m_value.
+        void load_met_file(string FILE_NAME, char[] delimiterChars, double[,] targetArray)
+        {
+            if (FILE_NAME == "null" || !File.Exists(FILE_NAME))
+            {
+                MessageBox.Show("Meteorological input file not found: " + FILE_NAME + ". Water temperature simulation may not be correct.");
+                return;
+            }
+
+            char commentline = '#';
+            int nZones = targetArray.GetLength(1);
+            int max_file_length = targetArray.GetLength(0);
+            int inc = 0;
+            string input;
+
+            try
+            {
+                StreamReader gr = File.OpenText(FILE_NAME);
+                while ((input = gr.ReadLine()) != null && inc < max_file_length - 1)
+                {
+                    if (input.Length == 0) { continue; } // skip empty lines
+                    if (input[0].CompareTo(commentline) == 0) { continue; } // skip commented lines
+
+                    string[] lineArray = input.Split(delimiterChars, StringSplitOptions.RemoveEmptyEntries);
+                    int xcounter = 0;
+                    for (int x = 0; x <= (lineArray.Length - 1); x++)
+                    {
+                        if (xcounter >= nZones) continue; // ignore extra columns beyond the number of met zones in use
+                        if (lineArray[x] != "")
+                        {
+                            targetArray[inc, xcounter] = double.Parse(lineArray[x]);
+                            xcounter++;
+                        }
+                    }
+                    inc++;
+                }
+                gr.Close();
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show("There was some type of error loading the meteorological input data from " + FILE_NAME + " at line " + Convert.ToString(inc) + ". CAESAR will continue to function but water temperature may not be correct." +
+                    "\n\nDebug info: \n" + e.Message + "\n\nStackTrace:\n" + e.StackTrace);
+            }
+        }
+
+
         void save_data(int typeflag, double tempcycle)
         {
             int x, y, z, inc, nn;
@@ -9654,6 +9761,16 @@ namespace caesar1
             hourly_m_value = new double[(int)(maxcycle * (60 / mfiletimestep)) + 10, rfnum + 1];
             climate_data = new double[10001, 3];
 
+            // TEMP_V1 - meteorological forcing array allocation
+            int met_array_length = (int)(maxcycle * (60 / met_data_time_step)) + 100;
+            hourly_air_temp = new double[met_array_length, nMetZones];
+            hourly_shortwave = new double[met_array_length, nMetZones];
+            hourly_windspeed = new double[met_array_length, nMetZones];
+            hourly_humidity = new double[met_array_length, nMetZones];
+            hourly_cloudcover = new double[met_array_length, nMetZones];
+            hourly_pressure = new double[met_array_length, nMetZones];
+            hourly_dewpoint = new double[met_array_length, nMetZones];
+
             temp_grain = new double[G_MAX + 1];
             veg = new Double[xmax + 1, ymax + 1, 4]; // 0 is elevation, 1 is level of veg cover (ranging from 0 to 1)
             edge = new double[xmax + 1, ymax + 1]; // TJC 27/1/05
@@ -9775,6 +9892,18 @@ namespace caesar1
                 for (int y = 1; y <= ymax; y++)
                 {
                     rainzonation[x, y] = 0;
+                }
+            }
+
+            // TEMP_V1 - water temperature and met-zonation array allocation
+            water_temp = new double[xmax + 2, ymax + 2];
+            water_temp_prev = new double[xmax + 2, ymax + 2];
+            met_zonation = new int[xmax + 2, ymax + 2];
+            for (int x = 1; x <= xmax; x++)
+            {
+                for (int y = 1; y <= ymax; y++)
+                {
+                    met_zonation[x, y] = 0;
                 }
             }
 
@@ -11733,6 +11862,67 @@ namespace caesar1
 
         }
 
+
+        // TEMP_V1 - water temperature module function stubs (see spec doc for equations/logic)
+
+        // Fine-cadence advective mixing of water temperature, run every hydraulic iteration
+        // (mirrors update_tracer_states()). To be implemented.
+        void update_water_temperature_advection(double local_time_factor)
+        {
+            return;
+        }
+
+        // Coarse-cadence surface energy balance (full or simplified scheme), run on the
+        // thermal_time schedule. To be implemented.
+        void update_water_temperature_energybalance()
+        {
+            return;
+        }
+
+        // Returns extraterrestrial radiation q_o (HEC-RAS Eq. 2.5). To be implemented.
+        double solar_geometry(double dayOfYear, double hourOfDay)
+        {
+            return 0.0;
+        }
+
+        // Returns R_s, HEC-RAS solar-altitude-dependent reflection coefficient. To be implemented.
+        double reflection_coefficient(double solarAltitudeRad)
+        {
+            return 0.0;
+        }
+
+        // Returns Ri, Richardson number (HEC-RAS Eq. 2.13). To be implemented.
+        double richardson_number(double airTemp, double waterTemp, double windSpeed)
+        {
+            return 0.0;
+        }
+
+        // Returns f(u_s), wind function (HEC-RAS Eq. 2.11). To be implemented.
+        double wind_function(double windSpeed, double Ri)
+        {
+            return 0.0;
+        }
+
+        // Returns e_s, saturation vapour pressure (HEC-RAS Eq. 2.9). To be implemented.
+        double saturation_vapour_pressure(double tempC)
+        {
+            return 0.0;
+        }
+
+        // Returns L, latent heat of vaporisation (temperature-dependent). To be implemented.
+        double latent_heat_of_vaporisation(double tempC)
+        {
+            return 0.0;
+        }
+
+        // Time-interpolated lookup of a met variable at the current cycle
+        // (mirrors calc_J-style interpolation). To be implemented.
+        double interpolate_met(double[,] metArray, double cycleMinutes, int zone)
+        {
+            return 0.0;
+        }
+
+
         void initialise_oil_simulation() // OIL_V1
         {
 
@@ -11963,6 +12153,9 @@ namespace caesar1
                     grain_area[x, y] = 0;
 
                     if (SpatVarManningsCheckbox.Checked == true) spat_var_mannings[x, y] = mannings;
+
+                    water_temp[x, y] = 15.0; // TEMP_V1 - placeholder default; replaced by initial-condition loading later
+                    water_temp_prev[x, y] = 15.0;
 
                 }
             }
@@ -18306,7 +18499,10 @@ namespace caesar1
             }
         }
 
-
+        private void TempTab_checkBox_CheckedChanged(object sender, EventArgs e) // TEMP_V1
+        {
+            isSimulateTemperature = TempTab_checkBox.Checked;
+        }
 
         private void menuItem10_Click(object sender, EventArgs e)
         {
