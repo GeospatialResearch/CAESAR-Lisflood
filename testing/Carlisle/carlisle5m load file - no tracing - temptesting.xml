@@ -1,0 +1,440 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<Parms>
+    <General-Parms>
+        <headeroverride>false</headeroverride>
+        <x-coordinate>706</x-coordinate>
+        <y-coordinate>237</y-coordinate>
+        <initscans>0</initscans>
+        <maxerodelimit>0.05</maxerodelimit>
+        <cellsize>10</cellsize>
+        <memorylimit>1</memorylimit>
+        <minq>0.05</minq>
+        <creeprate>0.0000025</creeprate>
+        <lateralerosionrate>0.5</lateralerosionrate>
+        <maxiter>1000000000</maxiter>
+        <runstarttime>0</runstarttime>
+        <maxrunduration>120</maxrunduration>
+        <slopefailurethreshold>50</slopefailurethreshold>
+        <wssmoothingradius>3</wssmoothingradius>
+        <mvalue>0.015</mvalue>
+        <growgrasstime>1</growgrasstime>
+        <initialq>0.001</initialq>
+        <wssmoothing>false</wssmoothing>
+        <grass-sediment>false</grass-sediment>
+        <flowdistribution>0.01</flowdistribution>
+        <mintimestep>1</mintimestep>
+        <evaporation>0.00000001</evaporation>
+        <vegcritshear>200</vegcritshear>
+        <bedslope>false</bedslope>
+        <wsslope>false</wsslope>
+        <veltaubox>true</veltaubox>
+        <catchment_mode>false</catchment_mode>
+        <reach_mode>true</reach_mode>
+        <lat1>false</lat1>
+        <lat2>false</lat2>
+        <lat3>false</lat3>
+        <cross_stream_grad>0</cross_stream_grad>
+        <max_vel>5</max_vel>
+        <SaveOptions>
+            <Option>elevations</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>elevdiff</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>grainsize</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>total tracer g/s</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>tracer layer 1</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>tracer layer 2</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>tracer layer 3</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>tracer layer 4</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>tracer layer 5</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>tracer layer 6</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>tracer layer 7</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>tracer layer 8</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>tracer layer 9</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>water depth</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>d50</Option>
+            <Checked>true</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>flow velocity</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>soil saturation</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+    </General-Parms>
+    <Grain-Size>
+        <gs>0.00025</gs>
+        <gp>0</gp>
+        <ss>false</ss>
+        <fv>0.0033</fv>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.001</gs>
+        <gp>0</gp>
+        <ss>false</ss>
+        <fv>0.0664</fv>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.002</gs>
+        <gp>0</gp>
+        <ss>false</ss>
+        <fv>0.164</fv>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.004</gs>
+        <gp>0</gp>
+        <ss>false</ss>
+        <fv>0.237</fv>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.008</gs>
+        <gp>0</gp>
+        <ss>false</ss>
+        <fv>0.338</fv>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.016</gs>
+        <gp>0</gp>
+        <ss>false</ss>
+        <fv>0.479</fv>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.032</gs>
+        <gp>0</gp>
+        <ss>false</ss>
+        <fv>0.678</fv>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.064</gs>
+        <gp>0</gp>
+        <ss>false</ss>
+        <fv>0.959</fv>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>10</gs>
+        <gp>1</gp>
+        <ss>false</ss>
+        <fv>1.357</fv>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.0005</gs>
+        <gp>0.144</gp>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.001</gs>
+        <gp>0.022</gp>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.002</gs>
+        <gp>0.019</gp>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.004</gs>
+        <gp>0.029</gp>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.008</gs>
+        <gp>0.068</gp>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.016</gs>
+        <gp>0.146</gp>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.032</gs>
+        <gp>0.220</gp>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.064</gs>
+        <gp>0.231</gp>
+    </Grain-Size>
+    <Grain-Size>
+        <gs>0.128</gs>
+        <gp>0.121</gp>
+    </Grain-Size>
+    <File-Parms>
+        <inputtimestep>30</inputtimestep>
+        <saveinterval>120</saveinterval>
+        <savetologfileinterval>60</savetologfileinterval>
+        <tracerrun>false</tracerrun>
+        <uniquefilecheck>true</uniquefilecheck>
+        <Filenames>
+            <Desc>DEM Data File</Desc>
+            <Name>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\Domain_LIDAR_5M_Mean.asc</Name>
+        </Filenames>
+        <Filenames>
+            <Desc>Grain Data File</Desc>
+            <Name>null</Name>
+        </Filenames>
+        <Filenames>
+            <Desc>Bedrock Data File</Desc>
+            <Name>null</Name>
+        </Filenames>
+        <Filenames>
+            <Desc>Rain Data File</Desc>
+            <Name>null</Name>
+        </Filenames>
+        <Filenames>
+            <Desc>Tracer File</Desc>
+            <Name>null</Name>
+        </Filenames>
+        <Filenames>
+            <Desc>Tracer Sed Vol File</Desc>
+            <Name>null</Name>
+        </Filenames>
+        <Filenames>
+            <Desc>Tracer Grain Size Data File</Desc>
+            <Name>null</Name>
+        </Filenames>
+        <Sources>
+            <input>true</input>
+            <X>834</X>
+            <Y>48</Y>
+            <Filename>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\main1.csv</Filename>
+        </Sources>
+        <Sources>
+            <input>true</input>
+            <X>296</X>
+            <Y>602</Y>
+            <Filename>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\cummersdale1.csv</Filename>
+        </Sources>
+        <Sources>
+            <input>true</input>
+            <X>585</X>
+            <Y>602</Y>
+            <Filename>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\harraby1.csv</Filename>
+        </Sources>
+        <Sources>
+            <input>false</input>
+            <X />
+            <Y />
+            <Filename />
+        </Sources>
+        <Sources>
+            <input>false</input>
+            <X />
+            <Y />
+            <Filename />
+        </Sources>
+        <Sources>
+            <input>false</input>
+            <X />
+            <Y />
+            <Filename />
+        </Sources>
+        <Sources>
+            <input>false</input>
+            <X />
+            <Y />
+            <Filename />
+        </Sources>
+        <Sources>
+            <input>false</input>
+            <X />
+            <Y />
+            <Filename />
+        </Sources>
+        <ExtraSources>
+            <input>false</input>
+            <Filename />
+        </ExtraSources>
+    </File-Parms>
+    <Description>
+        <S />
+    </Description>
+    <OutputFile-Parms>
+        <generateavifile>false</generateavifile>
+        <avifile>novalue</avifile>
+        <avifreq>120</avifreq>
+        <generatetimeseriesfile>true</generatetimeseriesfile>
+        <timeseriesfile>catchment.dat</timeseriesfile>
+        <timeseriesfreq>60</timeseriesfreq>
+        <generateiterationsfile>false</generateiterationsfile>
+        <iterationsfile>iter.dat</iterationsfile>
+    </OutputFile-Parms>
+    <Display>
+        <top> -8</top>
+        <left> -8</left>
+        <width> 1936</width>
+        <height> 1056</height>
+    </Display>
+    <Lateral>
+        <oldlat>false</oldlat>
+        <newlat>false</newlat>
+    </Lateral>
+    <Add_Ons>
+        <tracer-out>false</tracer-out>
+        <tracer-out-filename>tracer_output.txt</tracer-out-filename>
+        <google_animation>true</google_animation>
+        <google_animation_file_name>animation5m.kmz</google_animation_file_name>
+        <google_begin>2005-01-08</google_begin>
+        <google_interval>60</google_interval>
+        <jMean>false</jMean>
+        <edge_smoothing>100</edge_smoothing>
+        <displacement>false</displacement>
+        <prop_remain>0.0</prop_remain>
+        <max_time_step>3600</max_time_step>
+        <contam_input>false</contam_input>
+        <mineX>null</mineX>
+        <mineY>null</mineY>
+        <contam_input_file>null</contam_input_file>
+        <soil_rate>0.0</soil_rate>
+        <siberia>false</siberia>
+        <beta1>1067</beta1>
+        <beta3>0.000186</beta3>
+        <m1>1.7</m1>
+        <m3>0.79</m3>
+        <n1>0.69</n1>
+        <W_depth_erosion_threshold>0.01</W_depth_erosion_threshold>
+        <fexp>1</fexp>
+        <div_inputs>1</div_inputs>
+        <initial_sand_depth>4</initial_sand_depth>
+        <maxslabdepth>0.5</maxslabdepth>
+        <angle>15</angle>
+        <checkup>40</checkup>
+        <dep_probability>50</dep_probability>
+        <downstream_offset>1</downstream_offset>
+        <dune_timestep>144</dune_timestep>
+        <dune_gridsize>2</dune_gridsize>
+        <wilcock>true</wilcock>
+        <einstein>false</einstein>
+        <dune>false</dune>
+        <UTM>false</UTM>
+        <South>false</South>
+        <UTMzone />
+        <raindatatimestep>60</raindatatimestep>
+        <activelayerthickness>0.2</activelayerthickness>
+        <downstreamshift>5</downstreamshift>
+        <courantnumber>0.25</courantnumber>
+        <hflow>0.00001</hflow>
+        <lateralsmoothing>0.0001</lateralsmoothing>
+        <froude_limit>0.8</froude_limit>
+        <mannings>0.04</mannings>
+        <TidalorStage>false</TidalorStage>
+        <MinQmaxvalue>1000.0</MinQmaxvalue>
+        <TidalXmin>0</TidalXmin>
+        <TidalXmax>0</TidalXmax>
+        <TidalYmin>0</TidalYmin>
+        <TidalYmax>0</TidalYmax>
+        <TidalFileName />
+        <TidalInputStep>1440</TidalInputStep>
+        <bedrock_erosion_threshold>0</bedrock_erosion_threshold>
+        <bedrock_erosion_rate>0</bedrock_erosion_rate>
+        <rfnum>1</rfnum>
+        <hydroindex>null</hydroindex>
+        <MultiRainfall>false</MultiRainfall>
+        <soildevbox>false</soildevbox>
+        <bedrocklowering>false</bedrocklowering>
+        <physicalweathering>false</physicalweathering>
+        <chemicalweathering>false</chemicalweathering>
+        <P1>0.000053</P1>
+        <b1>2</b1>
+        <k1>0.0001</k1>
+        <c1>-0.5</c1>
+        <c2>5</c2>
+        <k2>70</k2>
+        <c3>-2.5</c3>
+        <c4>1</c4>
+        <SpatVarManningsCheckbox>false</SpatVarManningsCheckbox>
+        <spatvarmanningsfilename>null</spatvarmanningsfilename>
+        <mfiletimestepbox>1440</mfiletimestepbox>
+        <mvalueloadbox>null</mvalueloadbox>
+        <meyer>false</meyer>
+        <all_nine_grainsizes>true</all_nine_grainsizes>
+        <oldveg>true</oldveg>
+        <newveg>false</newveg>
+        <TraceWater>false</TraceWater>
+        <TraceRainZonation>false</TraceRainZonation>
+        <TraceRainZonationMapfile>null</TraceRainZonationMapfile>
+        <TraceSolutes>false</TraceSolutes>
+        <OutputDirectory />
+        <OutDirDateTime>false</OutDirDateTime>
+        <OilSimulation>false</OilSimulation>
+        <OilYmin>0</OilYmin>
+        <OilYmax>0</OilYmax>
+        <OilXmin>0</OilXmin>
+        <OilXmax>0</OilXmax>
+        <OilTimeMin>0</OilTimeMin>
+        <OilDepthStart>1.5</OilDepthStart>
+        <OilVolume>0</OilVolume>
+        <OilSpillDuration>0</OilSpillDuration>
+        <SaveOptions>
+            <Option>water tracers</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>rain zone tracers</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>solute tracers</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>oil depth</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>mass balance</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>oil concentration</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
+        <Filenames>
+            <Desc>Angle Data File</Desc>
+            <Name>null</Name>
+        </Filenames>
+        <Filenames>
+            <Desc>Grain index Data File</Desc>
+            <Name>null</Name>
+        </Filenames>
+        <tracer>0</tracer>
+        <tracerindex>null</tracerindex>
+        <MultiTracer>false</MultiTracer>
+        <MultiGrain>false</MultiGrain>
+    </Add_Ons>
+</Parms>

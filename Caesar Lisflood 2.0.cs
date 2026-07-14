@@ -860,7 +860,8 @@ namespace caesar1
 
         private TabPage TempTab; // TEMP_V1
         private CheckBox TempTab_checkBox; // TEMP_V1
-
+        private Label TempTab_label_airtemp; // TEMP_V1
+        private TextBox TempTab_textBox_airtemp; // TEMP_V1
 
         #endregion
 
@@ -1327,6 +1328,8 @@ namespace caesar1
             this.OilSpillDurationlabel = new System.Windows.Forms.Label();
             this.TempTab = new System.Windows.Forms.TabPage(); // TEMP_V1
             this.TempTab_checkBox = new System.Windows.Forms.CheckBox(); // TEMP_V1
+            this.TempTab_label_airtemp = new System.Windows.Forms.Label(); // TEMP_V1
+            this.TempTab_textBox_airtemp = new System.Windows.Forms.TextBox(); // TEMP_V1
             this.folderBrowserOutDir = new System.Windows.Forms.FolderBrowserDialog();
             this.label107 = new System.Windows.Forms.Label();
             this.label106 = new System.Windows.Forms.Label();
@@ -5507,6 +5510,8 @@ namespace caesar1
             // TempTab - TEMP_V1
             //
             this.TempTab.Controls.Add(this.TempTab_checkBox);
+            this.TempTab.Controls.Add(this.TempTab_label_airtemp); 
+            this.TempTab.Controls.Add(this.TempTab_textBox_airtemp); 
             this.TempTab.Location = new System.Drawing.Point(4, 22);
             this.TempTab.Name = "TempTab";
             this.TempTab.Size = new System.Drawing.Size(1323, 504);
@@ -5524,6 +5529,21 @@ namespace caesar1
             this.TempTab_checkBox.Text = "Simulate water temperature";
             this.TempTab_checkBox.UseVisualStyleBackColor = true;
             this.TempTab_checkBox.CheckedChanged += new System.EventHandler(this.TempTab_checkBox_CheckedChanged);
+            //
+            // TempTab_label_airtemp - TEMP_V1
+            //
+            this.TempTab_label_airtemp.AutoSize = true;
+            this.TempTab_label_airtemp.Location = new System.Drawing.Point(20, 60);
+            this.TempTab_label_airtemp.Name = "TempTab_label_airtemp";
+            this.TempTab_label_airtemp.Size = new System.Drawing.Size(104, 13);
+            this.TempTab_label_airtemp.Text = "Air temperature file";
+            //
+            // TempTab_textBox_airtemp - TEMP_V1
+            //
+            this.TempTab_textBox_airtemp.Location = new System.Drawing.Point(150, 57);
+            this.TempTab_textBox_airtemp.Name = "TempTab_textBox_airtemp";
+            this.TempTab_textBox_airtemp.Size = new System.Drawing.Size(150, 20);
+            this.TempTab_textBox_airtemp.Text = "null";
             // 
             // label107
             // 
@@ -8269,6 +8289,12 @@ namespace caesar1
                             //MessageBox.Show("Loaded extra source file: " + FILE_NAME + " (" + Convert.ToString(i+1) + " of " + extraSourceFiles.Length + ")");
                         }
                     }
+                }
+                // TEMP_V1 - meteorological forcing: air temperature (first variable wired; others follow same pattern)
+                if (isSimulateTemperature == true)
+                {
+                    FILE_NAME = this.TempTab_textBox_airtemp.Text;
+                    load_met_file(FILE_NAME, delimiterChars, hourly_air_temp);
                 }
                 if (isTraceSolutes == true)
                 {

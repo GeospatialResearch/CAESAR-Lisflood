@@ -1,0 +1,57 @@
+####################################
+##SIMULATION CONTROL
+##Length of Simulation Time, in seconds (1hr = 3600 seconds)
+sim_time	432000
+
+####################################
+##INPUT FILES
+#Topographic Survey
+DEMfile		Carlisle/Domain_LIDAR_5M_Mean.asc
+
+#Dynamic Boundary Conditions
+bdyfile		Carlisle/carlisle_5m.bdy
+
+#Fixed/Floodplain Boundary Conditions
+bcifile		Carlisle/carlisle.bci
+
+#Spatially distributed friction
+#manningfile  friction.asc
+
+#evaporation 	amazonevap.evap
+#infiltration	0.0000028
+
+####################################
+##INPUT PARAMETERS
+fpfric		0.03
+
+
+####################################
+##MODEL OUTPUT CONTROL
+
+#Folder to save output files
+dirroot		Carlisle/carlisle_5m
+
+#Output File Naming Convention
+resroot		results
+
+#Frequency of mass balance information (in seconds)
+massint		3600
+
+#Frequency for other outputs - Flood Depths etc (in seconds)
+saveint		3600
+
+#checkpoint	1.0 
+
+#####################################
+## ADDITIONAL MODEL SETTINGS 
+## YOU DON'T NEED TO EDIT THESE 
+#ts_multiple     10
+acceleration
+#initial_tstep   10.0
+#elevoff
+#hazard
+#profiles
+#mint_hk
+
+
+
