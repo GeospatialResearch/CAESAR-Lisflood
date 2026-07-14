@@ -1,4 +1,4 @@
-
+﻿
 // CAESAR-Lisflood hydrodynamic and morphodynamic Landscape Evolution model Copyright (C) 2023 Tom.J.Coulthard 
 //This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License
 //as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. 
@@ -41,6 +41,9 @@
 // 3. Disabled scaling of solutes in evaporate(), as it was leading to very large concentrations as depth goes to zero. Needs a rethink.
 // 4. Fixed stack overflow issue when timeseries input files are longer than required
 // 5. Added debug info and stack trace to error messages (which are mostly due to input file errors)
+
+// Oil spill simulation functionality added by Paola Di Fluri and Matt Wilson 2025 (tagged with OIL_V1)
+// Dynamic temperature additions added July 2026 by Matt Wilson and Paola Di Fluri (tagged with TEMP_V1)
 
 
 using System;
@@ -351,10 +354,10 @@ namespace caesar1
         public static bool isOilSimulation, oil_eventtriggered = false;
         public double oil_startt, oil_starth, oil_spillt, ro_water, oil_density, oil_T, cinematic_v, oil_ratev, oil_totalv, Cf,
             oil_Tg, oil_To, oil_B, oil_A, oil_transf_coeff, vel_wind, API, totalOilVolume, oil_out_t, oil_out_sum, oil_evap_t,
-            oil_evap_sum, oil_in_sum, Vout_1, Vout_2, Vout_3, Vout_4, error_negative, error_negative_sum, error_edge, error_edge_sum,
-            oil_S, oil_D, iteration_t, Ev, oil_exp, oil_depth_init, Ev_prev;
-        public static double[,] oil_hx, oil_hy, oil_hx_prev, oil_hy_prev, oil_depth, oil_depth_prev, oil_evap_fraction, oil_conc;
-        double Vout = 0;
+            oil_evap_sum, oil_in_sum, error_negative, error_negative_sum, error_edge, error_edge_sum,
+            oil_S, oil_D, iteration_t, Ev, oil_exp, oil_depth_init, Ev_prev, Vout_total, Vout_1, Vout_2, Vout_3, Vout_4;
+        public static double[,] oil_hx, oil_hy, oil_hx_prev, oil_hy_prev, oil_depth, oil_depth_prev, oil_evap_fraction, oil_conc, oil_concentration;
+
         // TC mining
         int minesitenumber = 0;
 
@@ -6283,19 +6286,21 @@ namespace caesar1
                 }
                 waterOut = temptot;
 
-                
-                double OilOut = 0;
+
+                Vout_total = 0;
+
+
                 for (y = 1; y <= ymax; y++)
                 {
                     if (oil_depth[xmax, y] > 0)
                     {
-                        OilOut += oil_depth[xmax, y] * DX * DX;
+                        Vout_total += oil_depth[xmax, y] * DX * DX;
                         oil_depth[xmax, y] = 0;
 
                     }
                     if (oil_depth[1, y] > 0)
                     {
-                        OilOut += oil_depth[1, y] * DX * DX;
+                        Vout_total += oil_depth[1, y] * DX * DX;
                         oil_depth[1, y] = 0;
                     }
 
@@ -6310,20 +6315,26 @@ namespace caesar1
                     if (oil_depth[x, ymax] > 0)
                     {
                         // Oil out of the edges
-                        OilOut += oil_depth[x, ymax] * DX * DX;
+                        Vout_total += oil_depth[x, ymax] * DX * DX;
                         oil_depth[x, ymax] = 0;
 
                     }
                     if (oil_depth[x, 1] > 0)
                     {
-                        OilOut += oil_depth[x, 1] * DX * DX;
+                        Vout_total += oil_depth[x, 1] * DX * DX;
                         oil_depth[x, 1] = 0;
                     }
 
                 }
 
-                Vout = OilOut;
-                //oil_out_sum += Vout;
+
+           
+            
+
+                // Vout += Vout_1 + Vout_2 + Vout_3 + Vout_4;
+
+
+
                 // then carry out soil creep.
                 //- also growing grass...
                 // and dunes...
@@ -6907,6 +6918,7 @@ namespace caesar1
 
         }
 
+        bool oil_spill_ended = false;
         void oil_spill_input(double local_time_factor)
 
         {
@@ -6916,6 +6928,7 @@ namespace caesar1
             // MDW : note to check : we're changing the value of dt used here, so it is different to the one used for Q
             // see stage_tide_input(): local_time_factor is passed into the function rather than calculated within it
             iteration_t += local_time_factor;
+
             //if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
 
             for (int x = Math.Min(oil_fromx, oil_tox); x <= Math.Max(oil_fromx, oil_tox); x++)
@@ -6923,29 +6936,40 @@ namespace caesar1
                 for (int y = Math.Min(oil_fromy, oil_toy); y <= Math.Max(oil_fromy, oil_toy); y++)
                 {
 
-                    // formula used below rather than being assigned
-                    //oil_input = oil_ratev * local_time_factor /  (DX * DX);
+                    // condition to define the end of the spill 
+                    double spill_end = oil_starth + oil_spillt;
 
-                    // here oil_depth_init is set to the rate, rather than adding some new oil on top of existing oil.
-                    // the value is also overwritten on each iteration here, rather than being assigned to cells.
-                    // it is also not referenced within oilroute(), so nothing will happen with the input
-                    //oil_depth_init = oil_input / oil_n_cells; 
-
-                    // I think it is better to add the input onto the exiting oil depth, then route all the only in oilroute()
-
-                    oil_depth_init = oil_ratev * local_time_factor / (oil_n_cells * DX * DX);
-
-                    // after the oil spill duration stop to add oil from the source
-
-
-                    if (iteration_t > oil_spillt)
+                    
+                    if (iteration_t >= oil_starth && iteration_t < spill_end)
                     {
-                        oil_ratev = 0;
+                        oil_ratev = oil_totalv / oil_spillt;
+
+                        // Vol in int the timestep
+                        double volume_this_step = oil_ratev * local_time_factor;
+
+                        // Cumulate V oil
+                        oil_in_sum += volume_this_step;
+
+                        // thickness added of each cell in the input
+                        double depth_increment = volume_this_step / (oil_n_cells * DX * DX);
+
+                        // oil depth update 
+                        oil_depth[x, y] += depth_increment;
+                    }
+                    if ((iteration_t + local_time_factor > spill_end) && !oil_spill_ended)
+
+                    {
+                        //oil_in_sum = oil_totalv;
+
+                        // When the spill duration ends, no more oil is added to the cell
+                        if (oil_spill_ended = true)
+                        {
+                            oil_ratev = 0;
+                            oil_in_sum = oil_totalv;
+                            oil_depth[x, y] += 0;
+                        }
 
                     }
-
-                    oil_depth[x, y] += oil_ratev * local_time_factor / (oil_n_cells * DX * DX);
-                    //oil_in_sum += oil_ratev * local_time_factor;
 
 
                 }
@@ -6953,7 +6977,13 @@ namespace caesar1
         }
 
 
-        void soil_development() // all based on Vanwalleghem et al., 2013 (JoGR:ES)
+
+
+
+
+
+
+            void soil_development() // all based on Vanwalleghem et al., 2013 (JoGR:ES)
         {
             for (int x = 1; x <= xmax; x++)
             {
@@ -8762,6 +8792,7 @@ namespace caesar1
             if (typeflag == 6 && tempcycle == 0) FILENAME = "tracer.asc";
             if (typeflag == 7 && tempcycle == 0) FILENAME = "oildepth.asc"; // OIL_V1_PDF
             if (typeflag == 8) FILENAME = "massbalance.txt"; // OIL_V1_PDF
+            if (typeflag == 9) FILENAME = "oilconcentration.asc"; // OIL_V1_PDF
 
 
 
@@ -8779,6 +8810,7 @@ namespace caesar1
             if (typeflag == 6 && tempcycle > 0) FILENAME = "tracer" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc";
             if (typeflag == 7 && tempcycle > 0) FILENAME = "oildepth" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc"; //OIL_V1_PDF
             //if (typeflag == 8 && tempcycle > 0) FILENAME = "massbalance" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".txt"; //OIL_V1_PDF
+            if (typeflag == 9 && tempcycle > 0) FILENAME = "oilconcentration" + Convert.ToString(Convert.ToInt64(tempcycle)) + ".asc"; //OIL_V1_PDF
 
 
 
@@ -9201,13 +9233,56 @@ namespace caesar1
                 }
             }
 
-            if (typeflag == 8)
+            if (typeflag == 8)  //OIL_V1_PDF
             {
 
-
-                using (StreamWriter sw = new StreamWriter(FILENAME, append: true))
+                if (oil_in_sum > 0)
                 {
-                    sw.WriteLine($"{save_time}, {oil_in_sum}, {oil_evap_sum},{oil_out_sum}, {Ev}");
+                    using (StreamWriter sw = new StreamWriter(FILENAME, append: true))
+                    {
+                        sw.WriteLine($"{save_time}, {oil_in_sum}, {Vout_total}, {oil_evap_sum}, {error_negative}, {oil_S},    {Ev}");
+                    }
+                }
+            }
+
+            if (typeflag == 9)  //OIL_V1_PDF
+            {
+
+                using (StreamWriter sw = new StreamWriter(FILENAME))
+                {
+                    sw.Write("ncols         " + xmax);
+                    sw.Write("\n");
+                    sw.Write("nrows         " + ymax);
+                    sw.Write("\n");
+
+                    for (nn = 2; nn <= 5; nn++)
+                    {
+                        sw.Write(inputheader[nn]); sw.Write("\n");
+                    }
+
+                    for (y = 1; y <= ymax; y++)
+                    {
+                        for (x = 1; x <= xmax; x++)
+                        {
+                            if (typeflag == 9)
+                            {
+
+                                if (oil_concentration[x, y] > 0)
+                                {
+
+                                    sw.Write(oil_concentration[x, y]);
+
+                                    sw.Write(" ");
+                                }
+                                else
+                                {
+                                    sw.Write("-9999.0");
+                                    sw.Write(" ");
+                                }
+                            }
+                        }
+                    }
+
                 }
             }
         }
@@ -11271,7 +11346,7 @@ namespace caesar1
                 for (int y = 1; y < ymax; y++)
                 {
 
-                    if (oil_depth[x, y] > 0)
+                    if (oil_depth[x, y] > 0.00001)
                     {
                         count_cells++;
                     }
@@ -11297,35 +11372,23 @@ namespace caesar1
                     int x = down_scan[y, inc];
                     inc++;
 
-            /*for (int x = 1; x < xmax; x++)
-            {
-                for (int y = 1; y < ymax; y++)
-                {*/
+                    /*for (int x = 1; x < xmax; x++)
+                    {
+                        for (int y = 1; y < ymax; y++)
+                        {*/
 
 
                     if (oil_depth[x, y] > 0)
                     {
-                        iteration_t += local_time_factor / 60;
+                        iteration_t += local_time_factor;
                         //evaporation rate - no wind influence from Fingas studies
-                       // Ev = (3.24 + 0.054 * 15) * Math.Log(iteration_t)/100;
-
-
-                        // Evaporation rate from Mackey experiments - takes into account wind, area of oil slick, oil charachteristics (API).
-                        // Evaporaion expuosure
-                        /*oil_exp = oil_transf_coeff * oil_S  * (local_time_factor) / oil_totalv;
-
-                        // Evaporation Rate
-                        Ev = ((oil_T / (oil_B * oil_Tg)) * Math.Log(oil_exp * (oil_B * oil_Tg / oil_T) * Math.Exp(oil_A - (oil_B * oil_To / oil_T)) + 1));*/
+                        //Ev = (3.24 + 0.054 * 15) * Math.Log(iteration_t/60)/100;
 
                         //evaporation exposure
-                        oil_exp = oil_transf_coeff * oil_S * (local_time_factor/60)  / oil_totalv;
-                        //oil_exp = /*0.1 **/ oil_transf_coeff * oil_S * (local_time_factor) / (oil_totalv);
-                        //evaporation rate 
-                        //Ev_prev = Ev;
-                        //Ev =  Ev_prev + local_time_factor * (oil_transf_coeff * oil_S / oil_totalv) * Math.Exp(oil_A - (oil_B / oil_T) * (oil_To - oil_Tg * Ev_prev));
+                        oil_exp = oil_transf_coeff * oil_S * (local_time_factor / 60) / oil_totalv;
 
                         Ev = (oil_T / (oil_B * oil_Tg)) * Math.Log(oil_exp * (oil_B * oil_Tg / oil_T) * Math.Exp(oil_A - (oil_B * oil_To / oil_T)) + 1);
-                       
+
                     }
 
 
@@ -11345,11 +11408,6 @@ namespace caesar1
                     int x = down_scan[y, inc];
                     inc++;
 
-                    /*for (int x = 1; x < xmax; x++)
-                        {
-                            for (int y = 1; y < ymax; y++)
-                            {*/
-
                     if (elev[x, y] > -9999)
                     {
 
@@ -11360,11 +11418,11 @@ namespace caesar1
                             double oil_hflow = Math.Max(water_depth[x, y] + elev[x, y] + oil_depth[x, y], water_depth[x - 1, y] + elev[x - 1, y] + oil_depth[x - 1, y]) - Math.Max(elev[x, y] + water_depth[x, y], elev[x - 1, y] + water_depth[x - 1, y]);
 
                             //spreading - diffusion function in y direction
-                            double oil_Dx = gravity * (oil_depth_init * oil_depth_init) * (ro_water - oil_density) * (oil_density / ro_water) * qx[x, y] / (ro_water * Cf);
+                            double oil_Dx = gravity * (oil_depth_init * oil_depth_init) * (ro_water - oil_density) * oil_density / ro_water / Cf;
 
                             // advection-dispersion equation x-direction
                             oil_hx_prev[x, y] = oil_hx[x, y];
-                            oil_hx[x, y] = oil_hx_prev[x, y] - (local_time_factor * (oil_hflow * (qx[x, y]) / (DX * DX ) - 0.0000001 * (oil_hflow) / (DX * DX)));
+                            oil_hx[x, y] = oil_hx_prev[x, y] - ( local_time_factor * (DX *oil_hflow * (qx[x, y]) / (DX * DX) - oil_Dx * (oil_hflow) / (DX * DX)));
 
                             // Adjust sign based on qx - force the oil in the same direction of water
                             if (qx[x, y] < 0)
@@ -11386,11 +11444,11 @@ namespace caesar1
                             double oil_hflow = Math.Max(water_depth[x, y] + elev[x, y] + oil_depth[x, y], water_depth[x, y - 1] + elev[x, y - 1] + oil_depth[x, y - 1]) - Math.Max(elev[x, y] + water_depth[x, y], elev[x, y - 1] + water_depth[x, y - 1]);
 
                             //spreading - diffusion function in y direction
-                            double oil_Dy = gravity * (oil_depth_init * oil_depth_init) * (ro_water - oil_density) * (oil_density / ro_water) * qy[x, y] / (ro_water * Cf);
 
+                            double oil_Dy = gravity * (oil_depth_init * oil_depth_init) * (ro_water - oil_density) * oil_density / ro_water / Cf;
                             // advection-dispersion equation y-direction
                             oil_hy_prev[x, y] = oil_hy[x, y];
-                            oil_hy[x, y] = oil_hy_prev[x, y] - (local_time_factor * (oil_hflow * (qy[x, y]) / (DX * DX ) - 0.0000001 * (oil_hflow) / (DX * DX)));
+                            oil_hy[x, y] = (oil_hy_prev[x, y] - ( local_time_factor * (DX *oil_hflow * (qy[x, y]) / (DX * DX) - oil_Dy * (oil_hflow) / (DX * DX))));
 
                             // Adjust sign based on qy - force the oil in the same direction of water
                             if (qy[x, y] < 0)
@@ -11412,12 +11470,10 @@ namespace caesar1
             });
         }
 
-        //private readonly object _lock = new object(); // Lock object for thread safety
-
         void oil_update()
 
         {
-            error_negative = 0;
+
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax + 1, options, delegate (int y)
             {
@@ -11427,11 +11483,6 @@ namespace caesar1
                     int x = down_scan[y, inc];
                     inc++;
 
-                    /*for (int x = 1; x < xmax; x++)
-            {
-                for (int y = 1; y < ymax; y++)
-                {*/
-
                     if (elev[x, y] > -9999)
                     {
                         oil_depth_prev[x, y] = oil_depth[x, y];
@@ -11439,50 +11490,57 @@ namespace caesar1
 
                         if (oil_depth[x, y] > 0)
                         {
-                            oil_evap_fraction[x, y] = Ev * oil_depth[x, y]/count_cells ;
+                            oil_evap_fraction[x, y] = Ev * oil_depth[x, y] / count_cells;
                             oil_depth[x, y] -= oil_evap_fraction[x, y];
-                            
+
                         }
 
                         if (oil_depth[x, y] < 0)
                         {
-
-                            error_negative += oil_depth[x, y] * DX * DX;
+                            error_negative = Math.Abs(oil_depth[x, y] * DX * DX);
+                            error_negative_sum += error_negative;
                             oil_depth[x, y] = 0;
                         }
 
-                        oil_conc[x, y] = ((oil_depth[x, y]* oil_density) / (oil_depth[x, y] * oil_density + water_depth[x, y]* ro_water )); //conversion to kg/m3 to g/l
+                        // oil concentration
+
+                        oil_conc[x, y] = (((oil_depth[x, y] * ro_water) / (oil_depth[x, y] * oil_density + water_depth[x, y] * ro_water))) / 1000; // g/L
+                          
+                        if (oil_conc[x, y] > 0)
+                        {
+                            oil_concentration[x, y] = oil_conc[x, y];
+                        }
 
                     }
                 }
-            });            
+            });
         }
 
 
         void oil_global_mass_balance()
         {
-            
+
             oil_evap_t = 0;
             //oil_out_sum = 0;
             //oil_evap_sum = 0;
+            //error_negative_sum = 0;
 
 
             for (int x = 1; x < xmax; x++)
             {
                 for (int y = 1; y < ymax; y++)
                 {
-
                     oil_evap_t += DX * DX * oil_evap_fraction[x, y];
-                    
+                    //Vout += Vout_1 + Vout_2 + Vout_3 + Vout_4;
                 }
 
             }
 
-            //Vout = Vout_1 + Vout_2 + Vout_3 + Vout_4;
-            oil_out_sum = Vout;
+            //error_negative_sum += Math.Abs(error_negative);
+
             oil_evap_sum += oil_evap_t;
-            error_negative_sum += Math.Abs(error_negative);
-            oil_in_sum = oil_totalv - oil_out_sum - oil_evap_sum /*- error_negative_sum*/;
+            oil_in_sum = oil_totalv - Vout_total - oil_evap_sum;
+
 
 
         }
@@ -11753,12 +11811,11 @@ namespace caesar1
                           Math.Max(Math.Max(oil_fromy, oil_toy) - Math.Min(oil_fromy, oil_toy), 1);
 
             // Initialise other parameters - to be added to interface
-            //oil_D = 0.000002;
-            oil_density = 839; //then to be defined in the graphical interface input
-            ro_water = 1000;
-            cinematic_v = 9.2;
-            oil_T = 288;
-            vel_wind = 2;
+            oil_density = 0.839; //then to be defined in the graphical interface input
+            ro_water = 0.999;
+            cinematic_v = 9;
+            oil_T = 298;
+            vel_wind = 1;
             //Initialise parameters for oil_evaporation
             oil_A = 6.3;
             oil_B = 10.3;
@@ -11773,17 +11830,12 @@ namespace caesar1
             oil_To = (645.45 - 4.6588 * API);
             oil_Tg = (388.19 - 3.8725 * API);
 
-            //oil_transf_coeff =   0.0025 * Math.Pow(vel_wind, 0.78); // wind to be considered variable in the future
+            // wind to be considered variable in the future
             //oil_transf_coeff = 0.0107 * Math.Pow(vel_wind, 0.78) * Math.Pow(DX, -0.11) * Math.Pow(0.6, -0.67);
-            oil_transf_coeff =  0.0025 * Math.Pow(vel_wind, 0.78);
-            
-
+            oil_transf_coeff = 0.0025 * Math.Pow(vel_wind, 0.78);
 
 
             // Assign arrays
-
-            //oil_D = new double[xmax + 2, ymax + 2];
-
             oil_hx_prev = new double[xmax + 2, ymax + 2];
             oil_hy_prev = new double[xmax + 2, ymax + 2];
 
@@ -11792,13 +11844,9 @@ namespace caesar1
 
             oil_depth_prev = new double[xmax + 2, ymax + 2];
             oil_evap_fraction = new double[xmax + 2, ymax + 2];
-            oil_depth = new double[xmax + 2, ymax + 2]; // same as declaration for water_depth. I think the others will need to be as well
+            oil_depth = new double[xmax + 2, ymax + 2];
             oil_conc = new double[xmax + 2, ymax + 2];
-            //oil_exp = new double[xmax + 2, ymax + 2];// for oil_evaporation ()
-            //Ev = new double[xmax + 2, ymax + 2];
-            //oil_S = new double[xmax + 2, ymax + 2];
-
-
+            oil_concentration = new double[xmax + 2, ymax + 2];
 
 
         }
@@ -12702,14 +12750,14 @@ namespace caesar1
 
             // OIL_V1_PDF
             // Find range of oil concentration if needed
-            double oilConc, oilCMin = 0.01, oilCMax = 0.00001, oilCRange = 1;
+            double oilConc, oilCMin = 0.00000001, oilCMax = 0.0000001, oilCRange = 0.01;
             if (isOilSimulation && menuItemOilconcVisualisation.Checked == true)
             {
                 for (x = 1; x < xmax; x++)
                 {
                     for (y = 1; y <= ymax; y++)
                     {
-                        oilConc = oil_conc[x, y];
+                        oilConc = oil_concentration[x, y];
 
 
                         if (oilConc > 0)
@@ -13190,7 +13238,7 @@ namespace caesar1
                         {
                             if (index[x, y] != -9999)
                             {
-                                if (oil_depth[x, y] > 0.001 && water_depth[x, y] > water_depth_erosion_threshold)
+                                if (oil_depth[x, y] > 0.00001 && water_depth[x, y] > water_depth_erosion_threshold)
                                 {
                                     z = (int)(oil_depth[x, y] * (128 / oilRange)); // using lower half of grey range for darker cells
                                     if (comboBox1.Text == "oil spill") // display only the oil spill for this cell (opaque cell)
@@ -13229,9 +13277,9 @@ namespace caesar1
                         // Funzione per ottenere il colore dalla scala Viridis
                         Color GetViridisColor(double value, double minValue, double maxValue)
                         {
-                            // Normalizza il valore tra 0 e 1
+
                             double normalizedValue = (value - minValue) / (maxValue - minValue);
-                            normalizedValue = Math.Max(0, Math.Min(1, normalizedValue)); // Assicurati che sia tra 0 e 1
+                            normalizedValue = Math.Max(0, Math.Min(1, normalizedValue));
 
                             // Calcola l'indice del colore
                             int colorIndex = (int)(normalizedValue * (viridisColors.Length - 1));
@@ -13243,14 +13291,15 @@ namespace caesar1
                         {
                             if (index[x, y] != -9999)
                             {
-                                //if (oil_conc[x, y] > 0.00001 && water_depth[x, y] > water_depth_erosion_threshold)
-                                if (oil_conc[x, y] > 0.000001 && oil_depth[x, y] > 0.001)
-                                {
-                                    // Ottieni il colore dalla scala Viridis
-                                    Color viridisColor = GetViridisColor(oil_conc[x, y], 0.1, oilCRange); 
+                                if (oil_concentration[x, y] > 0.000001 && water_depth[x, y] > water_depth_erosion_threshold && oil_depth[x, y] > 0.00001)
 
-                                    // Imposta l'alfa
-                                    if (comboBox1.Text == "oil concentration") // display only the oil concentration for this cell (opaque cell)
+
+                                {
+                                    // Viridis scale colours
+                                    Color viridisColor = GetViridisColor(oil_concentration[x, y], 0.00001, oilCRange);
+
+
+                                    if (comboBox1.Text == "oil concentration") // display only the oil concentration for this cell
                                     {
                                         alphacol = 255;
                                     }
@@ -13259,12 +13308,49 @@ namespace caesar1
                                         alphacol = 128;
                                     }
 
-                                    // Crea il pennello con il colore Viridis
+
                                     SolidBrush brush = new SolidBrush(Color.FromArgb(alphacol, viridisColor.R, viridisColor.G, viridisColor.B));
                                     objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
                                 }
                             }
                         }
+
+                        /*// Oil spill - OIL_V1_MDW
+                        if (menuItemOilconcVisualisation.Checked == true)
+                        {
+                            if (index[x, y] != -9999)
+                            {
+                                if (oil_conc[x, y] > 0.000001 && water_depth[x, y] > water_depth_erosion_threshold && oil_depth[x, y] > 0.0001)
+                                {
+                                    // Normalise oilc onc
+                                    double normalizedCOilDepth = (oil_conc[x, y] - oilCMin) / oilCRange;
+                                    if (normalizedCOilDepth < 0) normalizedCOilDepth = 0;
+                                    if (normalizedCOilDepth > 1) normalizedCOilDepth = 1;
+
+                                    
+                                    int r = (int)(255 * (0.267004 * normalizedCOilDepth + 0.004888));
+                                    int g = (int)(255 * (0.004888 * normalizedCOilDepth + 0.232325));
+                                    int b = (int)(255 * (0.093249 * normalizedCOilDepth + 0.138157));
+
+                                    // Selezioniamo l'alpha in base al tipo di visualizzazione
+                                    if (comboBox1.Text == "oil concentration") // visualizza solo l'olio come cella opaca
+                                    {
+                                        alphacol = 255;
+                                    }
+                                    else // visualizza sopra qualsiasi altro elemento (cella semi-trasparente)
+                                    {
+                                        alphacol = 128;
+                                    }
+
+                                    // Assicurati che i colori siano nel range 0-255
+                                    if (r < 0) r = 0; if (g < 0) g = 0; if (b < 0) b = 0;
+                                    if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
+
+                                    SolidBrush brush = new SolidBrush(Color.FromArgb(alphacol, r, g, b));
+                                    objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+                                }
+                            }
+                        }*/
 
 
 
@@ -15768,8 +15854,8 @@ namespace caesar1
             if (menuItem16.Checked == true) save_data(6, 0);  // save tracer file <Jun 20200527>
             if (menuItemSoluteTracer.Checked == true) save_data(20, 0);  // save solute tracers - MDW_V2
             if (menuItemOilSpill.Checked == true) save_data(7, 0);  // save oildepth file OIL_V1_PDF
-            if (menuItem17.Checked == true) save_data(8, 0);   // save oildepth file OIL_V1_PDF
-            if (menuItemOilconc.Checked == true) save_data(9, 0);   // save oildepth file OIL_V1_PDF
+            if (menuItem17.Checked == true) save_data(8, 0);   // save massbalance file OIL_V1_PDF
+            if (menuItemOilconc.Checked == true) save_data(9, 0);   // save oilconcentration file OIL_V1_PDF
 
             this.Close();
         }
@@ -15806,8 +15892,21 @@ namespace caesar1
 
 
                     //nSources = number_of_points + 2;
+                    //if (sourceIDs.Length == 0) { nSources = sourceIndexAddition; } // MDW_V2 logic added as sourceIDs is now initialised at length zero
+                    //else { nSources = sourceIDs.Length + sourceIndexAddition; } //sourceIDs.Max(); } // sources 1 and 2 are rainfall and stage inputs. The rest are hydrograph inputs.
+
+                    //nSources = number_of_points + 2;
+
                     if (sourceIDs.Length == 0) { nSources = sourceIndexAddition; } // MDW_V2 logic added as sourceIDs is now initialised at length zero
-                    else { nSources = sourceIDs.Length + sourceIndexAddition; } //sourceIDs.Max(); } // sources 1 and 2 are rainfall and stage inputs. The rest are hydrograph inputs.
+
+                    else
+                    {
+
+                        nSources = sourceIDs.Distinct().Count() + sourceIndexAddition; // correction of bug where the same file used for multiple points was counted for each point
+
+                        //nSources = sourceIDs.Length + sourceIndexAddition;
+
+                    } //sourceIDs.Max(); } // sources 1 and 2 are rainfall and stage inputs. The rest are hydrograph inputs.
 
                     water_depth_prev = new double[xmax + 2, ymax + 2];
                     watertracer = new double[xmax + 2, ymax + 2, nSources]; // MDW_V2 - no need for the additional empty layer
@@ -16260,7 +16359,8 @@ namespace caesar1
                         overrideheaderBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("headeroverride"));
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     xtextbox.Text = xreader.ReadElementString("x-coordinate");
                     ytextbox.Text = xreader.ReadElementString("y-coordinate");
                     initscansbox.Text = xreader.ReadElementString("initscans");
@@ -16284,7 +16384,8 @@ namespace caesar1
                         bool dummy6 = XmlConvert.ToBoolean(xreader.ReadElementString("wssmoothing"));
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     flowonlybox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("grass-sediment"));
 
                     try // MJ 24/01/05
@@ -16293,81 +16394,94 @@ namespace caesar1
                         mintimestepbox.Text = xreader.ReadElementString("mintimestep");
                     }
                     catch
-                    { };
+                    { }
+                    ;
 
                     try // MJ 15/03/05
                     {
                         k_evapBox.Text = xreader.ReadElementString("evaporation");
                     }
                     catch
-                    { };
+                    { }
+                    ;
 
                     try // MJ 10/05/05
                     {
                         vegTauCritBox.Text = xreader.ReadElementString("vegcritshear");
                     }
                     catch
-                    { };
+                    { }
+                    ;
 
                     try
                     {
                         bedslope_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("bedslope"));
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     try
                     {
                         bool dum_bool = XmlConvert.ToBoolean(xreader.ReadElementString("wsslope"));
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     try
                     {
                         veltaubox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("veltaubox"));
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     try
                     {
                         catchment_mode_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("catchment_mode"));
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     try
                     {
                         reach_mode_box.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("reach_mode"));
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     try
                     {
                         bool dum_bool2 = XmlConvert.ToBoolean(xreader.ReadElementString("lat1"));
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     try
                     {
                         bool dum_bool2 = XmlConvert.ToBoolean(xreader.ReadElementString("lat2"));
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     try
                     {
                         bool dum_bool = XmlConvert.ToBoolean(xreader.ReadElementString("lat3"));
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     try
                     {
                         string dum_string = xreader.ReadElementString("cross_stream_grad");
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     try
                     {
                         max_vel_box.Text = xreader.ReadElementString("max_vel");
                     }
-                    catch { };
+                    catch { }
+                    ;
 
 
                     xreader.ReadStartElement("SaveOptions");
@@ -16458,7 +16572,8 @@ namespace caesar1
                         xreader.ReadEndElement();
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     xreader.ReadEndElement();
 
                     xreader.ReadStartElement("Grain-Size");
@@ -16470,7 +16585,8 @@ namespace caesar1
                         fallGS1box.Text = xreader.ReadElementString("fv");
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     xreader.ReadEndElement();
 
                     xreader.ReadStartElement("Grain-Size");
@@ -16482,7 +16598,8 @@ namespace caesar1
                         fallGS2box.Text = xreader.ReadElementString("fv");
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     xreader.ReadEndElement();
 
                     xreader.ReadStartElement("Grain-Size");
@@ -16494,7 +16611,8 @@ namespace caesar1
                         fallGS3box.Text = xreader.ReadElementString("fv");
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     xreader.ReadEndElement();
 
                     xreader.ReadStartElement("Grain-Size");
@@ -16506,7 +16624,8 @@ namespace caesar1
                         fallGS4box.Text = xreader.ReadElementString("fv");
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     xreader.ReadEndElement();
 
                     xreader.ReadStartElement("Grain-Size");
@@ -16518,7 +16637,8 @@ namespace caesar1
                         fallGS5box.Text = xreader.ReadElementString("fv");
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     xreader.ReadEndElement();
 
                     xreader.ReadStartElement("Grain-Size");
@@ -16530,7 +16650,8 @@ namespace caesar1
                         fallGS6box.Text = xreader.ReadElementString("fv");
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     xreader.ReadEndElement();
 
                     xreader.ReadStartElement("Grain-Size");
@@ -16542,7 +16663,8 @@ namespace caesar1
                         fallGS7box.Text = xreader.ReadElementString("fv");
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     xreader.ReadEndElement();
 
                     xreader.ReadStartElement("Grain-Size");
@@ -16554,7 +16676,8 @@ namespace caesar1
                         fallGS8box.Text = xreader.ReadElementString("fv");
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     xreader.ReadEndElement();
 
                     try
@@ -16568,11 +16691,13 @@ namespace caesar1
                             fallGS9box.Text = xreader.ReadElementString("fv");
                         }
                         catch
-                        { };
+                        { }
+                        ;
                         xreader.ReadEndElement();
                     }
                     catch
-                    { };
+                    { }
+                    ;
 
                     try
                     {
@@ -16622,7 +16747,8 @@ namespace caesar1
                         xreader.ReadEndElement();
                     }
                     catch
-                    { };
+                    { }
+                    ;
 
                     try
                     {
@@ -16666,7 +16792,8 @@ namespace caesar1
                         xreader.ReadEndElement();
                     }
                     catch
-                    { };
+                    { }
+                    ;
 
                     try
                     {
@@ -16726,7 +16853,8 @@ namespace caesar1
 
                     }
                     catch
-                    { };
+                    { }
+                    ;
 
                     xreader.ReadEndElement();
 
@@ -16744,7 +16872,8 @@ namespace caesar1
                             string a123 = xreader.ReadElementString("avifile");
 
                         }
-                        catch { };
+                        catch { }
+                        ;
                         try
                         {
                             saveintervalbox.Text = xreader.ReadElementString("avifreq");
@@ -16755,11 +16884,13 @@ namespace caesar1
                             IterationOutbox.Text = xreader.ReadElementString("iterationsfile");
                         }
                         catch
-                        { };
+                        { }
+                        ;
                         xreader.ReadEndElement();
                     }
                     catch
-                    { };
+                    { }
+                    ;
 
                     try
                     {
@@ -16772,7 +16903,8 @@ namespace caesar1
                         xreader.ReadEndElement();
                     }
                     catch
-                    { };
+                    { }
+                    ;
 
                     try
                     {
@@ -16782,7 +16914,8 @@ namespace caesar1
                         xreader.ReadEndElement();
                     }
                     catch
-                    { };
+                    { }
+                    ;
                     try
                     {
                         xreader.ReadStartElement("Add_Ons");
@@ -16945,7 +17078,8 @@ namespace caesar1
                         xreader.ReadEndElement();
                     }
                     catch
-                    { };
+                    { }
+                    ;
 
 
                     xreader.Close();
