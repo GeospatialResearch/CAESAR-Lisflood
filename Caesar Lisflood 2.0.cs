@@ -862,7 +862,49 @@ namespace caesar1
         private CheckBox TempTab_checkBox; // TEMP_V1
         private Label TempTab_label_airtemp; // TEMP_V1
         private TextBox TempTab_textBox_airtemp; // TEMP_V1
+        private Label TempTab_label_shortwave; // TEMP_V1
+        private TextBox TempTab_textBox_shortwave; // TEMP_V1
+        private Label TempTab_label_windspeed; // TEMP_V1
+        private TextBox TempTab_textBox_windspeed; // TEMP_V1
+        private Label TempTab_label_humidity; // TEMP_V1
+        private TextBox TempTab_textBox_humidity; // TEMP_V1
+        private Label TempTab_label_cloudcover; // TEMP_V1
+        private TextBox TempTab_textBox_cloudcover; // TEMP_V1
+        private Label TempTab_label_pressure; // TEMP_V1
+        private TextBox TempTab_textBox_pressure; // TEMP_V1
+        private Label TempTab_label_dewpoint; // TEMP_V1
+        private TextBox TempTab_textBox_dewpoint; // TEMP_V1
 
+        // TEMP_V1 - scheme selection
+        private GroupBox TempTab_groupBox_scheme;
+        private RadioButton TempTab_radio_fullscheme;
+        private RadioButton TempTab_radio_simplifiedscheme;
+        private CheckBox TempTab_checkBox_hecraslongwave;
+        private CheckBox TempTab_checkBox_hecrasalbedo;
+        private Label TempTab_label_thermalinterval;
+        private TextBox TempTab_textBox_thermalinterval;
+        private Label TempTab_label_mettimestep;
+        private TextBox TempTab_textBox_mettimestep;
+
+        // TEMP_V1 - site parameters
+        private GroupBox TempTab_groupBox_site;
+        private Label TempTab_label_latitude;
+        private TextBox TempTab_textBox_latitude;
+        private Label TempTab_label_longitude;
+        private TextBox TempTab_textBox_longitude;
+        private Label TempTab_label_timezone;
+        private TextBox TempTab_textBox_timezone;
+        private Label TempTab_label_elevation;
+        private TextBox TempTab_textBox_elevation;
+        private Label TempTab_label_windheight;
+        private TextBox TempTab_textBox_windheight;
+
+        // TEMP_V1 - initial condition
+        private GroupBox TempTab_groupBox_initial;
+        private Label TempTab_label_initialtemp;
+        private TextBox TempTab_textBox_initialtemp;
+        private Label TempTab_label_initialraster;
+        private TextBox TempTab_textBox_initialraster;
         #endregion
 
 
@@ -1330,6 +1372,47 @@ namespace caesar1
             this.TempTab_checkBox = new System.Windows.Forms.CheckBox(); // TEMP_V1
             this.TempTab_label_airtemp = new System.Windows.Forms.Label(); // TEMP_V1
             this.TempTab_textBox_airtemp = new System.Windows.Forms.TextBox(); // TEMP_V1
+            this.TempTab_label_shortwave = new System.Windows.Forms.Label(); // TEMP_V1
+            this.TempTab_textBox_shortwave = new System.Windows.Forms.TextBox(); // TEMP_V1
+            this.TempTab_label_windspeed = new System.Windows.Forms.Label(); // TEMP_V1
+            this.TempTab_textBox_windspeed = new System.Windows.Forms.TextBox(); // TEMP_V1
+            this.TempTab_label_humidity = new System.Windows.Forms.Label(); // TEMP_V1
+            this.TempTab_textBox_humidity = new System.Windows.Forms.TextBox(); // TEMP_V1
+            this.TempTab_label_cloudcover = new System.Windows.Forms.Label(); // TEMP_V1
+            this.TempTab_textBox_cloudcover = new System.Windows.Forms.TextBox(); // TEMP_V1
+            this.TempTab_label_pressure = new System.Windows.Forms.Label(); // TEMP_V1
+            this.TempTab_textBox_pressure = new System.Windows.Forms.TextBox(); // TEMP_V1
+            this.TempTab_label_dewpoint = new System.Windows.Forms.Label(); // TEMP_V1
+            this.TempTab_textBox_dewpoint = new System.Windows.Forms.TextBox(); // TEMP_V1
+
+            this.TempTab_groupBox_scheme = new System.Windows.Forms.GroupBox();
+            this.TempTab_radio_fullscheme = new System.Windows.Forms.RadioButton();
+            this.TempTab_radio_simplifiedscheme = new System.Windows.Forms.RadioButton();
+            this.TempTab_checkBox_hecraslongwave = new System.Windows.Forms.CheckBox();
+            this.TempTab_checkBox_hecrasalbedo = new System.Windows.Forms.CheckBox();
+            this.TempTab_label_thermalinterval = new System.Windows.Forms.Label();
+            this.TempTab_textBox_thermalinterval = new System.Windows.Forms.TextBox();
+            this.TempTab_label_mettimestep = new System.Windows.Forms.Label();
+            this.TempTab_textBox_mettimestep = new System.Windows.Forms.TextBox();
+
+            this.TempTab_groupBox_site = new System.Windows.Forms.GroupBox();
+            this.TempTab_label_latitude = new System.Windows.Forms.Label();
+            this.TempTab_textBox_latitude = new System.Windows.Forms.TextBox();
+            this.TempTab_label_longitude = new System.Windows.Forms.Label();
+            this.TempTab_textBox_longitude = new System.Windows.Forms.TextBox();
+            this.TempTab_label_timezone = new System.Windows.Forms.Label();
+            this.TempTab_textBox_timezone = new System.Windows.Forms.TextBox();
+            this.TempTab_label_elevation = new System.Windows.Forms.Label();
+            this.TempTab_textBox_elevation = new System.Windows.Forms.TextBox();
+            this.TempTab_label_windheight = new System.Windows.Forms.Label();
+            this.TempTab_textBox_windheight = new System.Windows.Forms.TextBox();
+
+            this.TempTab_groupBox_initial = new System.Windows.Forms.GroupBox();
+            this.TempTab_label_initialtemp = new System.Windows.Forms.Label();
+            this.TempTab_textBox_initialtemp = new System.Windows.Forms.TextBox();
+            this.TempTab_label_initialraster = new System.Windows.Forms.Label();
+            this.TempTab_textBox_initialraster = new System.Windows.Forms.TextBox();
+
             this.folderBrowserOutDir = new System.Windows.Forms.FolderBrowserDialog();
             this.label107 = new System.Windows.Forms.Label();
             this.label106 = new System.Windows.Forms.Label();
@@ -5510,8 +5593,23 @@ namespace caesar1
             // TempTab - TEMP_V1
             //
             this.TempTab.Controls.Add(this.TempTab_checkBox);
-            this.TempTab.Controls.Add(this.TempTab_label_airtemp); 
-            this.TempTab.Controls.Add(this.TempTab_textBox_airtemp); 
+            this.TempTab.Controls.Add(this.TempTab_label_airtemp);
+            this.TempTab.Controls.Add(this.TempTab_textBox_airtemp); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_label_shortwave); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_textBox_shortwave); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_label_windspeed); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_textBox_windspeed); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_label_humidity); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_textBox_humidity); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_label_cloudcover); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_textBox_cloudcover); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_label_pressure); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_textBox_pressure); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_label_dewpoint); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_textBox_dewpoint); // TEMP_V1 
+            this.TempTab.Controls.Add(this.TempTab_groupBox_scheme); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_groupBox_site); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_groupBox_initial); // TEMP_V1
             this.TempTab.Location = new System.Drawing.Point(4, 22);
             this.TempTab.Name = "TempTab";
             this.TempTab.Size = new System.Drawing.Size(1323, 504);
@@ -5540,10 +5638,305 @@ namespace caesar1
             //
             // TempTab_textBox_airtemp - TEMP_V1
             //
-            this.TempTab_textBox_airtemp.Location = new System.Drawing.Point(150, 57);
+            this.TempTab_textBox_airtemp.Location = new System.Drawing.Point(220, 57);
             this.TempTab_textBox_airtemp.Name = "TempTab_textBox_airtemp";
             this.TempTab_textBox_airtemp.Size = new System.Drawing.Size(150, 20);
             this.TempTab_textBox_airtemp.Text = "null";
+            //
+            // TempTab_label_shortwave - TEMP_V1
+            //
+            this.TempTab_label_shortwave.AutoSize = true;
+            this.TempTab_label_shortwave.Location = new System.Drawing.Point(20, 87);
+            this.TempTab_label_shortwave.Name = "TempTab_label_shortwave";
+            this.TempTab_label_shortwave.Size = new System.Drawing.Size(104, 13);
+            this.TempTab_label_shortwave.Text = "Shortwave radiation file";
+            //
+            // TempTab_textBox_shortwave - TEMP_V1
+            //
+            this.TempTab_textBox_shortwave.Location = new System.Drawing.Point(220, 84);
+            this.TempTab_textBox_shortwave.Name = "TempTab_textBox_shortwave";
+            this.TempTab_textBox_shortwave.Size = new System.Drawing.Size(150, 20);
+            this.TempTab_textBox_shortwave.Text = "null";
+            //
+            // TempTab_label_windspeed - TEMP_V1
+            //
+            this.TempTab_label_windspeed.AutoSize = true;
+            this.TempTab_label_windspeed.Location = new System.Drawing.Point(20, 114);
+            this.TempTab_label_windspeed.Name = "TempTab_label_windspeed";
+            this.TempTab_label_windspeed.Size = new System.Drawing.Size(104, 13);
+            this.TempTab_label_windspeed.Text = "Wind speed file";
+            //
+            // TempTab_textBox_windspeed - TEMP_V1
+            //
+            this.TempTab_textBox_windspeed.Location = new System.Drawing.Point(220, 111);
+            this.TempTab_textBox_windspeed.Name = "TempTab_textBox_windspeed";
+            this.TempTab_textBox_windspeed.Size = new System.Drawing.Size(150, 20);
+            this.TempTab_textBox_windspeed.Text = "null";
+            //
+            // TempTab_label_humidity - TEMP_V1
+            //
+            this.TempTab_label_humidity.AutoSize = true;
+            this.TempTab_label_humidity.Location = new System.Drawing.Point(20, 141);
+            this.TempTab_label_humidity.Name = "TempTab_label_humidity";
+            this.TempTab_label_humidity.Size = new System.Drawing.Size(104, 13);
+            this.TempTab_label_humidity.Text = "Relative humidity file (optional)";
+            //
+            // TempTab_textBox_humidity - TEMP_V1
+            //
+            this.TempTab_textBox_humidity.Location = new System.Drawing.Point(220, 138);
+            this.TempTab_textBox_humidity.Name = "TempTab_textBox_humidity";
+            this.TempTab_textBox_humidity.Size = new System.Drawing.Size(150, 20);
+            this.TempTab_textBox_humidity.Text = "null";
+            //
+            // TempTab_label_cloudcover - TEMP_V1
+            //
+            this.TempTab_label_cloudcover.AutoSize = true;
+            this.TempTab_label_cloudcover.Location = new System.Drawing.Point(20, 168);
+            this.TempTab_label_cloudcover.Name = "TempTab_label_cloudcover";
+            this.TempTab_label_cloudcover.Size = new System.Drawing.Size(104, 13);
+            this.TempTab_label_cloudcover.Text = "Cloud cover file (optional)";
+            //
+            // TempTab_textBox_cloudcover - TEMP_V1
+            //
+            this.TempTab_textBox_cloudcover.Location = new System.Drawing.Point(220, 165);
+            this.TempTab_textBox_cloudcover.Name = "TempTab_textBox_cloudcover";
+            this.TempTab_textBox_cloudcover.Size = new System.Drawing.Size(150, 20);
+            this.TempTab_textBox_cloudcover.Text = "null";
+            //
+            // TempTab_label_pressure - TEMP_V1
+            //
+            this.TempTab_label_pressure.AutoSize = true;
+            this.TempTab_label_pressure.Location = new System.Drawing.Point(20, 195);
+            this.TempTab_label_pressure.Name = "TempTab_label_pressure";
+            this.TempTab_label_pressure.Size = new System.Drawing.Size(104, 13);
+            this.TempTab_label_pressure.Text = "Atmospheric pressure file (optional)";
+            //
+            // TempTab_textBox_pressure - TEMP_V1
+            //
+            this.TempTab_textBox_pressure.Location = new System.Drawing.Point(220, 192);
+            this.TempTab_textBox_pressure.Name = "TempTab_textBox_pressure";
+            this.TempTab_textBox_pressure.Size = new System.Drawing.Size(150, 20);
+            this.TempTab_textBox_pressure.Text = "null";
+            //
+            // TempTab_label_dewpoint - TEMP_V1
+            //
+            this.TempTab_label_dewpoint.AutoSize = true;
+            this.TempTab_label_dewpoint.Location = new System.Drawing.Point(20, 222);
+            this.TempTab_label_dewpoint.Name = "TempTab_label_dewpoint";
+            this.TempTab_label_dewpoint.Size = new System.Drawing.Size(104, 13);
+            this.TempTab_label_dewpoint.Text = "Dew point file (simplified scheme only)";
+            //
+            // TempTab_textBox_dewpoint - TEMP_V1
+            //
+            this.TempTab_textBox_dewpoint.Location = new System.Drawing.Point(220, 219);
+            this.TempTab_textBox_dewpoint.Name = "TempTab_textBox_dewpoint";
+            this.TempTab_textBox_dewpoint.Size = new System.Drawing.Size(150, 20);
+            this.TempTab_textBox_dewpoint.Text = "null";
+            //
+            // TempTab_groupBox_scheme - TEMP_V1
+            //
+            this.TempTab_groupBox_scheme.Controls.Add(this.TempTab_radio_fullscheme);
+            this.TempTab_groupBox_scheme.Controls.Add(this.TempTab_radio_simplifiedscheme);
+            this.TempTab_groupBox_scheme.Controls.Add(this.TempTab_checkBox_hecraslongwave);
+            this.TempTab_groupBox_scheme.Controls.Add(this.TempTab_checkBox_hecrasalbedo);
+            this.TempTab_groupBox_scheme.Controls.Add(this.TempTab_label_thermalinterval);
+            this.TempTab_groupBox_scheme.Controls.Add(this.TempTab_textBox_thermalinterval);
+            this.TempTab_groupBox_scheme.Controls.Add(this.TempTab_label_mettimestep);
+            this.TempTab_groupBox_scheme.Controls.Add(this.TempTab_textBox_mettimestep);
+            this.TempTab_groupBox_scheme.Location = new System.Drawing.Point(400, 17);
+            this.TempTab_groupBox_scheme.Name = "TempTab_groupBox_scheme";
+            this.TempTab_groupBox_scheme.Size = new System.Drawing.Size(340, 190);
+            this.TempTab_groupBox_scheme.TabStop = false;
+            this.TempTab_groupBox_scheme.Text = "Energy balance scheme";
+            //
+            // TempTab_radio_fullscheme - TEMP_V1
+            //
+            this.TempTab_radio_fullscheme.AutoSize = true;
+            this.TempTab_radio_fullscheme.Checked = true;
+            this.TempTab_radio_fullscheme.Location = new System.Drawing.Point(15, 24);
+            this.TempTab_radio_fullscheme.Name = "TempTab_radio_fullscheme";
+            this.TempTab_radio_fullscheme.TabStop = true;
+            this.TempTab_radio_fullscheme.Text = "Full energy balance";
+            this.TempTab_radio_fullscheme.UseVisualStyleBackColor = true;
+            this.TempTab_radio_fullscheme.CheckedChanged += new System.EventHandler(this.TempTab_scheme_CheckedChanged);
+            //
+            // TempTab_radio_simplifiedscheme - TEMP_V1
+            //
+            this.TempTab_radio_simplifiedscheme.AutoSize = true;
+            this.TempTab_radio_simplifiedscheme.Location = new System.Drawing.Point(15, 47);
+            this.TempTab_radio_simplifiedscheme.Name = "TempTab_radio_simplifiedscheme";
+            this.TempTab_radio_simplifiedscheme.TabStop = true;
+            this.TempTab_radio_simplifiedscheme.Text = "Simplified (equilibrium temperature)";
+            this.TempTab_radio_simplifiedscheme.UseVisualStyleBackColor = true;
+            this.TempTab_radio_simplifiedscheme.CheckedChanged += new System.EventHandler(this.TempTab_scheme_CheckedChanged);
+            //
+            // TempTab_checkBox_hecraslongwave - TEMP_V1
+            //
+            this.TempTab_checkBox_hecraslongwave.AutoSize = true;
+            this.TempTab_checkBox_hecraslongwave.Checked = true;
+            this.TempTab_checkBox_hecraslongwave.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.TempTab_checkBox_hecraslongwave.Location = new System.Drawing.Point(15, 80);
+            this.TempTab_checkBox_hecraslongwave.Name = "TempTab_checkBox_hecraslongwave";
+            this.TempTab_checkBox_hecraslongwave.Text = "Use HEC-RAS default longwave (cloud-only)";
+            this.TempTab_checkBox_hecraslongwave.UseVisualStyleBackColor = true;
+            this.TempTab_checkBox_hecraslongwave.CheckedChanged += new System.EventHandler(this.TempTab_checkBox_hecraslongwave_CheckedChanged);
+            //
+            // TempTab_checkBox_hecrasalbedo - TEMP_V1
+            //
+            this.TempTab_checkBox_hecrasalbedo.AutoSize = true;
+            this.TempTab_checkBox_hecrasalbedo.Checked = true;
+            this.TempTab_checkBox_hecrasalbedo.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.TempTab_checkBox_hecrasalbedo.Location = new System.Drawing.Point(15, 103);
+            this.TempTab_checkBox_hecrasalbedo.Name = "TempTab_checkBox_hecrasalbedo";
+            this.TempTab_checkBox_hecrasalbedo.Text = "Use HEC-RAS default reflection coefficient";
+            this.TempTab_checkBox_hecrasalbedo.UseVisualStyleBackColor = true;
+            this.TempTab_checkBox_hecrasalbedo.CheckedChanged += new System.EventHandler(this.TempTab_checkBox_hecrasalbedo_CheckedChanged);
+            //
+            // TempTab_label_thermalinterval - TEMP_V1
+            //
+            this.TempTab_label_thermalinterval.AutoSize = true;
+            this.TempTab_label_thermalinterval.Location = new System.Drawing.Point(15, 135);
+            this.TempTab_label_thermalinterval.Text = "Thermal update interval (min)";
+            //
+            // TempTab_textBox_thermalinterval - TEMP_V1
+            //
+            this.TempTab_textBox_thermalinterval.Location = new System.Drawing.Point(210, 132);
+            this.TempTab_textBox_thermalinterval.Size = new System.Drawing.Size(60, 20);
+            this.TempTab_textBox_thermalinterval.Text = "60";
+            this.TempTab_textBox_thermalinterval.TextChanged += new System.EventHandler(this.TempTab_textBox_thermalinterval_TextChanged);
+            //
+            // TempTab_label_mettimestep - TEMP_V1
+            //
+            this.TempTab_label_mettimestep.AutoSize = true;
+            this.TempTab_label_mettimestep.Location = new System.Drawing.Point(15, 162);
+            this.TempTab_label_mettimestep.Text = "Met data file time step (min)";
+            //
+            // TempTab_textBox_mettimestep - TEMP_V1
+            //
+            this.TempTab_textBox_mettimestep.Location = new System.Drawing.Point(210, 159);
+            this.TempTab_textBox_mettimestep.Size = new System.Drawing.Size(60, 20);
+            this.TempTab_textBox_mettimestep.Text = "60";
+            this.TempTab_textBox_mettimestep.TextChanged += new System.EventHandler(this.TempTab_textBox_mettimestep_TextChanged);
+            //
+            // TempTab_groupBox_site - TEMP_V1
+            //
+            this.TempTab_groupBox_site.Controls.Add(this.TempTab_label_latitude);
+            this.TempTab_groupBox_site.Controls.Add(this.TempTab_textBox_latitude);
+            this.TempTab_groupBox_site.Controls.Add(this.TempTab_label_longitude);
+            this.TempTab_groupBox_site.Controls.Add(this.TempTab_textBox_longitude);
+            this.TempTab_groupBox_site.Controls.Add(this.TempTab_label_timezone);
+            this.TempTab_groupBox_site.Controls.Add(this.TempTab_textBox_timezone);
+            this.TempTab_groupBox_site.Controls.Add(this.TempTab_label_elevation);
+            this.TempTab_groupBox_site.Controls.Add(this.TempTab_textBox_elevation);
+            this.TempTab_groupBox_site.Controls.Add(this.TempTab_label_windheight);
+            this.TempTab_groupBox_site.Controls.Add(this.TempTab_textBox_windheight);
+            this.TempTab_groupBox_site.Location = new System.Drawing.Point(400, 220);
+            this.TempTab_groupBox_site.Name = "TempTab_groupBox_site";
+            this.TempTab_groupBox_site.Size = new System.Drawing.Size(340, 190);
+            this.TempTab_groupBox_site.TabStop = false;
+            this.TempTab_groupBox_site.Text = "Site parameters";
+            //
+            // TempTab_label_latitude - TEMP_V1
+            //
+            this.TempTab_label_latitude.AutoSize = true;
+            this.TempTab_label_latitude.Location = new System.Drawing.Point(15, 24);
+            this.TempTab_label_latitude.Text = "Latitude (decimal degrees, +N)";
+            //
+            // TempTab_textBox_latitude - TEMP_V1
+            //
+            this.TempTab_textBox_latitude.Location = new System.Drawing.Point(230, 21);
+            this.TempTab_textBox_latitude.Size = new System.Drawing.Size(60, 20);
+            this.TempTab_textBox_latitude.Text = "0";
+            this.TempTab_textBox_latitude.TextChanged += new System.EventHandler(this.TempTab_textBox_latitude_TextChanged);
+            //
+            // TempTab_label_longitude - TEMP_V1
+            //
+            this.TempTab_label_longitude.AutoSize = true;
+            this.TempTab_label_longitude.Location = new System.Drawing.Point(15, 51);
+            this.TempTab_label_longitude.Text = "Longitude (decimal degrees, +E)";
+            //
+            // TempTab_textBox_longitude - TEMP_V1
+            //
+            this.TempTab_textBox_longitude.Location = new System.Drawing.Point(230, 48);
+            this.TempTab_textBox_longitude.Size = new System.Drawing.Size(60, 20);
+            this.TempTab_textBox_longitude.Text = "0";
+            this.TempTab_textBox_longitude.TextChanged += new System.EventHandler(this.TempTab_textBox_longitude_TextChanged);
+            //
+            // TempTab_label_timezone - TEMP_V1
+            //
+            this.TempTab_label_timezone.AutoSize = true;
+            this.TempTab_label_timezone.Location = new System.Drawing.Point(15, 78);
+            this.TempTab_label_timezone.Text = "Time zone offset from UTC (hr)";
+            //
+            // TempTab_textBox_timezone - TEMP_V1
+            //
+            this.TempTab_textBox_timezone.Location = new System.Drawing.Point(230, 75);
+            this.TempTab_textBox_timezone.Size = new System.Drawing.Size(60, 20);
+            this.TempTab_textBox_timezone.Text = "0";
+            this.TempTab_textBox_timezone.TextChanged += new System.EventHandler(this.TempTab_textBox_timezone_TextChanged);
+            //
+            // TempTab_label_elevation - TEMP_V1
+            //
+            this.TempTab_label_elevation.AutoSize = true;
+            this.TempTab_label_elevation.Location = new System.Drawing.Point(15, 105);
+            this.TempTab_label_elevation.Text = "Site elevation (m)";
+            //
+            // TempTab_textBox_elevation - TEMP_V1
+            //
+            this.TempTab_textBox_elevation.Location = new System.Drawing.Point(230, 102);
+            this.TempTab_textBox_elevation.Size = new System.Drawing.Size(60, 20);
+            this.TempTab_textBox_elevation.Text = "0";
+            this.TempTab_textBox_elevation.TextChanged += new System.EventHandler(this.TempTab_textBox_elevation_TextChanged);
+            //
+            // TempTab_label_windheight - TEMP_V1
+            //
+            this.TempTab_label_windheight.AutoSize = true;
+            this.TempTab_label_windheight.Location = new System.Drawing.Point(15, 132);
+            this.TempTab_label_windheight.Text = "Wind measurement height (m)";
+            //
+            // TempTab_textBox_windheight - TEMP_V1
+            //
+            this.TempTab_textBox_windheight.Location = new System.Drawing.Point(230, 129);
+            this.TempTab_textBox_windheight.Size = new System.Drawing.Size(60, 20);
+            this.TempTab_textBox_windheight.Text = "10";
+            this.TempTab_textBox_windheight.TextChanged += new System.EventHandler(this.TempTab_textBox_windheight_TextChanged);
+            //
+            // TempTab_groupBox_initial - TEMP_V1
+            //
+            this.TempTab_groupBox_initial.Controls.Add(this.TempTab_label_initialtemp);
+            this.TempTab_groupBox_initial.Controls.Add(this.TempTab_textBox_initialtemp);
+            this.TempTab_groupBox_initial.Controls.Add(this.TempTab_label_initialraster);
+            this.TempTab_groupBox_initial.Controls.Add(this.TempTab_textBox_initialraster);
+            this.TempTab_groupBox_initial.Location = new System.Drawing.Point(20, 260);
+            this.TempTab_groupBox_initial.Name = "TempTab_groupBox_initial";
+            this.TempTab_groupBox_initial.Size = new System.Drawing.Size(340, 110);
+            this.TempTab_groupBox_initial.TabStop = false;
+            this.TempTab_groupBox_initial.Text = "Initial water temperature";
+            //
+            // TempTab_label_initialtemp - TEMP_V1
+            //
+            this.TempTab_label_initialtemp.AutoSize = true;
+            this.TempTab_label_initialtemp.Location = new System.Drawing.Point(15, 27);
+            this.TempTab_label_initialtemp.Text = "Constant value (deg C)";
+            //
+            // TempTab_textBox_initialtemp - TEMP_V1
+            //
+            this.TempTab_textBox_initialtemp.Location = new System.Drawing.Point(180, 24);
+            this.TempTab_textBox_initialtemp.Size = new System.Drawing.Size(60, 20);
+            this.TempTab_textBox_initialtemp.Text = "15";
+            this.TempTab_textBox_initialtemp.TextChanged += new System.EventHandler(this.TempTab_textBox_initialtemp_TextChanged);
+            //
+            // TempTab_label_initialraster - TEMP_V1
+            //
+            this.TempTab_label_initialraster.AutoSize = true;
+            this.TempTab_label_initialraster.Location = new System.Drawing.Point(15, 60);
+            this.TempTab_label_initialraster.Text = "Initial raster file (optional, overrides constant)";
+            //
+            // TempTab_textBox_initialraster - TEMP_V1
+            //
+            this.TempTab_textBox_initialraster.Location = new System.Drawing.Point(15, 80);
+            this.TempTab_textBox_initialraster.Size = new System.Drawing.Size(240, 20);
+            this.TempTab_textBox_initialraster.Text = "null";
             // 
             // label107
             // 
@@ -8290,11 +8683,29 @@ namespace caesar1
                         }
                     }
                 }
-                // TEMP_V1 - meteorological forcing: air temperature (first variable wired; others follow same pattern)
+                // TEMP_V1 - meteorological forcing input files
                 if (isSimulateTemperature == true)
                 {
                     FILE_NAME = this.TempTab_textBox_airtemp.Text;
                     load_met_file(FILE_NAME, delimiterChars, hourly_air_temp);
+
+                    FILE_NAME = this.TempTab_textBox_shortwave.Text;
+                    load_met_file(FILE_NAME, delimiterChars, hourly_shortwave);
+
+                    FILE_NAME = this.TempTab_textBox_windspeed.Text;
+                    load_met_file(FILE_NAME, delimiterChars, hourly_windspeed);
+
+                    if (this.TempTab_textBox_humidity.Text != "null")
+                        load_met_file(this.TempTab_textBox_humidity.Text, delimiterChars, hourly_humidity);
+
+                    if (this.TempTab_textBox_cloudcover.Text != "null")
+                        load_met_file(this.TempTab_textBox_cloudcover.Text, delimiterChars, hourly_cloudcover);
+
+                    if (this.TempTab_textBox_pressure.Text != "null")
+                        load_met_file(this.TempTab_textBox_pressure.Text, delimiterChars, hourly_pressure);
+
+                    if (useSimplifiedTempScheme == true && this.TempTab_textBox_dewpoint.Text != "null")
+                        load_met_file(this.TempTab_textBox_dewpoint.Text, delimiterChars, hourly_dewpoint);
                 }
                 if (isTraceSolutes == true)
                 {
@@ -18529,7 +18940,60 @@ namespace caesar1
         {
             isSimulateTemperature = TempTab_checkBox.Checked;
         }
+        private void TempTab_scheme_CheckedChanged(object sender, EventArgs e) // TEMP_V1
+        {
+            useSimplifiedTempScheme = TempTab_radio_simplifiedscheme.Checked;
+        }
 
+        private void TempTab_checkBox_hecraslongwave_CheckedChanged(object sender, EventArgs e) // TEMP_V1
+        {
+            useHecRasLongwave = TempTab_checkBox_hecraslongwave.Checked;
+        }
+
+        private void TempTab_checkBox_hecrasalbedo_CheckedChanged(object sender, EventArgs e) // TEMP_V1
+        {
+            useHecRasAlbedo = TempTab_checkBox_hecrasalbedo.Checked;
+        }
+
+        private void TempTab_textBox_thermalinterval_TextChanged(object sender, EventArgs e) // TEMP_V1
+        {
+            double.TryParse(TempTab_textBox_thermalinterval.Text, out thermal_update_interval);
+        }
+
+        private void TempTab_textBox_mettimestep_TextChanged(object sender, EventArgs e) // TEMP_V1
+        {
+            double.TryParse(TempTab_textBox_mettimestep.Text, out met_data_time_step);
+        }
+
+        private void TempTab_textBox_latitude_TextChanged(object sender, EventArgs e) // TEMP_V1
+        {
+            double.TryParse(TempTab_textBox_latitude.Text, out siteLatitude);
+        }
+
+        private void TempTab_textBox_longitude_TextChanged(object sender, EventArgs e) // TEMP_V1
+        {
+            double.TryParse(TempTab_textBox_longitude.Text, out siteLongitude);
+        }
+
+        private void TempTab_textBox_timezone_TextChanged(object sender, EventArgs e) // TEMP_V1
+        {
+            double.TryParse(TempTab_textBox_timezone.Text, out siteTimeZone);
+        }
+
+        private void TempTab_textBox_elevation_TextChanged(object sender, EventArgs e) // TEMP_V1
+        {
+            double.TryParse(TempTab_textBox_elevation.Text, out siteElevation);
+        }
+
+        private void TempTab_textBox_windheight_TextChanged(object sender, EventArgs e) // TEMP_V1
+        {
+            double.TryParse(TempTab_textBox_windheight.Text, out windMeasurementHeight);
+        }
+
+        private void TempTab_textBox_initialtemp_TextChanged(object sender, EventArgs e) // TEMP_V1
+        {
+            // TEMP_V1 - value read here; applied to water_temp array during load_data() (later step)
+        }
         private void menuItem10_Click(object sender, EventArgs e)
         {
             menuItem10.Checked = (!menuItem10.Checked);
