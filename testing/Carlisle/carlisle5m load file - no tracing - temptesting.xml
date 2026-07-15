@@ -89,7 +89,7 @@
         </SaveOptions>
         <SaveOptions>
             <Option>water depth</Option>
-            <Checked>false</Checked>
+            <Checked>true</Checked>
         </SaveOptions>
         <SaveOptions>
             <Option>d50</Option>
@@ -436,5 +436,25 @@
         <tracerindex>null</tracerindex>
         <MultiTracer>false</MultiTracer>
         <MultiGrain>false</MultiGrain>
+        <TempSimulate>true</TempSimulate>
+        <TempSimplifiedScheme>true</TempSimplifiedScheme>
+        <TempHecRasLongwave>true</TempHecRasLongwave>
+        <TempHecRasAlbedo>true</TempHecRasAlbedo>
+        <TempThermalInterval>90</TempThermalInterval>
+        <TempMetTimeStep>60</TempMetTimeStep>
+        <TempSiteLatitude>50</TempSiteLatitude>
+        <TempSiteLongitude>270</TempSiteLongitude>
+        <TempSiteTimeZone>0</TempSiteTimeZone>
+        <TempSiteElevation>30</TempSiteElevation>
+        <TempWindHeight>2</TempWindHeight>
+        <TempInitialValue>21</TempInitialValue>
+        <TempInitialRaster>null</TempInitialRaster>
+        <TempFileAirTemp>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\airtemp_dummytest.txt</TempFileAirTemp>
+        <TempFileShortwave>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\airtemp_dummytest.txt</TempFileShortwave>
+        <TempFileWindspeed>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\airtemp_dummytest.txt</TempFileWindspeed>
+        <TempFileHumidity>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\airtemp_dummytest.txt</TempFileHumidity>
+        <TempFileCloudcover>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\airtemp_dummytest.txt</TempFileCloudcover>
+        <TempFilePressure>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\airtemp_dummytest.txt</TempFilePressure>
+        <TempFileDewpoint>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\airtemp_dummytest.txt</TempFileDewpoint>
     </Add_Ons>
 </Parms>

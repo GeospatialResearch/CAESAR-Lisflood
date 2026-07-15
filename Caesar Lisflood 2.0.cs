@@ -56,12 +56,12 @@ using System.IO;
 using System.Linq; //MDW
 using System.Runtime.Remoting.Metadata.W3cXsd2001;
 using System.Security.Policy;
+using System.Threading;//PDF
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Xml;  //JMW
 using System.Xml.Linq;
 using System.Xml.Schema;
-using System.Threading;//PDF
 
 namespace caesar1
 {
@@ -17687,6 +17687,18 @@ namespace caesar1
                         menuItemSoluteTracer.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked")); // MDW_V2
                         xreader.ReadEndElement();
                         //
+                        xreader.ReadStartElement("SaveOptions"); //MDW reader bug fix, July 2026
+                        dum = xreader.ReadElementString("Option");
+                        menuItemOilSpill.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked")); // oil depth
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("SaveOptions"); //MDW reader bug fix, July 2026
+                        dum = xreader.ReadElementString("Option");
+                        menuItem17.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked")); // mass balance
+                        xreader.ReadEndElement();
+                        xreader.ReadStartElement("SaveOptions"); //MDW reader bug fix, July 2026
+                        dum = xreader.ReadElementString("Option");
+                        menuItemOilconc.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("Checked")); // oil concentration
+                        xreader.ReadEndElement();
 
                         // Jun LS tracing
                         xreader.ReadStartElement("Filenames");
@@ -17704,11 +17716,70 @@ namespace caesar1
                         // more add ons for spatially variable grainsize
                         landslide_grainsize.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("MultiGrain"));
 
+                        // TEMP_V1 - water temperature module settings (own try/catch: safe against older config files without these elements)
+                        try
+                        {
+                            TempTab_checkBox.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("TempSimulate"));
+                            isSimulateTemperature = TempTab_checkBox.Checked;
+
+                            bool tempSimplified = XmlConvert.ToBoolean(xreader.ReadElementString("TempSimplifiedScheme"));
+                            TempTab_radio_simplifiedscheme.Checked = tempSimplified;
+                            TempTab_radio_fullscheme.Checked = !tempSimplified;
+                            useSimplifiedTempScheme = tempSimplified;
+
+                            TempTab_checkBox_hecraslongwave.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("TempHecRasLongwave"));
+                            useHecRasLongwave = TempTab_checkBox_hecraslongwave.Checked;
+
+                            TempTab_checkBox_hecrasalbedo.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("TempHecRasAlbedo"));
+                            useHecRasAlbedo = TempTab_checkBox_hecrasalbedo.Checked;
+
+                            TempTab_textBox_thermalinterval.Text = xreader.ReadElementString("TempThermalInterval");
+                            double.TryParse(TempTab_textBox_thermalinterval.Text, out thermal_update_interval);
+
+                            TempTab_textBox_mettimestep.Text = xreader.ReadElementString("TempMetTimeStep");
+                            double.TryParse(TempTab_textBox_mettimestep.Text, out met_data_time_step);
+
+                            TempTab_textBox_latitude.Text = xreader.ReadElementString("TempSiteLatitude");
+                            double.TryParse(TempTab_textBox_latitude.Text, out siteLatitude);
+
+                            TempTab_textBox_longitude.Text = xreader.ReadElementString("TempSiteLongitude");
+                            double.TryParse(TempTab_textBox_longitude.Text, out siteLongitude);
+
+                            TempTab_textBox_timezone.Text = xreader.ReadElementString("TempSiteTimeZone");
+                            double.TryParse(TempTab_textBox_timezone.Text, out siteTimeZone);
+
+                            TempTab_textBox_elevation.Text = xreader.ReadElementString("TempSiteElevation");
+                            double.TryParse(TempTab_textBox_elevation.Text, out siteElevation);
+
+                            TempTab_textBox_windheight.Text = xreader.ReadElementString("TempWindHeight");
+                            double.TryParse(TempTab_textBox_windheight.Text, out windMeasurementHeight);
+
+                            TempTab_textBox_initialtemp.Text = xreader.ReadElementString("TempInitialValue");
+                            TempTab_textBox_initialraster.Text = xreader.ReadElementString("TempInitialRaster");
+
+                            TempTab_textBox_airtemp.Text = xreader.ReadElementString("TempFileAirTemp");
+                            TempTab_textBox_shortwave.Text = xreader.ReadElementString("TempFileShortwave");
+                            TempTab_textBox_windspeed.Text = xreader.ReadElementString("TempFileWindspeed");
+                            TempTab_textBox_humidity.Text = xreader.ReadElementString("TempFileHumidity");
+                            TempTab_textBox_cloudcover.Text = xreader.ReadElementString("TempFileCloudcover");
+                            TempTab_textBox_pressure.Text = xreader.ReadElementString("TempFilePressure");
+                            TempTab_textBox_dewpoint.Text = xreader.ReadElementString("TempFileDewpoint");
+                        }
+                        catch (Exception eTemp)
+                        {
+                            MessageBox.Show("Error with loading the water quality configuration from the XML file." +
+                                "\n\nDebug info: \n" + eTemp.Message + "\n\nStackTrace:\n" + eTemp.StackTrace);
+                        }
+                        ;
+
                         xreader.ReadEndElement();
                         xreader.ReadEndElement();
                     }
-                    catch
-                    { }
+                    catch (Exception eXML)
+                    {
+                        MessageBox.Show("Error with loading XML file." +
+                            "\n\nDebug info: \n" + eXML.Message + "\n\nStackTrace:\n" + eXML.StackTrace);
+                    }
                     ;
 
 
@@ -18278,6 +18349,29 @@ namespace caesar1
                 xwriter.WriteElementString("MultiTracer", XmlConvert.ToString(checkBox_tracer.Checked));
                 // more add ons for spatially variable grainsize
                 xwriter.WriteElementString("MultiGrain", XmlConvert.ToString(landslide_grainsize.Checked));
+
+                // TEMP_V1 - water temperature module settings
+                xwriter.WriteElementString("TempSimulate", XmlConvert.ToString(TempTab_checkBox.Checked));
+                xwriter.WriteElementString("TempSimplifiedScheme", XmlConvert.ToString(TempTab_radio_simplifiedscheme.Checked));
+                xwriter.WriteElementString("TempHecRasLongwave", XmlConvert.ToString(TempTab_checkBox_hecraslongwave.Checked));
+                xwriter.WriteElementString("TempHecRasAlbedo", XmlConvert.ToString(TempTab_checkBox_hecrasalbedo.Checked));
+                xwriter.WriteElementString("TempThermalInterval", TempTab_textBox_thermalinterval.Text);
+                xwriter.WriteElementString("TempMetTimeStep", TempTab_textBox_mettimestep.Text);
+                xwriter.WriteElementString("TempSiteLatitude", TempTab_textBox_latitude.Text);
+                xwriter.WriteElementString("TempSiteLongitude", TempTab_textBox_longitude.Text);
+                xwriter.WriteElementString("TempSiteTimeZone", TempTab_textBox_timezone.Text);
+                xwriter.WriteElementString("TempSiteElevation", TempTab_textBox_elevation.Text);
+                xwriter.WriteElementString("TempWindHeight", TempTab_textBox_windheight.Text);
+                xwriter.WriteElementString("TempInitialValue", TempTab_textBox_initialtemp.Text);
+                xwriter.WriteElementString("TempInitialRaster", TempTab_textBox_initialraster.Text);
+                xwriter.WriteElementString("TempFileAirTemp", TempTab_textBox_airtemp.Text);
+                xwriter.WriteElementString("TempFileShortwave", TempTab_textBox_shortwave.Text);
+                xwriter.WriteElementString("TempFileWindspeed", TempTab_textBox_windspeed.Text);
+                xwriter.WriteElementString("TempFileHumidity", TempTab_textBox_humidity.Text);
+                xwriter.WriteElementString("TempFileCloudcover", TempTab_textBox_cloudcover.Text);
+                xwriter.WriteElementString("TempFilePressure", TempTab_textBox_pressure.Text);
+                xwriter.WriteElementString("TempFileDewpoint", TempTab_textBox_dewpoint.Text);
+
 
                 xwriter.WriteEndElement();
                 xwriter.WriteEndElement();
