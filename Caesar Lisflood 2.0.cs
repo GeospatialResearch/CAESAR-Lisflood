@@ -377,6 +377,7 @@ namespace caesar1
         public double diffusivityRatio = 1.0;
         public double albedoWaterBase = 0.08, albedoSedimentCoeff = 0, suspCondRef = 1;
         public double windFunc_a = 1e-6, windFunc_b = 1e-6, windFunc_c = 1;
+        public double waterTempInitialValue = 15.0; // TEMP_V1 - constant initial water temperature, GUI-set
 
         // TC mining
         int minesitenumber = 0;
@@ -8706,7 +8707,56 @@ namespace caesar1
 
                     if (useSimplifiedTempScheme == true && this.TempTab_textBox_dewpoint.Text != "null")
                         load_met_file(this.TempTab_textBox_dewpoint.Text, delimiterChars, hourly_dewpoint);
+
+                    // TEMP_V1 - initial water temperature raster (optional; overrides the constant value set in zero_values())
+                    if (this.TempTab_textBox_initialraster.Text != "null")
+                    {
+                        try
+                        {
+                            FILE_NAME = this.TempTab_textBox_initialraster.Text;
+                            if (File.Exists(FILE_NAME))
+                            {
+                                sr = File.OpenText(FILE_NAME);
+                                for (z = 1; z <= 6; z++)
+                                {
+                                    input = sr.ReadLine();
+                                }
+                                y = 1;
+                                while ((input = sr.ReadLine()) != null)
+                                {
+                                    string[] lineArray;
+                                    lineArray = input.Split(delimiterChars);
+                                    xcounter = 1;
+                                    for (x = 0; x <= (lineArray.Length - 1); x++)
+                                    {
+                                        if (lineArray[x] != "" && xcounter <= xmax)
+                                        {
+                                            double tval = double.Parse(lineArray[x]);
+                                            if (tval != -9999)
+                                            {
+                                                water_temp[xcounter, y] = tval;
+                                                water_temp_prev[xcounter, y] = tval;
+                                            }
+                                            xcounter++;
+                                        }
+                                    }
+                                    y++;
+                                }
+                                sr.Close();
+                            }
+                            else
+                            {
+                                MessageBox.Show("Initial water temperature raster file not found: " + FILE_NAME + ". Using the constant value instead.");
+                            }
+                        }
+                        catch (Exception eTempRaster)
+                        {
+                            MessageBox.Show("Error loading the initial water temperature raster. Using the constant value instead." +
+                                "\n\nDebug info: \n" + eTempRaster.Message + "\n\nStackTrace:\n" + eTempRaster.StackTrace);
+                        }
+                    }
                 }
+            
                 if (isTraceSolutes == true)
                 {
                     if (nSolutes == 0)
@@ -12309,11 +12359,77 @@ namespace caesar1
             return;
         }
 
-        // Coarse-cadence surface energy balance (full or simplified scheme), run on the
-        // thermal_time schedule. To be implemented.
+        // TEMP_V1 - coarse-cadence surface energy balance (full or simplified scheme),
+        // run on the thermal_time schedule (see erodedepo()).
         void update_water_temperature_energybalance()
         {
-            return;
+            double dt_seconds = thermal_update_interval * 60;
+            double rho_w = 1000.0;   // kg/m3, constant (A18 - see spec doc)
+            double Cpw = 4186.0;     // J/(kg.C)
+
+            if (useSimplifiedTempScheme == true)
+            {
+                // TEMP_V1 - simplified (equilibrium temperature) scheme, HEC-RAS Eqs. 2.17-2.21.
+                // Per-zone met values are interpolated once here, then indexed by zone per cell,
+                // rather than re-interpolating for every cell (see interpolate_met() note, Step 12).
+                double[] shortwave_zone = new double[nMetZones];
+                double[] dewpoint_zone = new double[nMetZones];
+                double[] wind7_zone = new double[nMetZones];
+
+                for (int zn = 0; zn < nMetZones; zn++)
+                {
+                    shortwave_zone[zn] = interpolate_met(hourly_shortwave, cycle, zn);
+                    dewpoint_zone[zn] = interpolate_met(hourly_dewpoint, cycle, zn);
+                    double windAtMeasHeight = interpolate_met(hourly_windspeed, cycle, zn);
+                    wind7_zone[zn] = wind_speed_at_height(windAtMeasHeight, windMeasurementHeight, 7.0);
+                }
+
+                var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+                Parallel.For(1, ymax + 1, options, delegate (int y)
+                {
+                    int inc = 1;
+                    while (down_scan[y, inc] > 0)
+                    {
+                        int x = down_scan[y, inc];
+                        inc++;
+
+                        if (water_depth[x, y] > water_depth_erosion_threshold)
+                        {
+                            int zone = met_zonation[x, y];
+                            if (zone < 0 || zone >= nMetZones) zone = 0;
+
+                            double q_sw = shortwave_zone[zone];
+                            double T_d = dewpoint_zone[zone];
+                            double u_w7 = wind7_zone[zone];
+                            double T_w = water_temp[x, y];
+
+                            double f_uw7 = 9.2 + 0.46 * u_w7 * u_w7;                         // Eq. 2.19
+                            double T_bar = (T_w + T_d) / 2.0;
+                            double beta = 0.35 + 0.015 * T_bar + 0.0012 * T_bar * T_bar;      // Eq. 2.20
+                            double K_T = 4.5 + 0.05 * T_w + (beta + 0.47) * f_uw7;            // Eq. 2.18
+
+                            if (K_T <= 0) K_T = 0.0001; // guard against a degenerate/negative exchange coefficient
+
+                            double T_eq = T_d + q_sw / K_T;                                   // Eq. 2.21
+
+                            double depth = water_depth[x, y];
+                            if (depth < water_depth_erosion_threshold) depth = water_depth_erosion_threshold;
+
+                            double decay = Math.Exp(-K_T * dt_seconds / (rho_w * Cpw * depth));
+                            double T_new = T_eq + (T_w - T_eq) * decay;
+
+                            if (T_new < 0) T_new = 0; // TEMP_V1 - ice deferred (A15): floor at 0 C
+
+                            water_temp[x, y] = T_new;
+                        }
+                    }
+                });
+            }
+            else
+            {
+                // TEMP_V1 - full energy balance scheme. To be implemented (next step).
+                return;
+            }
         }
 
         // Returns extraterrestrial radiation q_o (HEC-RAS Eq. 2.5). To be implemented.
@@ -12340,6 +12456,18 @@ namespace caesar1
             return 0.0;
         }
 
+        // TEMP_V1 - log-law wind speed correction from measurement height to a target
+        // reference height. Roughness length z0 depends on the measured wind speed itself
+        // (HEC-RAS convention: 0.001 m if windSpeed < 2.3 m/s, else 0.015 m).
+        double wind_speed_at_height(double windSpeedMeasured, double measurementHeight, double targetHeight)
+        {
+            if (windSpeedMeasured <= 0) return 0;
+            if (measurementHeight <= 0) return windSpeedMeasured; // guard against a zero/invalid height input
+
+            double z0 = (windSpeedMeasured < 2.3) ? 0.001 : 0.015;
+            return windSpeedMeasured * Math.Log(targetHeight / z0) / Math.Log(measurementHeight / z0);
+        }
+
         // Returns e_s, saturation vapour pressure (HEC-RAS Eq. 2.9). To be implemented.
         double saturation_vapour_pressure(double tempC)
         {
@@ -12352,11 +12480,33 @@ namespace caesar1
             return 0.0;
         }
 
-        // Time-interpolated lookup of a met variable at the current cycle
-        // (mirrors calc_J-style interpolation). To be implemented.
+        // TEMP_V1 - linear time interpolation of a met variable at the current cycle,
+        // for a given zone. Mirrors the interpolation style used in
+        // reach_water_and_sediment_input() for hydrograph inputs.
+        // NOTE: hourly_* arrays are zero-indexed by row (row 0 = first time step),
+        // unlike the 1-indexed hourly_rain_data/hourly_m_value convention (see load_met_file()).
         double interpolate_met(double[,] metArray, double cycleMinutes, int zone)
         {
-            return 0.0;
+            int maxIdx = metArray.GetLength(0) - 1;
+            int nZones = metArray.GetLength(1);
+
+            if (zone < 0) zone = 0;
+            if (zone >= nZones) zone = nZones - 1;
+
+            int idx0 = (int)(cycleMinutes / met_data_time_step);
+            if (idx0 < 0) idx0 = 0;
+            if (idx0 >= maxIdx) idx0 = maxIdx - 1; // leave room for idx0+1
+            if (idx0 < 0) idx0 = 0; // safety if the array only has one row
+
+            int idx1 = idx0 + 1;
+            if (idx1 > maxIdx) idx1 = maxIdx;
+
+            double value0 = metArray[idx0, zone];
+            double value1 = metArray[idx1, zone];
+
+            double proportion_between_time1and2 = (((idx0 + 1) * met_data_time_step) - cycleMinutes) / met_data_time_step;
+
+            return value0 + ((value1 - value0) * (1 - proportion_between_time1and2));
         }
 
 
@@ -12591,8 +12741,8 @@ namespace caesar1
 
                     if (SpatVarManningsCheckbox.Checked == true) spat_var_mannings[x, y] = mannings;
 
-                    water_temp[x, y] = 15.0; // TEMP_V1 - placeholder default; replaced by initial-condition loading later
-                    water_temp_prev[x, y] = 15.0;
+                    water_temp[x, y] = waterTempInitialValue; // TEMP_V1
+                    water_temp_prev[x, y] = waterTempInitialValue;
 
                 }
             }
@@ -17755,6 +17905,7 @@ namespace caesar1
                             double.TryParse(TempTab_textBox_windheight.Text, out windMeasurementHeight);
 
                             TempTab_textBox_initialtemp.Text = xreader.ReadElementString("TempInitialValue");
+                            double.TryParse(TempTab_textBox_initialtemp.Text, out waterTempInitialValue);
                             TempTab_textBox_initialraster.Text = xreader.ReadElementString("TempInitialRaster");
 
                             TempTab_textBox_airtemp.Text = xreader.ReadElementString("TempFileAirTemp");
@@ -19086,7 +19237,7 @@ namespace caesar1
 
         private void TempTab_textBox_initialtemp_TextChanged(object sender, EventArgs e) // TEMP_V1
         {
-            // TEMP_V1 - value read here; applied to water_temp array during load_data() (later step)
+            double.TryParse(TempTab_textBox_initialtemp.Text, out waterTempInitialValue);
         }
         private void menuItem10_Click(object sender, EventArgs e)
         {
