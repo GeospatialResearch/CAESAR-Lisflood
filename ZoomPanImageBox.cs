@@ -173,6 +173,9 @@ namespace Smallwisdom.Windows.Forms
                 //MessageBox.Show("clicky " + e.X / newZoom * newZoom2 + " clacky " + e.Y / newZoom * newZoom2)
                 //form1.tempStatusPanel.Text = 
 
+                // add scrollbar 
+                CAESAR_lisflood_1._0.Form2.textBox1.ScrollBars = ScrollBars.Vertical;
+
                 CAESAR_lisflood_1._0.Form2.textBox1.Text =
                     "X co-ord " + Convert.ToString(x) + " Y co-ord " + Convert.ToString(y) + Environment.NewLine +
                     "Elevation   " + Convert.ToString(caesar1.Form1.elev[(int)(x), (int)(y)]) + Environment.NewLine +
@@ -181,20 +184,33 @@ namespace Smallwisdom.Windows.Forms
                     "Erosion/Dep " + Convert.ToString(caesar1.Form1.init_elevs[(int)(x), (int)(y)] - caesar1.Form1.elev[(int)(x), (int)(y)]) + Environment.NewLine +
                     "Shear Stress " + Convert.ToString(caesar1.Form1.Tau[(int)(x), (int)(y)]) + Environment.NewLine +
                     "Drainage area " + Convert.ToString(caesar1.Form1.area[(int)(x), (int)(y)]) + Environment.NewLine +
-                     "Oil depth " + Convert.ToString(caesar1.Form1.oil_depth[(int)(x), (int)(y)]) + Environment.NewLine +
-                      "Oil concentration " + Convert.ToString(caesar1.Form1.oil_conc[(int)(x), (int)(y)]) + Environment.NewLine +
                     /*"Soil moisture " + Convert.ToString(caesar1.Form1.soil_moisture[(int)(x), (int)(y)]) + Environment.NewLine +*/
                     "Veg " + Convert.ToString(caesar1.Form1.veg[(int)(x), (int)(y), 1]) + Environment.NewLine
                     /*+ "Edge " + Convert.ToString(caesar1.Form1.edge[(int)(x), (int)(y)]) + Environment.NewLine*/
                     ;
 
+                if (caesar1.Form1.isOilSimulation == true) // oil spill simulation
+                {
+                    // insert empty line
+                    CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text + Environment.NewLine;
+
+                    CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text +
+                    "Oil depth " + Convert.ToString(caesar1.Form1.oil_depth[(int)(x), (int)(y)]) + Environment.NewLine +
+                    "Oil concentration " + Convert.ToString(caesar1.Form1.oil_conc[(int)(x), (int)(y)]) + Environment.NewLine;
+                }
+
+                if (caesar1.Form1.isSimulateTemperature == true) // water quality: temperature
+                {
+                    // insert empty line
+                    CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text + Environment.NewLine;
+
+                    CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text +
+                    "Water temperature " + Convert.ToString(caesar1.Form1.water_temp[(int)(x), (int)(y)]) + Environment.NewLine;
+                }
 
                 // MDW_V2 add each of the water source tracers if active
                 if (caesar1.Form1.isTraceWater == true) // water source tracers
                 {
-                    // add scrollbar 
-                    CAESAR_lisflood_1._0.Form2.textBox1.ScrollBars = ScrollBars.Vertical;
-
                     // insert empty line
                     CAESAR_lisflood_1._0.Form2.textBox1.Text = CAESAR_lisflood_1._0.Form2.textBox1.Text + Environment.NewLine;
 

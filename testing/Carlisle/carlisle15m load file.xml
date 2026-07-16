@@ -8,7 +8,7 @@
         <maxerodelimit>0.05</maxerodelimit>
         <cellsize>10</cellsize>
         <memorylimit>1</memorylimit>
-        <minq>0.05</minq>
+        <minq>0.1</minq>
         <creeprate>0.0000025</creeprate>
         <lateralerosionrate>0.5</lateralerosionrate>
         <maxiter>1000000000</maxiter>
@@ -22,7 +22,7 @@
         <wssmoothing>false</wssmoothing>
         <grass-sediment>false</grass-sediment>
         <flowdistribution>0.01</flowdistribution>
-        <mintimestep>1</mintimestep>
+        <mintimestep>5</mintimestep>
         <evaporation>0.00000001</evaporation>
         <vegcritshear>200</vegcritshear>
         <bedslope>false</bedslope>
@@ -103,6 +103,14 @@
             <Option>soil saturation</Option>
             <Checked>false</Checked>
         </SaveOptions>
+        <SaveOptions>
+            <Option>water tracers</Option>
+            <Checked>true</Checked>
+        </SaveOptions>
+        <SaveOptions>
+            <Option>rain zone tracers</Option>
+            <Checked>false</Checked>
+        </SaveOptions>
     </General-Parms>
     <Grain-Size>
         <gs>0.00025</gs>
@@ -158,42 +166,6 @@
         <ss>false</ss>
         <fv>1.357</fv>
     </Grain-Size>
-    <Grain-Size>
-        <gs>0.0005</gs>
-        <gp>0.144</gp>
-    </Grain-Size>
-    <Grain-Size>
-        <gs>0.001</gs>
-        <gp>0.022</gp>
-    </Grain-Size>
-    <Grain-Size>
-        <gs>0.002</gs>
-        <gp>0.019</gp>
-    </Grain-Size>
-    <Grain-Size>
-        <gs>0.004</gs>
-        <gp>0.029</gp>
-    </Grain-Size>
-    <Grain-Size>
-        <gs>0.008</gs>
-        <gp>0.068</gp>
-    </Grain-Size>
-    <Grain-Size>
-        <gs>0.016</gs>
-        <gp>0.146</gp>
-    </Grain-Size>
-    <Grain-Size>
-        <gs>0.032</gs>
-        <gp>0.220</gp>
-    </Grain-Size>
-    <Grain-Size>
-        <gs>0.064</gs>
-        <gp>0.231</gp>
-    </Grain-Size>
-    <Grain-Size>
-        <gs>0.128</gs>
-        <gp>0.121</gp>
-    </Grain-Size>
     <File-Parms>
         <inputtimestep>30</inputtimestep>
         <saveinterval>120</saveinterval>
@@ -202,7 +174,7 @@
         <uniquefilecheck>true</uniquefilecheck>
         <Filenames>
             <Desc>DEM Data File</Desc>
-            <Name>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\Domain_LIDAR_5M_Mean.asc</Name>
+            <Name>carlisle15m.txt</Name>
         </Filenames>
         <Filenames>
             <Desc>Grain Data File</Desc>
@@ -230,21 +202,21 @@
         </Filenames>
         <Sources>
             <input>true</input>
-            <X>834</X>
-            <Y>48</Y>
-            <Filename>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\main1.csv</Filename>
+            <X>275</X>
+            <Y>19</Y>
+            <Filename>main1.csv</Filename>
         </Sources>
         <Sources>
             <input>true</input>
-            <X>296</X>
-            <Y>602</Y>
-            <Filename>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\cummersdale1.csv</Filename>
+            <X>99</X>
+            <Y>200</Y>
+            <Filename>cummersdale1.csv</Filename>
         </Sources>
         <Sources>
             <input>true</input>
-            <X>585</X>
-            <Y>602</Y>
-            <Filename>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\harraby1.csv</Filename>
+            <X>194</X>
+            <Y>201</Y>
+            <Filename>harraby1.csv</Filename>
         </Sources>
         <Sources>
             <input>false</input>
@@ -276,10 +248,6 @@
             <Y />
             <Filename />
         </Sources>
-        <ExtraSources>
-            <input>false</input>
-            <Filename />
-        </ExtraSources>
     </File-Parms>
     <Description>
         <S />
@@ -295,10 +263,10 @@
         <iterationsfile>iter.dat</iterationsfile>
     </OutputFile-Parms>
     <Display>
-        <top> -8</top>
-        <left> -8</left>
-        <width> 1936</width>
-        <height> 1056</height>
+        <top> 155</top>
+        <left> 331</left>
+        <width> 1320</width>
+        <height> 780</height>
     </Display>
     <Lateral>
         <oldlat>false</oldlat>
@@ -308,7 +276,7 @@
         <tracer-out>false</tracer-out>
         <tracer-out-filename>tracer_output.txt</tracer-out-filename>
         <google_animation>true</google_animation>
-        <google_animation_file_name>animation5m.kmz</google_animation_file_name>
+        <google_animation_file_name>animation15m.kmz</google_animation_file_name>
         <google_begin>2005-01-08</google_begin>
         <google_interval>60</google_interval>
         <jMean>false</jMean>
@@ -347,7 +315,7 @@
         <raindatatimestep>60</raindatatimestep>
         <activelayerthickness>0.2</activelayerthickness>
         <downstreamshift>5</downstreamshift>
-        <courantnumber>0.25</courantnumber>
+        <courantnumber>0.7</courantnumber>
         <hflow>0.00001</hflow>
         <lateralsmoothing>0.0001</lateralsmoothing>
         <froude_limit>0.8</froude_limit>
@@ -365,96 +333,10 @@
         <rfnum>1</rfnum>
         <hydroindex>null</hydroindex>
         <MultiRainfall>false</MultiRainfall>
-        <soildevbox>false</soildevbox>
-        <bedrocklowering>false</bedrocklowering>
-        <physicalweathering>false</physicalweathering>
-        <chemicalweathering>false</chemicalweathering>
-        <P1>0.000053</P1>
-        <b1>2</b1>
-        <k1>0.0001</k1>
-        <c1>-0.5</c1>
-        <c2>5</c2>
-        <k2>70</k2>
-        <c3>-2.5</c3>
-        <c4>1</c4>
-        <SpatVarManningsCheckbox>false</SpatVarManningsCheckbox>
-        <spatvarmanningsfilename>null</spatvarmanningsfilename>
-        <mfiletimestepbox>1440</mfiletimestepbox>
-        <mvalueloadbox>null</mvalueloadbox>
-        <meyer>false</meyer>
-        <all_nine_grainsizes>true</all_nine_grainsizes>
-        <oldveg>true</oldveg>
-        <newveg>false</newveg>
-        <TraceWater>false</TraceWater>
+        <manningfile>null</manningfile>
+        <SpatialFriction>false</SpatialFriction>
+        <TraceWater>true</TraceWater>
         <TraceRainZonation>false</TraceRainZonation>
         <TraceRainZonationMapfile>null</TraceRainZonationMapfile>
-        <TraceSolutes>false</TraceSolutes>
-        <OutputDirectory>testoutput</OutputDirectory>
-        <OutDirDateTime>false</OutDirDateTime>
-        <OilSimulation>false</OilSimulation>
-        <OilYmin>0</OilYmin>
-        <OilYmax>0</OilYmax>
-        <OilXmin>0</OilXmin>
-        <OilXmax>0</OilXmax>
-        <OilTimeMin>0</OilTimeMin>
-        <OilDepthStart>1.5</OilDepthStart>
-        <OilVolume>0</OilVolume>
-        <OilSpillDuration>0</OilSpillDuration>
-        <SaveOptions>
-            <Option>water tracers</Option>
-            <Checked>false</Checked>
-        </SaveOptions>
-        <SaveOptions>
-            <Option>rain zone tracers</Option>
-            <Checked>false</Checked>
-        </SaveOptions>
-        <SaveOptions>
-            <Option>solute tracers</Option>
-            <Checked>false</Checked>
-        </SaveOptions>
-        <SaveOptions>
-            <Option>oil depth</Option>
-            <Checked>false</Checked>
-        </SaveOptions>
-        <SaveOptions>
-            <Option>mass balance</Option>
-            <Checked>false</Checked>
-        </SaveOptions>
-        <SaveOptions>
-            <Option>oil concentration</Option>
-            <Checked>false</Checked>
-        </SaveOptions>
-        <Filenames>
-            <Desc>Angle Data File</Desc>
-            <Name>null</Name>
-        </Filenames>
-        <Filenames>
-            <Desc>Grain index Data File</Desc>
-            <Name>null</Name>
-        </Filenames>
-        <tracer>0</tracer>
-        <tracerindex>null</tracerindex>
-        <MultiTracer>false</MultiTracer>
-        <MultiGrain>false</MultiGrain>
-        <TempSimulate>false</TempSimulate>
-        <TempSimplifiedScheme>false</TempSimplifiedScheme>
-        <TempHecRasLongwave>true</TempHecRasLongwave>
-        <TempHecRasAlbedo>true</TempHecRasAlbedo>
-        <TempThermalInterval>60</TempThermalInterval>
-        <TempMetTimeStep>60</TempMetTimeStep>
-        <TempSiteLatitude>0</TempSiteLatitude>
-        <TempSiteLongitude>0</TempSiteLongitude>
-        <TempSiteTimeZone>0</TempSiteTimeZone>
-        <TempSiteElevation>0</TempSiteElevation>
-        <TempWindHeight>10</TempWindHeight>
-        <TempInitialValue>15</TempInitialValue>
-        <TempInitialRaster>null</TempInitialRaster>
-        <TempFileAirTemp>null</TempFileAirTemp>
-        <TempFileShortwave>null</TempFileShortwave>
-        <TempFileWindspeed>null</TempFileWindspeed>
-        <TempFileHumidity>null</TempFileHumidity>
-        <TempFileCloudcover>null</TempFileCloudcover>
-        <TempFilePressure>null</TempFilePressure>
-        <TempFileDewpoint>null</TempFileDewpoint>
     </Add_Ons>
 </Parms>

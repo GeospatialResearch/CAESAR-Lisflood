@@ -89,11 +89,11 @@
         </SaveOptions>
         <SaveOptions>
             <Option>water depth</Option>
-            <Checked>false</Checked>
+            <Checked>true</Checked>
         </SaveOptions>
         <SaveOptions>
             <Option>d50</Option>
-            <Checked>false</Checked>
+            <Checked>true</Checked>
         </SaveOptions>
         <SaveOptions>
             <Option>flow velocity</Option>
@@ -295,8 +295,8 @@
         <iterationsfile>iter.dat</iterationsfile>
     </OutputFile-Parms>
     <Display>
-        <top> -8</top>
-        <left> -8</left>
+        <top> 0</top>
+        <left> -1</left>
         <width> 1936</width>
         <height> 1056</height>
     </Display>
@@ -389,7 +389,7 @@
         <TraceRainZonation>false</TraceRainZonation>
         <TraceRainZonationMapfile>null</TraceRainZonationMapfile>
         <TraceSolutes>false</TraceSolutes>
-        <OutputDirectory>testoutput</OutputDirectory>
+        <OutputDirectory>test_simplifiedtemp</OutputDirectory>
         <OutDirDateTime>false</OutDirDateTime>
         <OilSimulation>false</OilSimulation>
         <OilYmin>0</OilYmin>
@@ -436,25 +436,25 @@
         <tracerindex>null</tracerindex>
         <MultiTracer>false</MultiTracer>
         <MultiGrain>false</MultiGrain>
-        <TempSimulate>false</TempSimulate>
-        <TempSimplifiedScheme>false</TempSimplifiedScheme>
+        <TempSimulate>true</TempSimulate>
+        <TempSimplifiedScheme>true</TempSimplifiedScheme>
         <TempHecRasLongwave>true</TempHecRasLongwave>
         <TempHecRasAlbedo>true</TempHecRasAlbedo>
-        <TempThermalInterval>60</TempThermalInterval>
+        <TempThermalInterval>10</TempThermalInterval>
         <TempMetTimeStep>60</TempMetTimeStep>
-        <TempSiteLatitude>0</TempSiteLatitude>
-        <TempSiteLongitude>0</TempSiteLongitude>
+        <TempSiteLatitude>50</TempSiteLatitude>
+        <TempSiteLongitude>270</TempSiteLongitude>
         <TempSiteTimeZone>0</TempSiteTimeZone>
-        <TempSiteElevation>0</TempSiteElevation>
-        <TempWindHeight>10</TempWindHeight>
-        <TempInitialValue>15</TempInitialValue>
+        <TempSiteElevation>30</TempSiteElevation>
+        <TempWindHeight>2</TempWindHeight>
+        <TempInitialValue>21</TempInitialValue>
         <TempInitialRaster>null</TempInitialRaster>
-        <TempFileAirTemp>null</TempFileAirTemp>
-        <TempFileShortwave>null</TempFileShortwave>
-        <TempFileWindspeed>null</TempFileWindspeed>
+        <TempFileAirTemp>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\test_temperature.txt</TempFileAirTemp>
+        <TempFileShortwave>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\test_shortwave.txt</TempFileShortwave>
+        <TempFileWindspeed>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\test_windspeed.txt</TempFileWindspeed>
         <TempFileHumidity>null</TempFileHumidity>
         <TempFileCloudcover>null</TempFileCloudcover>
         <TempFilePressure>null</TempFilePressure>
-        <TempFileDewpoint>null</TempFileDewpoint>
+        <TempFileDewpoint>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\test_dewpoint.txt</TempFileDewpoint>
     </Add_Ons>
 </Parms>

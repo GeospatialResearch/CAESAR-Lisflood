@@ -801,6 +801,7 @@ namespace caesar1
         private MenuItem menuItem10;
         private MenuItem menuItemOilVisualisation; // OIL_V1_MDW
         private MenuItem menuItemOilconcVisualisation; // OIL_V1_PDF
+        private MenuItem menuItemWaterTempVisualisation; // TEMP_V1
         private MenuItem menuItem6;
         private MenuItem menuItem15;
         private MenuItem menuItemSoluteTracer; //MDW_V2
@@ -958,6 +959,7 @@ namespace caesar1
             this.menuItem10 = new System.Windows.Forms.MenuItem();
             this.menuItemOilVisualisation = new System.Windows.Forms.MenuItem(); // OIL_V1_MDW
             this.menuItemOilconcVisualisation = new System.Windows.Forms.MenuItem(); // OIL_V1_PDF
+            this.menuItemWaterTempVisualisation = new System.Windows.Forms.MenuItem(); // TEMP_V1
             this.menuItem2 = new System.Windows.Forms.MenuItem();
             this.menuItem7 = new System.Windows.Forms.MenuItem();
             this.menuItem8 = new System.Windows.Forms.MenuItem();
@@ -1595,7 +1597,8 @@ namespace caesar1
             this.menuItem28,
             this.menuItem31,
             this.menuItemOilVisualisation,
-            this.menuItemOilconcVisualisation});
+            this.menuItemOilconcVisualisation,
+            this.menuItemWaterTempVisualisation});
             this.menuItem2.Text = "&Top graphics II";
             //
             // menuItem7
@@ -1651,6 +1654,12 @@ namespace caesar1
             this.menuItemOilconcVisualisation.Index = 8;
             this.menuItemOilconcVisualisation.Text = "oil concentration";
             this.menuItemOilconcVisualisation.Click += new System.EventHandler(this.menuItemOilconcVisualisation_Click);
+            //
+            // menuItemWaterTempVisualisation TEMP_V1
+            //
+            this.menuItemWaterTempVisualisation.Index = 9;
+            this.menuItemWaterTempVisualisation.Text = "water temperature";
+            this.menuItemWaterTempVisualisation.Click += new System.EventHandler(this.menuItemWaterTempVisualisation_Click);
             //
             // menuItem11
             //
@@ -6750,51 +6759,52 @@ namespace caesar1
                 waterOut = temptot;
 
 
-                Vout_total = 0;
-
-
-                for (y = 1; y <= ymax; y++)
+                if (isOilSimulation == true)
                 {
-                    if (oil_depth[xmax, y] > 0)
+                    Vout_total = 0;
+                    for (y = 1; y <= ymax; y++)
                     {
-                        Vout_total += oil_depth[xmax, y] * DX * DX;
-                        oil_depth[xmax, y] = 0;
+                        if (oil_depth[xmax, y] > 0)
+                        {
+                            Vout_total += oil_depth[xmax, y] * DX * DX;
+                            oil_depth[xmax, y] = 0;
+
+                        }
+                        if (oil_depth[1, y] > 0)
+                        {
+                            Vout_total += oil_depth[1, y] * DX * DX;
+                            oil_depth[1, y] = 0;
+                        }
+
+                        // Condition to avoid the oil accumulation at the edges
+
 
                     }
-                    if (oil_depth[1, y] > 0)
-                    {
-                        Vout_total += oil_depth[1, y] * DX * DX;
-                        oil_depth[1, y] = 0;
-                    }
 
-                    // Condition to avoid the oil accumulation at the edges
+                    // Condition added to avoid the accumulation on the edge, a bit crude but it works. 
+                    for (int x = 1; x <= xmax; x++)
+                    {
+                        if (oil_depth[x, ymax] > 0)
+                        {
+                            // Oil out of the edges
+                            Vout_total += oil_depth[x, ymax] * DX * DX;
+                            oil_depth[x, ymax] = 0;
+
+                        }
+                        if (oil_depth[x, 1] > 0)
+                        {
+                            Vout_total += oil_depth[x, 1] * DX * DX;
+                            oil_depth[x, 1] = 0;
+                        }
+
+                    }
+                    // Vout += Vout_1 + Vout_2 + Vout_3 + Vout_4;
 
 
                 }
 
-                // Condition added to avoid the accumulation on the edge, a bit crude but it works. 
-                for (int x = 1; x <= xmax; x++)
-                {
-                    if (oil_depth[x, ymax] > 0)
-                    {
-                        // Oil out of the edges
-                        Vout_total += oil_depth[x, ymax] * DX * DX;
-                        oil_depth[x, ymax] = 0;
-
-                    }
-                    if (oil_depth[x, 1] > 0)
-                    {
-                        Vout_total += oil_depth[x, 1] * DX * DX;
-                        oil_depth[x, 1] = 0;
-                    }
-
-                }
 
 
-           
-            
-
-                // Vout += Vout_1 + Vout_2 + Vout_3 + Vout_4;
 
 
 
@@ -7298,7 +7308,6 @@ namespace caesar1
 
         void stage_tidal_input(double local_time_factor)
         {
-
             for (int x = Math.Min(fromx, tox); x <= Math.Max(fromx, tox); x++)
             {
                 for (int y = Math.Min(fromy, toy); y <= Math.Max(fromy, toy); y++)
@@ -7324,6 +7333,7 @@ namespace caesar1
 
                         // Adjust water proportions following the addition of stage input - MDW 13/03/16
                         if (isTraceWater == true)
+                        {
                             if (isTraceWater == true)
                             {
                                 // MDW_V2 - updated source index of stage input to zero
@@ -7382,6 +7392,7 @@ namespace caesar1
                                 }
 
                             }
+                        }
                     }
                 }
 
@@ -7454,7 +7465,7 @@ namespace caesar1
 
 
 
-            void soil_development() // all based on Vanwalleghem et al., 2013 (JoGR:ES)
+        void soil_development() // all based on Vanwalleghem et al., 2013 (JoGR:ES)
         {
             for (int x = 1; x <= xmax; x++)
             {
@@ -8743,6 +8754,22 @@ namespace caesar1
                                     y++;
                                 }
                                 sr.Close();
+
+                                // TEMP_V1 - assign the constant initial value to any cell that starts wet
+                                // (water_depth already loaded above) and wasn't already set by the raster.
+                                // Dry / out-of-domain cells remain at the -9999 nodata sentinel until they
+                                // first wet during the run (handled by the advection function, next step).
+                                for (int xt = 1; xt <= xmax; xt++)
+                                {
+                                    for (int yt = 1; yt <= ymax; yt++)
+                                    {
+                                        if (elev[xt, yt] > -9999 && water_depth[xt, yt] > water_depth_erosion_threshold && water_temp[xt, yt] == -9999)
+                                        {
+                                            water_temp[xt, yt] = waterTempInitialValue;
+                                            water_temp_prev[xt, yt] = waterTempInitialValue;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -9786,7 +9813,7 @@ namespace caesar1
                 }
 
             }
-            if (typeflag == 7)  //OIL_V1_PDF
+            if (typeflag == 7 && isOilSimulation == true)  //OIL_V1_PDF
             {
 
                 using (StreamWriter sw = new StreamWriter(FILENAME))
@@ -9827,7 +9854,7 @@ namespace caesar1
                 }
             }
 
-            if (typeflag == 8)  //OIL_V1_PDF
+            if (typeflag == 8 && isOilSimulation == true)  //OIL_V1_PDF
             {
 
                 if (oil_in_sum > 0)
@@ -9839,7 +9866,7 @@ namespace caesar1
                 }
             }
 
-            if (typeflag == 9)  //OIL_V1_PDF
+            if (typeflag == 9 && isOilSimulation == true)  //OIL_V1_PDF
             {
 
                 using (StreamWriter sw = new StreamWriter(FILENAME))
@@ -12741,8 +12768,8 @@ namespace caesar1
 
                     if (SpatVarManningsCheckbox.Checked == true) spat_var_mannings[x, y] = mannings;
 
-                    water_temp[x, y] = waterTempInitialValue; // TEMP_V1
-                    water_temp_prev[x, y] = waterTempInitialValue;
+                    water_temp[x, y] = -9999; // TEMP_V1 - nodata sentinel; set to a real value
+                    water_temp_prev[x, y] = -9999; // only for initially-wet cells, once water_depth is known (see load_data())
 
                 }
             }
@@ -13552,7 +13579,25 @@ namespace caesar1
                 if (oilCMax > 0) oilCRange = oilCMax - oilCMin;
             }
 
-
+            // TEMP_V1
+            // Find range of water temperature if needed (excludes nodata / dry cells)
+            double tempCalc, tempMin = 1000.0, tempMax = -1000.0, tempRangeVal = 1.0;
+            if (isSimulateTemperature && menuItemWaterTempVisualisation.Checked == true)
+            {
+                for (x = 1; x <= xmax; x++)
+                {
+                    for (y = 1; y <= ymax; y++)
+                    {
+                        if (water_depth[x, y] > water_depth_erosion_threshold && water_temp[x, y] != -9999)
+                        {
+                            tempCalc = water_temp[x, y];
+                            if (tempCalc < tempMin) tempMin = tempCalc;
+                            if (tempCalc > tempMax) tempMax = tempCalc;
+                        }
+                    }
+                }
+                if (tempMax > tempMin) tempRangeVal = tempMax - tempMin;
+            }
 
             // All these loop through just the 'Active Area'
             for (x = 1; x <= xmax; x++)
@@ -14013,8 +14058,40 @@ namespace caesar1
                             }
                         }
 
+                        // Water Temperature - TEMP_V1
+                        if (menuItemWaterTempVisualisation.Checked == true && isSimulateTemperature == true)
+                        {
+                            if (water_depth[x, y] > water_depth_erosion_threshold && water_temp[x, y] != -9999)
+                            {
+                                double tNorm = (water_temp[x, y] - tempMin) / tempRangeVal;
+                                if (tNorm < 0) tNorm = 0;
+                                if (tNorm > 1) tNorm = 1;
+
+                                // Diverging blue (cold) - white (mid) - red (hot) colour scale
+                                if (tNorm < 0.5)
+                                {
+                                    double f = tNorm / 0.5;
+                                    redcol = (int)(f * 255);
+                                    greencol = (int)(f * 255);
+                                    bluecol = 255;
+                                }
+                                else
+                                {
+                                    double f = (tNorm - 0.5) / 0.5;
+                                    redcol = 255;
+                                    greencol = (int)(255 * (1 - f));
+                                    bluecol = (int)(255 * (1 - f));
+                                }
+                                if (redcol < 0) redcol = 0; if (greencol < 0) greencol = 0; if (bluecol < 0) bluecol = 0;
+                                if (redcol > 255) redcol = 255; if (greencol > 255) greencol = 255; if (bluecol > 255) bluecol = 255;
+
+                                SolidBrush brush = new SolidBrush(Color.FromArgb(255, redcol, greencol, bluecol));
+                                objGraphics.FillRectangle(brush, (x - 1) * t, (y - 1) * t, t, t);
+                            }
+                        }
+
                         // Oil spill - OIL_V1_MDW
-                        if (menuItemOilVisualisation.Checked == true)
+                        if (menuItemOilVisualisation.Checked == true && isOilSimulation == true)
                         {
                             if (index[x, y] != -9999)
                             {
@@ -14067,7 +14144,7 @@ namespace caesar1
                         }
 
                         // Oil concentration - OIL_V1_PDF
-                        if (menuItemOilconcVisualisation.Checked == true)
+                        if (menuItemOilconcVisualisation.Checked == true && isOilSimulation == true)
                         {
                             if (index[x, y] != -9999)
                             {
@@ -19291,7 +19368,26 @@ namespace caesar1
             this.Refresh();
             drawwater(mygraphics);
         }
+
+        // TEMP_V1
+        private void menuItemWaterTempVisualisation_Click(object sender, EventArgs e)
+        {
+            menuItemWaterTempVisualisation.Checked = (!menuItemWaterTempVisualisation.Checked);
+            if (menuItemWaterTempVisualisation.Checked == true)
+            {
+                comboBox1.Items.Add("water temperature");
+            }
+            else
+            {
+                comboBox1.Items.Remove("water temperature");
+            }
+            popComboBox1();
+            updateClick = 1;
+            this.Refresh();
+            drawwater(mygraphics);
+        }
     }
+
 
 
 
@@ -19494,3 +19590,4 @@ namespace caesar1
 
 
 }
+
