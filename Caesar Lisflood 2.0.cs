@@ -12955,6 +12955,63 @@ namespace caesar1
             hourOfDay = current.Hour + (current.Minute / 60.0) + (current.Second / 3600.0);
         }
 
+        const double stefanBoltzmann = 5.670e-8; // W/(m2.K4)
+
+        // TEMP_V1 - cloud-cover exponent used in both the shortwave (HEC-RAS Eq. 2.4, confirmed
+        // as squared) and atmospheric longwave (Eq. 2.6, ambiguous in the OCR'd source text
+        // between linear and squared) cloud-correction terms. Named here rather than hardcoded
+        // inline so it's trivial to correct in one place if checked against the original report
+        // and found to differ for the longwave term specifically.
+        const double longwaveCloudExponent = 2.0;
+
+        // TEMP_V1 - atmospheric (downwelling) longwave radiation, q_atm, HEC-RAS default
+        // (Eq. 2.6): Swinbank (1963) clear-sky formula with a cloud-cover correction.
+        // No humidity term - see atmospheric_longwave_humidity() for the CAESAR-extension
+        // alternative. Returns W/m2 (always positive - a gain to the water surface).
+        double atmospheric_longwave_hecras(double airTempC, double cloudCoverFrac)
+        {
+            double Ta_K = airTempC + 273.15;
+            double cloudTerm = 1.0 + 0.17 * Math.Pow(cloudCoverFrac, longwaveCloudExponent);
+            return 0.937e-5 * cloudTerm * stefanBoltzmann * Math.Pow(Ta_K, 6);
+        }
+
+        // TEMP_V1 - simple Magnus-Tetens saturation vapour pressure (mb), used only by
+        // atmospheric_longwave_humidity() below. Deliberately kept separate from the
+        // saturation_vapour_pressure() stub (Step 3), which is reserved for HEC-RAS's own
+        // Eq. 2.9 polynomial, needed later for the latent heat term - that one should match
+        // the source report exactly; this one is a standard, independent approximation only
+        // used by our own humidity-aware longwave extension.
+        double saturation_vapour_pressure_magnus(double tempC)
+        {
+            return 6.1094 * Math.Exp(17.625 * tempC / (tempC + 243.04));
+        }
+
+        // TEMP_V1 - atmospheric longwave, CAESAR-extension alternative: humidity-aware
+        // clear-sky emissivity (Idso, 1981), combined with the same cloud-cover correction
+        // used in the HEC-RAS default, for direct comparability between the two options.
+        // Returns W/m2.
+        double atmospheric_longwave_humidity(double airTempC, double cloudCoverFrac, double relativeHumidityPercent)
+        {
+            double Ta_K = airTempC + 273.15;
+            double es_air = saturation_vapour_pressure_magnus(airTempC);
+            double ea = (relativeHumidityPercent / 100.0) * es_air;
+
+            double epsilon_clear = 0.70 + 5.95e-5 * ea * Math.Exp(1500.0 / Ta_K);
+            double cloudTerm = 1.0 + 0.17 * Math.Pow(cloudCoverFrac, longwaveCloudExponent);
+
+            return epsilon_clear * cloudTerm * stefanBoltzmann * Math.Pow(Ta_K, 4);
+        }
+
+        // TEMP_V1 - back (water) longwave emission, q_b, HEC-RAS Eq. 2.7. Fixed emissivity
+        // 0.97 - no alternative option, per the spec (this term is well-constrained
+        // physically and isn't user-configurable). Returns W/m2 (always positive - a loss
+        // from the water surface).
+        double water_longwave(double waterTempC)
+        {
+            double Tw_K = waterTempC + 273.15;
+            return 0.97 * stefanBoltzmann * Math.Pow(Tw_K, 4);
+        }
+
         // TEMP_V1 - log-law wind speed correction from measurement height to a target
         // reference height. Roughness length z0 depends on the measured wind speed itself
         // (HEC-RAS convention: 0.001 m if windSpeed < 2.3 m/s, else 0.015 m).
