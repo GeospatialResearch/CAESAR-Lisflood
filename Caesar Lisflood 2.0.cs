@@ -907,6 +907,11 @@ namespace caesar1
         private TextBox TempTab_textBox_initialtemp;
         private Label TempTab_label_initialraster;
         private TextBox TempTab_textBox_initialraster;
+        private Label TempTab_label_sourcetemp; // TEMP_V1
+        private TextBox TempTab_textBox_sourcetemp; // TEMP_V1
+        public static double[,] sourceTempData; // TEMP_V1 - [row, column], gap-filled at load time
+        public static int[] sourceTempColumnFor; // TEMP_V1 - [sourceIndex] -> column in sourceTempData, or -1 = no column (use waterTempInitialValue)
+        public static int nSourceTempColumns = 0;
         #endregion
 
 
@@ -1415,6 +1420,8 @@ namespace caesar1
             this.TempTab_textBox_initialtemp = new System.Windows.Forms.TextBox();
             this.TempTab_label_initialraster = new System.Windows.Forms.Label();
             this.TempTab_textBox_initialraster = new System.Windows.Forms.TextBox();
+            this.TempTab_label_sourcetemp = new System.Windows.Forms.Label(); // TEMP_V1
+            this.TempTab_textBox_sourcetemp = new System.Windows.Forms.TextBox(); // TEMP_V1
 
             this.folderBrowserOutDir = new System.Windows.Forms.FolderBrowserDialog();
             this.label107 = new System.Windows.Forms.Label();
@@ -5620,6 +5627,8 @@ namespace caesar1
             this.TempTab.Controls.Add(this.TempTab_groupBox_scheme); // TEMP_V1
             this.TempTab.Controls.Add(this.TempTab_groupBox_site); // TEMP_V1
             this.TempTab.Controls.Add(this.TempTab_groupBox_initial); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_label_sourcetemp); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_textBox_sourcetemp); // TEMP_V1
             this.TempTab.Location = new System.Drawing.Point(4, 22);
             this.TempTab.Name = "TempTab";
             this.TempTab.Size = new System.Drawing.Size(1323, 504);
@@ -5947,6 +5956,20 @@ namespace caesar1
             this.TempTab_textBox_initialraster.Location = new System.Drawing.Point(15, 80);
             this.TempTab_textBox_initialraster.Size = new System.Drawing.Size(240, 20);
             this.TempTab_textBox_initialraster.Text = "null";
+            //
+            // TempTab_label_sourcetemp - TEMP_V1
+            //
+            this.TempTab_label_sourcetemp.AutoSize = true;
+            this.TempTab_label_sourcetemp.Location = new System.Drawing.Point(20, 380);
+            this.TempTab_label_sourcetemp.Name = "TempTab_label_sourcetemp";
+            this.TempTab_label_sourcetemp.Text = "Source temperature file for rain/tide/reach, optional\n(see docs for column format)";
+            //
+            // TempTab_textBox_sourcetemp - TEMP_V1
+            //
+            this.TempTab_textBox_sourcetemp.Location = new System.Drawing.Point(20, 410);
+            this.TempTab_textBox_sourcetemp.Name = "TempTab_textBox_sourcetemp";
+            this.TempTab_textBox_sourcetemp.Size = new System.Drawing.Size(300, 20);
+            this.TempTab_textBox_sourcetemp.Text = "null";
             // 
             // label107
             // 
@@ -6653,7 +6676,7 @@ namespace caesar1
 
                 // save water tracer states
                 if (isTraceWater == true) save_tracer_states();
-
+                if (isSimulateTemperature == true) save_temperature_states(); // TEMP_V1
 
                 // route water and update flow depths
 
@@ -6951,6 +6974,20 @@ namespace caesar1
                 prev_depth = water_depth[x, y];
                 water_depth[x, y] += water_add_amt;
 
+                // TEMP_V1 - assign/mix temperature of rainfall input water.
+                if (isSimulateTemperature == true)
+                {
+                    double sourceTemp_rain = get_source_temperature(1, cycle); // TEMP_V1 - rain is always source index 1
+                    if (prev_depth <= 0.0 || water_temp[x, y] == -9999)
+                    {
+                        water_temp[x, y] = sourceTemp_rain;
+                    }
+                    else
+                    {
+                        water_temp[x, y] = ((water_temp[x, y] * prev_depth) + (sourceTemp_rain * water_add_amt)) / water_depth[x, y];
+                    }
+                }
+
                 // Adjust water proportions following the addition of rainfall - MDW 13/03/16
                 if ((isTraceWater == true) && (water_depth[x, y] > 0.0))
                 {
@@ -7226,6 +7263,20 @@ namespace caesar1
                 // also have to add suspended sediment here..
                 // from file
 
+                // TEMP_V1 - assign/mix temperature of reach/point input water.
+                if (isSimulateTemperature == true)
+                {
+                    double sourceTemp_reach = get_source_temperature(sourceIDs[n], cycle); // TEMP_V1
+                    if (prev_depth <= 0.0 || water_temp[x, y] == -9999)
+                    {
+                        water_temp[x, y] = sourceTemp_reach;
+                    }
+                    else
+                    {
+                        water_temp[x, y] = ((water_temp[x, y] * prev_depth) + (sourceTemp_reach * dhdt)) / water_depth[x, y];
+                    }
+                }
+
                 if ((isTraceWater == true) && (water_depth[x, y] > 0.0))
                 {
                     int thissrc = sourceIDs[n]; //sourceIDs[n + 1] + 2; // identify the source of this input // MDW_V2 changed to zero-index; indices changed for tide/rain
@@ -7326,6 +7377,25 @@ namespace caesar1
                         dhdt = (input - elev[x, y]);// -water_depth[x, y]; CHECK THIS IS RIGHT
                         //water_depth[x, y] = input - elev[x, y];
                         water_depth[x, y] = dhdt;
+
+                        // TEMP_V1 - assign/mix temperature of tidal/stage input water.
+                        // NOTE: mirrors the existing watertracer logic just below, which also treats
+                        // "dhdt" as an added depth even though water_depth[x,y] is fully overwritten above
+                        // (a pre-existing quirk in the base code, flagged there as "CHECK THIS IS RIGHT" -
+                        // not something this step attempts to fix).
+                        if (isSimulateTemperature == true)
+                        {
+                            double sourceTemp_tidal = get_source_temperature(0, cycle); // TEMP_V1 - stage/tide is always source index 0
+                            if (prev_depth <= 0.0 || water_temp[x, y] == -9999)
+                            {
+                                water_temp[x, y] = sourceTemp_tidal;
+                            }
+                            else
+                            {
+                                water_temp[x, y] = ((water_temp[x, y] * prev_depth) + (sourceTemp_tidal * dhdt)) / water_depth[x, y];
+                            }
+                        }
+
 
                         // code below is commented out but where you can add Suspended sediment input at tidal boundary
                         //if (water_depth[x, y] > 0) Vsusptot[x, y] = water_depth[x, y] * 0.001;//0.0005 is 500mg l.. approx.
@@ -9386,6 +9456,212 @@ namespace caesar1
             }
         }
 
+        // TEMP_V1 - loads the shared rain/tide/reach source temperature file, parses the
+        // flexible header row (single index / a-b range / a+b combination / ALL), gap-fills
+        // each column (interpolate internal gaps, hold flat beyond the first/last valid
+        // value), and reports the resulting source-index-to-column mapping.
+        void load_source_temp_file(string FILE_NAME, char[] delimiterChars)
+        {
+            sourceTempColumnFor = new int[nSources];
+            for (int i = 0; i < nSources; i++) sourceTempColumnFor[i] = -1;
+            sourceTempData = null;
+            nSourceTempColumns = 0;
+
+            if (FILE_NAME == "null" || !File.Exists(FILE_NAME))
+            {
+                return; // optional file - every source falls back to waterTempInitialValue
+            }
+
+            char commentline = '#';
+            string mappingReport = "";
+
+            try
+            {
+                StreamReader gr = File.OpenText(FILE_NAME);
+                string input;
+                string headerLine = null;
+
+                while ((input = gr.ReadLine()) != null)
+                {
+                    if (input.Length == 0) continue;
+                    if (input[0].CompareTo(commentline) == 0) continue;
+                    headerLine = input;
+                    break;
+                }
+
+                if (headerLine == null)
+                {
+                    MessageBox.Show("Source temperature file " + FILE_NAME + " has no header row. File ignored; all sources will use the background initial temperature.");
+                    gr.Close();
+                    return;
+                }
+
+                string[] headerTokens = headerLine.Split(delimiterChars, StringSplitOptions.RemoveEmptyEntries);
+                int nCols = headerTokens.Length;
+                int allColumn = -1;
+                bool[] indexClaimed = new bool[nSources];
+
+                for (int col = 0; col < nCols; col++)
+                {
+                    string token = headerTokens[col].Trim();
+                    if (token.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (allColumn == -1)
+                        {
+                            allColumn = col;
+                        }
+                        else
+                        {
+                            mappingReport += "Warning: more than one ALL column found; first occurrence (column " + (allColumn + 1) + ") kept, column " + (col + 1) + " ignored.\n";
+                        }
+                        continue;
+                    }
+
+                    string[] parts = token.Split('+');
+                    foreach (string part in parts)
+                    {
+                        int lo, hi;
+                        if (part.Contains("-"))
+                        {
+                            string[] range = part.Split('-');
+                            lo = int.Parse(range[0]);
+                            hi = int.Parse(range[1]);
+                        }
+                        else
+                        {
+                            lo = hi = int.Parse(part);
+                        }
+
+                        for (int idx = lo; idx <= hi; idx++)
+                        {
+                            if (idx < 0 || idx >= nSources)
+                            {
+                                mappingReport += "Warning: header refers to source index " + idx + ", outside the valid range (0-" + (nSources - 1) + "). Ignored.\n";
+                                continue;
+                            }
+                            if (indexClaimed[idx])
+                            {
+                                mappingReport += "Warning: source index " + idx + " is claimed by more than one column; first assignment kept, column " + (col + 1) + " ignored for this index.\n";
+                                continue;
+                            }
+                            indexClaimed[idx] = true;
+                            sourceTempColumnFor[idx] = col;
+                        }
+                    }
+                }
+
+                for (int idx = 0; idx < nSources; idx++)
+                {
+                    if (sourceTempColumnFor[idx] == -1 && allColumn != -1)
+                    {
+                        sourceTempColumnFor[idx] = allColumn;
+                    }
+                }
+
+                int max_file_length = (int)((maxcycle * 60) / met_data_time_step) + 10;
+                double[,] rawData = new double[max_file_length, nCols];
+                for (int r = 0; r < max_file_length; r++)
+                    for (int c = 0; c < nCols; c++)
+                        rawData[r, c] = -9999;
+
+                int rowIdx = 0;
+                while ((input = gr.ReadLine()) != null && rowIdx < max_file_length)
+                {
+                    if (input.Length == 0) continue;
+                    if (input[0].CompareTo(commentline) == 0) continue;
+
+                    string[] lineArray = input.Split(delimiterChars, StringSplitOptions.RemoveEmptyEntries);
+                    for (int c = 0; c < Math.Min(lineArray.Length, nCols); c++)
+                    {
+                        if (lineArray[c] != "") rawData[rowIdx, c] = double.Parse(lineArray[c]);
+                    }
+                    rowIdx++;
+                }
+                gr.Close();
+
+                // gap-fill: interpolate internal -9999 runs between bracketing valid values;
+                // hold flat beyond the first/last valid value; leave whole column at -9999
+                // if it has no valid data at all (handled as "no data" at lookup time)
+                for (int c = 0; c < nCols; c++)
+                {
+                    int firstValid = -1, lastValid = -1;
+                    for (int r = 0; r < rowIdx; r++)
+                    {
+                        if (rawData[r, c] != -9999)
+                        {
+                            if (firstValid == -1) firstValid = r;
+                            lastValid = r;
+                        }
+                    }
+                    if (firstValid == -1) continue;
+
+                    for (int r = 0; r < firstValid; r++) rawData[r, c] = rawData[firstValid, c];
+                    for (int r = lastValid + 1; r < max_file_length; r++) rawData[r, c] = rawData[lastValid, c]; // TEMP_V1 - hold flat for the rest of the run, not just to the end of the file's actual rows
+
+                    int prevValid = firstValid;
+                    for (int r = firstValid + 1; r <= lastValid; r++)
+                    {
+                        if (rawData[r, c] != -9999) { prevValid = r; continue; }
+                        int nextValid = r;
+                        while (rawData[nextValid, c] == -9999) nextValid++;
+                        double frac = (double)(r - prevValid) / (double)(nextValid - prevValid);
+                        rawData[r, c] = rawData[prevValid, c] + frac * (rawData[nextValid, c] - rawData[prevValid, c]);
+                    }
+                }
+
+                sourceTempData = rawData;
+                nSourceTempColumns = nCols;
+            }
+            catch (Exception eSourceTemp)
+            {
+                MessageBox.Show("Error loading the source temperature file " + FILE_NAME + ". All sources will use the background initial temperature." +
+                    "\n\nDebug info: \n" + eSourceTemp.Message + "\n\nStackTrace:\n" + eSourceTemp.StackTrace);
+                sourceTempData = null;
+                nSourceTempColumns = 0;
+                return;
+            }
+
+            // Diagnostic: full source index -> name -> column/default mapping, plus any warnings above
+            mappingReport += "\nSource temperature file loaded: " + FILE_NAME + "\n\nSource index mapping:\n";
+            for (int idx = 0; idx < nSources; idx++)
+            {
+                string srcName;
+                if (idx == 0) srcName = "Stage" + (checkBox3.Checked ? "" : " [not active]");
+                else if (idx == 1) srcName = "Rain" + (catchment_mode_box.Checked ? "" : " [not active]");
+                else srcName = (idx - sourceIndexAddition < inputfilenames.Count) ? inputfilenames[idx - sourceIndexAddition] : "(unknown source)";
+
+                if (sourceTempColumnFor[idx] == -1)
+                    mappingReport += "  " + idx + " : " + srcName + " -> no column found, using background initial value (" + waterTempInitialValue + " C)\n";
+                else
+                    mappingReport += "  " + idx + " : " + srcName + " -> column " + (sourceTempColumnFor[idx] + 1) + "\n";
+            }
+            MessageBox.Show(mappingReport);
+        }
+
+        // TEMP_V1 - time-interpolated lookup of a source's temperature at the current cycle.
+        // Falls back to waterTempInitialValue if the source has no mapped column, or the
+        // column had no valid data anywhere in the file.
+        double get_source_temperature(int sourceIndex, double cycleMinutes)
+        {
+            if (sourceTempData == null || sourceIndex < 0 || sourceIndex >= nSources) return waterTempInitialValue;
+            int col = sourceTempColumnFor[sourceIndex];
+            if (col == -1) return waterTempInitialValue;
+
+            int maxIdx = sourceTempData.GetLength(0) - 1;
+            int idx0 = (int)(cycleMinutes / met_data_time_step);
+            if (idx0 < 0) idx0 = 0;
+            if (idx0 >= maxIdx) idx0 = maxIdx - 1;
+            if (idx0 < 0) idx0 = 0;
+            int idx1 = idx0 + 1;
+            if (idx1 > maxIdx) idx1 = maxIdx;
+
+            double v0 = sourceTempData[idx0, col];
+            double v1 = sourceTempData[idx1, col];
+            if (v0 == -9999 || v1 == -9999) return waterTempInitialValue; // column had no valid data at all
+
+            double proportion = (((idx0 + 1) * met_data_time_step) - cycleMinutes) / met_data_time_step;
+            return v0 + ((v1 - v0) * (1 - proportion));
+        }
 
         void save_data(int typeflag, double tempcycle)
         {
@@ -11900,7 +12176,7 @@ namespace caesar1
                     int x = down_scan[y, inc];
                     inc++;
 
-                    if (isTraceWater == true)// for water tracing, we need to record the volumes of water moving between cells - MDW
+                    if (isTraceWater == true || isSimulateTemperature == true) // for water tracing/temperature, we need to record the volumes of water moving between cells - MDW / TEMP_V1
                     {
 
                         dhdt_x[x + 1, y] = local_time_factor * qx[x + 1, y] / DX;
@@ -11970,6 +12246,27 @@ namespace caesar1
                 }
             });
         }
+
+        // TEMP_V1 - saves the previous water_temp state, analogous to save_tracer_states().
+        // Kept as its own function (rather than folded into save_tracer_states()) so that
+        // running with isSimulateTemperature == true and isTraceWater == false never touches
+        // the watertracer/nSources-dependent code in that function at all.
+        void save_temperature_states()
+        {
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+            Parallel.For(1, ymax + 1, options, delegate (int y)
+            {
+                int inc = 1;
+                while (down_scan[y, inc] > 0)
+                {
+                    int x = down_scan[y, inc];
+                    inc++;
+
+                    water_temp_prev[x, y] = water_temp[x, y];
+                }
+            });
+        }
+
         void oil_area()
         {
 
@@ -12377,13 +12674,90 @@ namespace caesar1
         }
 
 
-        // TEMP_V1 - water temperature module function stubs (see spec doc for equations/logic)
+        // TEMP_V1 - water temperature module functions (see spec doc for equations/logic)
 
-        // Fine-cadence advective mixing of water temperature, run every hydraulic iteration
-        // (mirrors update_tracer_states()). To be implemented.
+        // TEMP_V1 - returns the given water temperature, or the background initial value
+        // if it's the nodata sentinel (e.g. donor cell has no established temperature yet).
+        double GetTempOrDefault(double t)
+        {
+            return (t == -9999) ? waterTempInitialValue : t;
+        }
+
+        // TEMP_V1 - fine-cadence advective mixing of water temperature, run every hydraulic
+        // iteration. Mirrors the solute-tracer update logic in update_tracer_states() (depth-
+        // weighted average of an intensive quantity), not the water-source-tracer proportion
+        // logic. NOTE: this only handles cell-to-cell mixing via qx/qy fluxes (dhdt_x/dhdt_y).
+        // It does NOT yet assign a temperature to water newly added at reach/catchment/tidal
+        // input points - that is a separate, still-outstanding integration point (see A8a).
         void update_water_temperature_advection(double local_time_factor)
         {
-            return;
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+            Parallel.For(1, ymax + 1, options, delegate (int y)
+            {
+                int inc = 1;
+                while (down_scan[y, inc] > 0)
+                {
+                    int x = down_scan[y, inc];
+                    inc++;
+
+                    if (water_depth[x, y] > 0.0)
+                    {
+                        // Outflows (source not important - just total volume leaving)
+                        double dhdt_sumOut = 0.0;
+                        if (dhdt_x[x + 1, y] < 0.0) { dhdt_sumOut += dhdt_x[x + 1, y]; }
+                        if (dhdt_x[x, y] > 0.0) { dhdt_sumOut -= dhdt_x[x, y]; }
+                        if (dhdt_y[x, y + 1] < 0.0) { dhdt_sumOut += dhdt_y[x, y + 1]; }
+                        if (dhdt_y[x, y] > 0.0) { dhdt_sumOut -= dhdt_y[x, y]; }
+
+                        double depth_after_outflows = water_depth_prev[x, y] + dhdt_sumOut;
+
+                        // Total inflow volume (ignoring outflows)
+                        double dhdt_sumIn = 0.0;
+                        if (dhdt_x[x + 1, y] > 0.0) { dhdt_sumIn += dhdt_x[x + 1, y]; }
+                        if (dhdt_x[x, y] < 0.0) { dhdt_sumIn -= dhdt_x[x, y]; }
+                        if (dhdt_y[x, y + 1] > 0.0) { dhdt_sumIn += dhdt_y[x, y + 1]; }
+                        if (dhdt_y[x, y] < 0.0) { dhdt_sumIn -= dhdt_y[x, y]; }
+
+                        double dhdt_sumInTemp = 0.0;
+                        if (dhdt_sumIn > 0.0)
+                        {
+                            // depth-weighted average temperature of the water flowing in,
+                            // defaulting any nodata donor to the background initial value
+                            if (dhdt_x[x + 1, y] > 0.0) dhdt_sumInTemp += dhdt_x[x + 1, y] * GetTempOrDefault(water_temp_prev[x + 1, y]);
+                            if (dhdt_x[x, y] < 0.0) dhdt_sumInTemp -= dhdt_x[x, y] * GetTempOrDefault(water_temp_prev[x - 1, y]);
+                            if (dhdt_y[x, y + 1] > 0.0) dhdt_sumInTemp += dhdt_y[x, y + 1] * GetTempOrDefault(water_temp_prev[x, y + 1]);
+                            if (dhdt_y[x, y] < 0.0) dhdt_sumInTemp -= dhdt_y[x, y] * GetTempOrDefault(water_temp_prev[x, y - 1]);
+                            dhdt_sumInTemp = dhdt_sumInTemp / dhdt_sumIn;
+                        }
+
+                        if (dhdt_sumIn == 0.0 && water_temp_prev[x, y] == -9999)
+                        {
+                            // no inflow, and this cell had no established temperature - stays nodata
+                            water_temp[x, y] = -9999;
+                        }
+                        else if (dhdt_sumIn == 0.0 && dhdt_sumOut < 0.0)
+                        {
+                            // outflow only, no new inflow - temperature of remaining water unchanged
+                            water_temp[x, y] = GetTempOrDefault(water_temp_prev[x, y]);
+                        }
+                        else if (depth_after_outflows <= 0.0 || water_depth_prev[x, y] <= 0.0 || water_temp_prev[x, y] == -9999)
+                        {
+                            // cell was empty (or had no established temperature) before this
+                            // step - new temperature is simply the inflow average (A2)
+                            water_temp[x, y] = dhdt_sumInTemp;
+                        }
+                        else
+                        {
+                            // depth-weighted average of what was already there and what's flowing in
+                            water_temp[x, y] = ((water_temp_prev[x, y] * depth_after_outflows) + (dhdt_sumInTemp * dhdt_sumIn)) / water_depth[x, y];
+                        }
+                    }
+                    else
+                    {
+                        water_temp[x, y] = -9999; // TEMP_V1 - cell is dry: nodata (A2)
+                    }
+                }
+            });
         }
 
         // TEMP_V1 - coarse-cadence surface energy balance (full or simplified scheme),
@@ -16731,6 +17105,27 @@ namespace caesar1
                 zero_values();
                 load_data();
 
+                // TEMP_V1 - dhdt_x/dhdt_y are needed by depth_update() and
+                // update_water_temperature_advection() whenever temperature simulation is
+                // active, even if water-source tracing itself is switched off. water_depth_prev
+                // is allocated here too for consistency, though save_temperature_states()
+                // itself only needs water_temp_prev (already allocated unconditionally, Step 2).
+                // Allocate here if the isTraceWater block below won't be doing it.
+                if (isSimulateTemperature == true && isTraceWater == false)
+                {
+                    water_depth_prev = new double[xmax + 2, ymax + 2];
+                    dhdt_x = new double[xmax + 2, ymax + 2];
+                    dhdt_y = new double[xmax + 2, ymax + 2];
+                }
+
+                // TEMP_V1 - nSources is needed for source-temperature file column mapping
+                // even when water-source tracing itself is disabled.
+                if (isSimulateTemperature == true && isTraceWater == false)
+                {
+                    if (sourceIDs.Length == 0) { nSources = sourceIndexAddition; }
+                    else { nSources = sourceIDs.Distinct().Count() + sourceIndexAddition; }
+                }
+
                 // Additional initialisation for water source tracing - MDW 13/03/16
                 if (isTraceWater == true)
                 {
@@ -16841,6 +17236,12 @@ namespace caesar1
 
                 // OIL_V1
                 if (isOilSimulation == true) initialise_oil_simulation();
+
+                // TEMP_V1 - source temperature file, loaded after nSources is finalised above
+                if (isSimulateTemperature == true)
+                {
+                    load_source_temp_file(this.TempTab_textBox_sourcetemp.Text, new char[] { ' ', ',', '\t' });
+                }
 
                 // nActualGridSize
                 // moved from initialse() to here MJ 29/03/05
@@ -17992,6 +18393,8 @@ namespace caesar1
                             TempTab_textBox_cloudcover.Text = xreader.ReadElementString("TempFileCloudcover");
                             TempTab_textBox_pressure.Text = xreader.ReadElementString("TempFilePressure");
                             TempTab_textBox_dewpoint.Text = xreader.ReadElementString("TempFileDewpoint");
+                            TempTab_textBox_sourcetemp.Text = xreader.ReadElementString("TempFileSourceTemp"); // TEMP_V1
+
                         }
                         catch (Exception eTemp)
                         {
@@ -18599,6 +19002,7 @@ namespace caesar1
                 xwriter.WriteElementString("TempFileCloudcover", TempTab_textBox_cloudcover.Text);
                 xwriter.WriteElementString("TempFilePressure", TempTab_textBox_pressure.Text);
                 xwriter.WriteElementString("TempFileDewpoint", TempTab_textBox_dewpoint.Text);
+                xwriter.WriteElementString("TempFileSourceTemp", TempTab_textBox_sourcetemp.Text); // TEMP_V1
 
 
                 xwriter.WriteEndElement();

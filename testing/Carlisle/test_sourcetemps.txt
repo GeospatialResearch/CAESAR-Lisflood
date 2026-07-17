@@ -1,0 +1,6 @@
+# test source temperature file: header row maps columns to source indices
+2,3,4
+12.0,15.0,10.0
+12.0,80.0,10.0
+12.0,80.0,10.0
+12.0,15.0,10.0
