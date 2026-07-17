@@ -912,6 +912,9 @@ namespace caesar1
         public static double[,] sourceTempData; // TEMP_V1 - [row, column], gap-filled at load time
         public static int[] sourceTempColumnFor; // TEMP_V1 - [sourceIndex] -> column in sourceTempData, or -1 = no column (use waterTempInitialValue)
         public static int nSourceTempColumns = 0;
+        public static DateTime simulationStartDateTime = new DateTime(2000, 6, 21); // TEMP_V1 - anchors cycle (minutes) to a real calendar date/time for solar geometry
+        private Label TempTab_label_startdate;
+        private TextBox TempTab_textBox_startdate;
         #endregion
 
 
@@ -1414,6 +1417,8 @@ namespace caesar1
             this.TempTab_textBox_elevation = new System.Windows.Forms.TextBox();
             this.TempTab_label_windheight = new System.Windows.Forms.Label();
             this.TempTab_textBox_windheight = new System.Windows.Forms.TextBox();
+            this.TempTab_label_startdate = new System.Windows.Forms.Label(); // TEMP_V1
+            this.TempTab_textBox_startdate = new System.Windows.Forms.TextBox(); // TEMP_V1
 
             this.TempTab_groupBox_initial = new System.Windows.Forms.GroupBox();
             this.TempTab_label_initialtemp = new System.Windows.Forms.Label();
@@ -5849,6 +5854,8 @@ namespace caesar1
             this.TempTab_groupBox_site.Controls.Add(this.TempTab_textBox_elevation);
             this.TempTab_groupBox_site.Controls.Add(this.TempTab_label_windheight);
             this.TempTab_groupBox_site.Controls.Add(this.TempTab_textBox_windheight);
+            this.TempTab_groupBox_site.Controls.Add(this.TempTab_label_startdate); // TEMP_V1
+            this.TempTab_groupBox_site.Controls.Add(this.TempTab_textBox_startdate); // TEMP_V1
             this.TempTab_groupBox_site.Location = new System.Drawing.Point(400, 220);
             this.TempTab_groupBox_site.Name = "TempTab_groupBox_site";
             this.TempTab_groupBox_site.Size = new System.Drawing.Size(340, 190);
@@ -5919,6 +5926,19 @@ namespace caesar1
             this.TempTab_textBox_windheight.Size = new System.Drawing.Size(60, 20);
             this.TempTab_textBox_windheight.Text = "10";
             this.TempTab_textBox_windheight.TextChanged += new System.EventHandler(this.TempTab_textBox_windheight_TextChanged);
+            //
+            // TempTab_label_startdate - TEMP_V1
+            //
+            this.TempTab_label_startdate.AutoSize = true;
+            this.TempTab_label_startdate.Location = new System.Drawing.Point(15, 159);
+            this.TempTab_label_startdate.Text = "Simulation start date/time\n(yyyy-MM-dd HH:mm)";
+            //
+            // TempTab_textBox_startdate - TEMP_V1
+            //
+            this.TempTab_textBox_startdate.Location = new System.Drawing.Point(230, 156);
+            this.TempTab_textBox_startdate.Size = new System.Drawing.Size(100, 20);
+            this.TempTab_textBox_startdate.Text = "2000-06-21 00:00";
+            this.TempTab_textBox_startdate.TextChanged += new System.EventHandler(this.TempTab_textBox_startdate_TextChanged);
             //
             // TempTab_groupBox_initial - TEMP_V1
             //
@@ -12833,17 +12853,84 @@ namespace caesar1
             }
         }
 
-        // Returns extraterrestrial radiation q_o (HEC-RAS Eq. 2.5). To be implemented.
-        double solar_geometry(double dayOfYear, double hourOfDay)
+
+        // TEMP_V1 - solar altitude angle (radians above the horizon), using standard solar-
+        // position equations (Spencer 1971 declination series, standard equation-of-time
+        // correction, hour angle from apparent solar time). This is a widely-used, well-
+        // established formulation (e.g. Duffie & Beckman, "Solar Engineering of Thermal
+        // Processes") rather than a HEC-RAS-specific one - the report itself doesn't fully
+        // specify its own solar-position derivation in the material reviewed, so this is our
+        // best-practice choice for that piece. Uses siteLatitude/siteLongitude/siteTimeZone.
+        double solar_altitude(double dayOfYear, double hourOfDay)
         {
-            return 0.0;
+            double gamma = 2.0 * Math.PI * (dayOfYear - 1) / 365.0; // day angle, radians
+
+            // Spencer (1971) solar declination series, radians
+            double declination = 0.006918
+                - 0.399912 * Math.Cos(gamma) + 0.070257 * Math.Sin(gamma)
+                - 0.006758 * Math.Cos(2 * gamma) + 0.000907 * Math.Sin(2 * gamma)
+                - 0.002697 * Math.Cos(3 * gamma) + 0.001480 * Math.Sin(3 * gamma);
+
+            // Equation of time, minutes
+            double eqTime = 229.18 * (0.000075
+                + 0.001868 * Math.Cos(gamma) - 0.032077 * Math.Sin(gamma)
+                - 0.014615 * Math.Cos(2 * gamma) - 0.040849 * Math.Sin(2 * gamma));
+
+            double standardMeridian = 15.0 * siteTimeZone; // degrees
+            double timeCorrectionMin = 4.0 * (siteLongitude - standardMeridian) + eqTime;
+            double solarTimeHours = hourOfDay + (timeCorrectionMin / 60.0);
+
+            double hourAngleDeg = 15.0 * (solarTimeHours - 12.0);
+            double hourAngleRad = hourAngleDeg * Math.PI / 180.0;
+            double latRad = siteLatitude * Math.PI / 180.0;
+
+            double sinAltitude = Math.Sin(latRad) * Math.Sin(declination)
+                + Math.Cos(latRad) * Math.Cos(declination) * Math.Cos(hourAngleRad);
+
+            if (sinAltitude > 1.0) sinAltitude = 1.0;
+            if (sinAltitude < -1.0) sinAltitude = -1.0;
+
+            return Math.Asin(sinAltitude); // radians; negative = sun below horizon
         }
 
-        // Returns R_s, HEC-RAS solar-altitude-dependent reflection coefficient. To be implemented.
+        // TEMP_V1 - extraterrestrial radiation on a horizontal surface, q_o (HEC-RAS Eq. 2.5).
+        double solar_geometry(double dayOfYear, double hourOfDay)
+        {
+            const double Q0 = 1360.0; // solar constant, W/m2
+
+            double gamma = 2.0 * Math.PI * (dayOfYear - 1) / 365.0;
+            // Earth-sun distance correction (1/r^2), Spencer (1971)
+            double inv_r2 = 1.000110
+                + 0.034221 * Math.Cos(gamma) + 0.001280 * Math.Sin(gamma)
+                + 0.000719 * Math.Cos(2 * gamma) + 0.000077 * Math.Sin(2 * gamma);
+
+            double altitude = solar_altitude(dayOfYear, hourOfDay);
+            double sinAltitude = Math.Sin(altitude);
+            if (sinAltitude < 0) sinAltitude = 0; // sun below horizon: no extraterrestrial radiation
+
+            return Q0 * inv_r2 * sinAltitude;
+        }
+
+        // TEMP_V1 - R_s, HEC-RAS solar-altitude-dependent reflection coefficient.
+        // Based on the widely-used Anderson (1954) clear-sky reflectivity curve (as tabulated
+        // in, e.g., water-quality modelling references such as QUAL2E) - a decreasing power-law
+        // function of solar altitude, since reflection off water rises sharply at low sun
+        // angles. Flagged for a precise cross-check against the source report's own table if
+        // exact reproduction of HEC-RAS results is required.
         double reflection_coefficient(double solarAltitudeRad)
         {
-            return 0.0;
+            double altitudeDeg = solarAltitudeRad * 180.0 / Math.PI;
+
+            if (altitudeDeg <= 0) return 1.0; // sun at/below horizon: not physically meaningful, but avoids a divide-by-zero/negative-power issue downstream
+
+            double Rs = 1.18 * Math.Pow(altitudeDeg, -0.77);
+
+            if (Rs > 1.0) Rs = 1.0;   // physical bound
+            if (Rs < 0.03) Rs = 0.03; // floor, consistent with typical clear-water minimum reflectivity near solar noon
+
+            return Rs;
         }
+
 
         // Returns Ri, Richardson number (HEC-RAS Eq. 2.13). To be implemented.
         double richardson_number(double airTemp, double waterTemp, double windSpeed)
@@ -12855,6 +12942,17 @@ namespace caesar1
         double wind_function(double windSpeed, double Ri)
         {
             return 0.0;
+        }
+
+        // TEMP_V1 - converts elapsed model time (cycle, in minutes) plus the user-specified
+        // simulation start date/time into a day-of-year and hour-of-day, for use in solar
+        // geometry calculations. Uses .NET DateTime arithmetic to correctly handle month/
+        // year rollovers and leap years rather than manual day-counting.
+        void get_day_and_hour(double cycleMinutes, out double dayOfYear, out double hourOfDay)
+        {
+            DateTime current = simulationStartDateTime.AddMinutes(cycleMinutes);
+            dayOfYear = current.DayOfYear;
+            hourOfDay = current.Hour + (current.Minute / 60.0) + (current.Second / 3600.0);
         }
 
         // TEMP_V1 - log-law wind speed correction from measurement height to a target
@@ -18394,6 +18492,8 @@ namespace caesar1
                             TempTab_textBox_pressure.Text = xreader.ReadElementString("TempFilePressure");
                             TempTab_textBox_dewpoint.Text = xreader.ReadElementString("TempFileDewpoint");
                             TempTab_textBox_sourcetemp.Text = xreader.ReadElementString("TempFileSourceTemp"); // TEMP_V1
+                            TempTab_textBox_startdate.Text = xreader.ReadElementString("TempStartDateTime"); // TEMP_V1
+                            DateTime.TryParse(TempTab_textBox_startdate.Text, out simulationStartDateTime);
 
                         }
                         catch (Exception eTemp)
@@ -19003,6 +19103,7 @@ namespace caesar1
                 xwriter.WriteElementString("TempFilePressure", TempTab_textBox_pressure.Text);
                 xwriter.WriteElementString("TempFileDewpoint", TempTab_textBox_dewpoint.Text);
                 xwriter.WriteElementString("TempFileSourceTemp", TempTab_textBox_sourcetemp.Text); // TEMP_V1
+                xwriter.WriteElementString("TempStartDateTime", TempTab_textBox_startdate.Text); // TEMP_V1
 
 
                 xwriter.WriteEndElement();
@@ -19714,6 +19815,14 @@ namespace caesar1
         private void TempTab_textBox_windheight_TextChanged(object sender, EventArgs e) // TEMP_V1
         {
             double.TryParse(TempTab_textBox_windheight.Text, out windMeasurementHeight);
+        }
+        private void TempTab_textBox_startdate_TextChanged(object sender, EventArgs e) // TEMP_V1
+        {
+            DateTime parsed;
+            if (DateTime.TryParse(TempTab_textBox_startdate.Text, out parsed))
+            {
+                simulationStartDateTime = parsed;
+            }
         }
 
         private void TempTab_textBox_initialtemp_TextChanged(object sender, EventArgs e) // TEMP_V1
