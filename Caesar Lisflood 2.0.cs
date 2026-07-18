@@ -12931,17 +12931,86 @@ namespace caesar1
             return Rs;
         }
 
-
-        // Returns Ri, Richardson number (HEC-RAS Eq. 2.13). To be implemented.
-        double richardson_number(double airTemp, double waterTemp, double windSpeed)
+        // TEMP_V1 - moist air density (kg/m3), standard formulation, used only by
+        // richardson_number() below. P in mb, e (vapour pressure) in mb, T in K.
+        double air_density(double pressureMb, double vapourPressureMb, double tempK)
         {
-            return 0.0;
+            const double Rd = 287.05; // J/(kg.K), specific gas constant for dry air
+            double P_Pa = pressureMb * 100.0;
+            double e_Pa = vapourPressureMb * 100.0;
+            return (P_Pa / (Rd * tempK)) * (1.0 - 0.378 * (e_Pa / P_Pa));
         }
 
-        // Returns f(u_s), wind function (HEC-RAS Eq. 2.11). To be implemented.
-        double wind_function(double windSpeed, double Ri)
+        // TEMP_V1 - Richardson number, HEC-RAS Eq. 2.13: buoyancy (density difference between
+        // ambient moist air and air saturated at the water surface temperature) vs. mechanical
+        // (wind shear) turbulence. windSpeed2 must already be corrected to 2 m height
+        // (wind_speed_at_height()) before being passed in here.
+        double richardson_number(double airTempC, double waterTempC, double windSpeed2, double pressureMb, double relativeHumidityPercent)
         {
-            return 0.0;
+            if (windSpeed2 <= 0) return 0.0; // avoid divide-by-zero; treat calm conditions as neutral
+
+            const double g = 9.806; // m/s2
+
+            double Ta_K = airTempC + 273.15;
+            double Tw_K = waterTempC + 273.15;
+
+            double es_air = saturation_vapour_pressure(airTempC);
+            double ea = (relativeHumidityPercent / 100.0) * es_air;
+            double es_water = saturation_vapour_pressure(waterTempC);
+
+            double rho_air = air_density(pressureMb, ea, Ta_K);
+            double rho_sat = air_density(pressureMb, es_water, Tw_K); // air saturated at the water surface temperature
+
+            return g * (rho_air - rho_sat) / (rho_air * windSpeed2 * windSpeed2);
+        }
+
+        // TEMP_V1 - f(Ri), Richardson-number stability correction, HEC-RAS Eqs. 2.14a-e (piecewise).
+        double richardson_stability_function(double Ri)
+        {
+            if (Ri <= -1.0) return 12.3;
+            if (Ri <= -0.01) return Math.Pow(1.0 - 22.0 * Ri, 0.8);
+            if (Ri < 0.01) return 1.0;
+            if (Ri < 2.0) return Math.Pow(1.0 - 34.0 * Ri, -0.8);
+            return 0.03;
+        }
+
+        // TEMP_V1 - f(u_s), wind function, HEC-RAS Eq. 2.11. Shared by sensible and latent
+        // heat. windSpeed2 must already be corrected to 2 m height. Coefficients a, b, c are
+        // GUI-exposed (windFunc_a, windFunc_b, windFunc_c), literature defaults set at
+        // declaration (Step 1).
+        double wind_function(double windSpeed2, double Ri)
+        {
+            double fRi = richardson_stability_function(Ri);
+            return fRi * Math.Pow(windFunc_a + windFunc_b * windSpeed2, windFunc_c);
+        }
+
+        // TEMP_V1 - e_s, saturation vapour pressure (mb), HEC-RAS Eq. 2.9.
+        // NOTE: the exact polynomial coefficients from the source report were not confirmed
+        // when this was written - this uses the well-established Lowe (1977) polynomial fit
+        // for saturation vapour pressure over water, which is the same family of empirical fit
+        // HEC-RAS's Eq. 2.9 is drawn from and should be numerically very close, but is flagged
+        // here as needing a direct cross-check against the report if exact reproduction of
+        // HEC-RAS's own results is required (same caveat as solar_altitude()/
+        // reflection_coefficient() in Step 15).
+        double saturation_vapour_pressure(double tempC)
+        {
+            double T = tempC;
+            double es_mb = 6.107799961
+                + T * (0.4436518521
+                + T * (0.01428945805
+                + T * (0.0002650648471
+                + T * (3.031240396e-6
+                + T * (2.034080948e-8
+                + T * 6.136820929e-11)))));
+            return es_mb;
+        }
+
+        // TEMP_V1 - L, latent heat of vaporisation of water (J/kg), standard linear
+        // temperature dependence (Rogers & Yau, 1989 - a very well-established, near-universal
+        // formula, not specific to HEC-RAS but consistent with it).
+        double latent_heat_of_vaporisation(double tempC)
+        {
+            return (2500.8 - 2.36 * tempC) * 1000.0;
         }
 
         // TEMP_V1 - converts elapsed model time (cycle, in minutes) plus the user-specified
@@ -13022,18 +13091,6 @@ namespace caesar1
 
             double z0 = (windSpeedMeasured < 2.3) ? 0.001 : 0.015;
             return windSpeedMeasured * Math.Log(targetHeight / z0) / Math.Log(measurementHeight / z0);
-        }
-
-        // Returns e_s, saturation vapour pressure (HEC-RAS Eq. 2.9). To be implemented.
-        double saturation_vapour_pressure(double tempC)
-        {
-            return 0.0;
-        }
-
-        // Returns L, latent heat of vaporisation (temperature-dependent). To be implemented.
-        double latent_heat_of_vaporisation(double tempC)
-        {
-            return 0.0;
         }
 
         // TEMP_V1 - linear time interpolation of a met variable at the current cycle,
