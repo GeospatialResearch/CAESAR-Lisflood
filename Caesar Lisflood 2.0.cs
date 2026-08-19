@@ -12848,8 +12848,115 @@ namespace caesar1
             }
             else
             {
-                // TEMP_V1 - full energy balance scheme. To be implemented (next step).
-                return;
+                // TEMP_V1 - full energy balance scheme (HEC-RAS Eqs 2.1-2.14; see Steps 15-18
+                // and the spec doc for individual term derivations).
+
+                double dayOfYear, hourOfDay;
+                get_day_and_hour(cycle, out dayOfYear, out hourOfDay);
+                double solarAltitude = solar_altitude(dayOfYear, hourOfDay);
+                double Rs = reflection_coefficient(solarAltitude);
+                // NOTE: solar_geometry() (extraterrestrial radiation q_o) is not used here -
+                // q_sw is built from the measured shortwave met input (A9: direct-measured
+                // primary). q_o/solar_geometry() remains reserved for a future fallback path
+                // if shortwave is ever made an optional input.
+
+                double[] airTemp_zone = new double[nMetZones];
+                double[] shortwaveIn_zone = new double[nMetZones];
+                double[] wind2_zone = new double[nMetZones];       // wind corrected to 2 m
+                double[] humidity_zone = new double[nMetZones];
+                double[] cloud_zone = new double[nMetZones];
+                double[] pressure_zone = new double[nMetZones];
+                double[] q_atm_zone = new double[nMetZones];
+                double[] q_sw_hecras_zone = new double[nMetZones]; // only valid/used if useHecRasAlbedo
+
+                for (int zn = 0; zn < nMetZones; zn++)
+                {
+                    airTemp_zone[zn] = interpolate_met(hourly_air_temp, cycle, zn);
+                    shortwaveIn_zone[zn] = interpolate_met(hourly_shortwave, cycle, zn);
+
+                    double windMeasured = interpolate_met(hourly_windspeed, cycle, zn);
+                    wind2_zone[zn] = wind_speed_at_height(windMeasured, windMeasurementHeight, 2.0);
+
+                    humidity_zone[zn] = interpolate_met(hourly_humidity, cycle, zn);
+                    if (humidity_zone[zn] <= 0) humidity_zone[zn] = 70.0; // TEMP_V1 - hardcoded fallback; TODO: expose as a GUI default
+
+                    cloud_zone[zn] = interpolate_met(hourly_cloudcover, cycle, zn);
+                    if (cloud_zone[zn] < 0) cloud_zone[zn] = 0.0; // TEMP_V1 - hardcoded fallback (clear sky); TODO: expose as a GUI default
+
+                    pressure_zone[zn] = interpolate_met(hourly_pressure, cycle, zn);
+                    if (pressure_zone[zn] <= 0) pressure_zone[zn] = 1013.25; // TEMP_V1 - hardcoded fallback (sea level); TODO: expose as a GUI default
+
+                    q_atm_zone[zn] = (useHecRasLongwave == true)
+                        ? atmospheric_longwave_hecras(airTemp_zone[zn], cloud_zone[zn])
+                        : atmospheric_longwave_humidity(airTemp_zone[zn], cloud_zone[zn], humidity_zone[zn]);
+
+                    if (useHecRasAlbedo == true)
+                    {
+                        q_sw_hecras_zone[zn] = shortwaveIn_zone[zn] * (1.0 - Rs);
+                    }
+                }
+
+                var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
+                Parallel.For(1, ymax + 1, options, delegate (int y)
+                {
+                    int inc = 1;
+                    while (down_scan[y, inc] > 0)
+                    {
+                        int x = down_scan[y, inc];
+                        inc++;
+
+                        if (water_depth[x, y] > water_depth_erosion_threshold && water_temp[x, y] != -9999)
+                        {
+                            int zone = met_zonation[x, y];
+                            if (zone < 0 || zone >= nMetZones) zone = 0;
+
+                            double T_w = water_temp[x, y];
+                            double T_a = airTemp_zone[zone];
+
+                            double q_sw;
+                            if (useHecRasAlbedo == true)
+                            {
+                                q_sw = q_sw_hecras_zone[zone];
+                            }
+                            else
+                            {
+                                // TEMP_V1 - CAESAR-extension: fixed base albedo + suspended-
+                                // sediment adjustment (empirical, not part of HEC-RAS; see spec A10).
+                                double suspConc = 0.0;
+                                for (int T = 0; T <= tracers; T++) suspConc += Vsusptot[x, y, T];
+                                suspConc = suspConc / water_depth[x, y];
+
+                                double albedo_eff = albedoWaterBase + albedoSedimentCoeff * Math.Min(1.0, suspConc / suspCondRef);
+                                if (albedo_eff > 1.0) albedo_eff = 1.0;
+                                if (albedo_eff < 0.0) albedo_eff = 0.0;
+
+                                q_sw = shortwaveIn_zone[zone] * (1.0 - albedo_eff);
+                            }
+
+                            double q_atm = q_atm_zone[zone];
+                            double q_b = water_longwave(T_w);
+
+                            double Ri = richardson_number(T_a, T_w, wind2_zone[zone], pressure_zone[zone], humidity_zone[zone]);
+                            double q_h = sensible_heat_flux(T_a, T_w, wind2_zone[zone], Ri);
+                            double q_l = latent_heat_flux(T_a, T_w, humidity_zone[zone], pressure_zone[zone], wind2_zone[zone], Ri);
+
+                            // All terms now use a consistent "positive = gain to the water"
+                            // convention (see Step 18 notes on the q_l sign flip) - q_b is the
+                            // only term that's always subtracted.
+                            double q_net = q_sw + q_atm - q_b + q_h + q_l;
+
+                            double depth = water_depth[x, y];
+                            if (depth < water_depth_erosion_threshold) depth = water_depth_erosion_threshold;
+
+                            double deltaT = (q_net * dt_seconds) / (rho_w * Cpw * depth);
+                            double T_new = T_w + deltaT;
+
+                            if (T_new < 0) T_new = 0; // TEMP_V1 - ice deferred (A15): floor at 0 C
+
+                            water_temp[x, y] = T_new;
+                        }
+                    }
+                });
             }
         }
 
@@ -12984,23 +13091,21 @@ namespace caesar1
             return fRi * Math.Pow(windFunc_a + windFunc_b * windSpeed2, windFunc_c);
         }
 
-        // TEMP_V1 - e_s, saturation vapour pressure (mb), HEC-RAS Eq. 2.9.
-        // NOTE: the exact polynomial coefficients from the source report were not confirmed
-        // when this was written - this uses the well-established Lowe (1977) polynomial fit
-        // for saturation vapour pressure over water, which is the same family of empirical fit
-        // HEC-RAS's Eq. 2.9 is drawn from and should be numerically very close, but is flagged
-        // here as needing a direct cross-check against the report if exact reproduction of
-        // HEC-RAS's own results is required (same caveat as solar_altitude()/
-        // reflection_coefficient() in Step 15).
+        // TEMP_V1 - e_s, saturation vapour pressure (mb), HEC-RAS Eq. 2.9, exact coefficients
+        // confirmed directly against the source report. This is the Lowe (1977) polynomial
+        // family, expressed here as a direct polynomial in water temperature in Kelvin (Twk)
+        // rather than Celsius - note the highest-order (T^6) coefficient, 6.136820929e-11,
+        // is identical to the Celsius-form Lowe polynomial's, confirming both are the same
+        // underlying fit. Verified against a known reference value (~23.4 mb at 20 C).
         double saturation_vapour_pressure(double tempC)
         {
-            double T = tempC;
-            double es_mb = 6.107799961
-                + T * (0.4436518521
-                + T * (0.01428945805
-                + T * (0.0002650648471
-                + T * (3.031240396e-6
-                + T * (2.034080948e-8
+            double T = tempC + 273.15; // Twk
+            double es_mb = 6984.505294
+                + T * (-188.903931
+                + T * (2.133357675
+                + T * (-1.28858097e-2
+                + T * (4.393587233e-5
+                + T * (-8.023923082e-8
                 + T * 6.136820929e-11)))));
             return es_mb;
         }
@@ -13011,6 +13116,45 @@ namespace caesar1
         double latent_heat_of_vaporisation(double tempC)
         {
             return (2500.8 - 2.36 * tempC) * 1000.0;
+        }
+
+        // TEMP_V1 - sensible heat flux, q_h, HEC-RAS Eq. 2.10. Returns W/m2, signed:
+        // positive = gain to the water (air warmer than water), negative = loss (air cooler).
+        // windSpeed2 must already be corrected to 2 m height.
+        double sensible_heat_flux(double airTempC, double waterTempC, double windSpeed2, double Ri)
+        {
+            const double Cp_air = 1005.0; // J/(kg.C), specific heat of air at constant pressure
+
+            double Tw_K = waterTempC + 273.15;
+            double es_water = saturation_vapour_pressure(waterTempC);
+            double rho_s = air_density(1013.25, es_water, Tw_K); // saturated air density at the water surface temperature, standard pressure assumption (see note below)
+
+            double f_us = wind_function(windSpeed2, Ri);
+
+            return diffusivityRatio * Cp_air * rho_s * (airTempC - waterTempC) * f_us;
+        }
+
+        // TEMP_V1 - latent heat flux, q_l, HEC-RAS Eq. 2.8. Returns W/m2, signed:
+        // positive = gain to the water (condensation, T_w < T_d), negative = loss
+        // (evaporation, T_w > T_d) - per the report's own sign convention (Section 2.1.4).
+        // windSpeed2 must already be corrected to 2 m height.
+        double latent_heat_flux(double airTempC, double waterTempC, double relativeHumidityPercent, double pressureMb, double windSpeed2, double Ri)
+        {
+            double Tw_K = waterTempC + 273.15;
+            double es_water = saturation_vapour_pressure(waterTempC);
+            double es_air = saturation_vapour_pressure(airTempC);
+            double ea = (relativeHumidityPercent / 100.0) * es_air;
+
+            double rho_s = air_density(pressureMb, es_water, Tw_K);
+            double L = latent_heat_of_vaporisation(waterTempC);
+            double f_us = wind_function(windSpeed2, Ri);
+
+            // Report's sign convention (q_l positive = loss when Tw > Td, i.e. es > ea)
+            // is the OPPOSITE of "positive = gain" used for every other flux term (q_sw,
+            // q_atm, q_b, q_h) - so this returns the NEGATIVE of the report's q_l, to keep
+            // a single consistent "positive = gain" convention across all flux terms for
+            // the assembly step (avoids sign errors when summing q_net).
+            return -((0.622 / pressureMb) * L * rho_s * (es_water - ea) * f_us);
         }
 
         // TEMP_V1 - converts elapsed model time (cycle, in minutes) plus the user-specified
@@ -13045,11 +13189,14 @@ namespace caesar1
         }
 
         // TEMP_V1 - simple Magnus-Tetens saturation vapour pressure (mb), used only by
-        // atmospheric_longwave_humidity() below. Deliberately kept separate from the
-        // saturation_vapour_pressure() stub (Step 3), which is reserved for HEC-RAS's own
-        // Eq. 2.9 polynomial, needed later for the latent heat term - that one should match
-        // the source report exactly; this one is a standard, independent approximation only
-        // used by our own humidity-aware longwave extension.
+        // atmospheric_longwave_humidity() below. Deliberately kept separate from
+        // saturation_vapour_pressure(), which now implements HEC-RAS's own Eq. 2.9
+        // polynomial exactly (confirmed against the source report, see Step 17 correction) -
+        // that one is used for the latent heat term and should match HEC-RAS precisely;
+        // this one is a standard, independent approximation only used by our own
+        // humidity-aware longwave extension (both give near-identical results in practice,
+        // but are kept functionally distinct so the HEC-RAS-matching function is never
+        // repurposed for a CAESAR-extension-only calculation, or vice versa).
         double saturation_vapour_pressure_magnus(double tempC)
         {
             return 6.1094 * Math.Exp(17.625 * tempC / (tempC + 243.04));
