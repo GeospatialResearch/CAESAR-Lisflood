@@ -96,3 +96,43 @@ In roughly the order I'd suggest tackling them:
 - Design spec: `CAESAR-Lisflood_Water_Temperature_Module_Spec.md`.
 - Branch overview: `README.md`.
 - This document: implementation progress tracker, to be updated as further steps complete.
+
+
+### Sensible/latent heat formulation — resolved via cross-source validation, three options retained
+
+HEC-RAS Eq. 2.10/2.11's wind-function coefficients (`a`, `b`, `c`) are explicitly stated as
+"user-defined" in the source (ERDC/EL TR-16-1), order ~1e-6 for `a`/`b`, no worked example or
+universal default given. Numeric plug-in testing confirmed this order of magnitude, taken
+literally with the equation's explicit `ρ_s·Cp_air·L` structure, produces physically plausible
+(if unconfirmed) flux magnitudes for Option A below.
+
+Cross-checked against CE-QUAL-W2 v4.5 (`heat-exchange.f90`/`temperature.F90`): CE-QUAL-W2's
+`FW = AFW+BFW·u^CFW`, with production defaults `AFW=9.2, BFW=0.46, CFW=2` (confirmed identical
+across two independent real-world example applications, estuary and reservoir), is used in a
+**bundled** form (`RC=FW·0.47·ΔT`, `RE=FW·Δe`) with no separate density/specific-heat/latent-heat
+multiplication, confirmed to output W/m² directly by tracing `RN = RS+RANLW-RB-RE-RC` through to
+`HEATEX` with no unit conversion factor present. These same 9.2/0.46/2 values are already used,
+unmodified, in CAESAR's own simplified/equilibrium scheme (Eq. 2.19) — internal cross-validation.
+Confirmed via grep of CE-QUAL-W2 source: no Richardson-number stability correction is applied to
+`FW` in their formulation.
+
+Plugging 9.2/0.46/2 into the *separated-term* equation structure (Option A) overshoots physically
+plausible flux by ~1000x at ordinary conditions — the two coefficient sets are **not
+interchangeable** between formulations.
+
+**Resolution: three selectable options**, GUI-exposed via `useBundledSensibleLatent` /
+`useRichardsonStabilityCorrection`:
+
+- **Option A** — literal Eq. 2.10/2.11, explicit ρ·Cp·L terms, `windFunc_*_separated` (order
+  1e-6, unconfirmed). Retained for textual fidelity; not the default.
+- **Option B** — CE-QUAL-W2 bundled form, `windFunc_*_bundled` (9.2/0.46/2), Richardson
+  correction **off** — exact match to CE-QUAL-W2's validated production behaviour.
+- **Option C (default)** — same bundled form and coefficients as B, Richardson correction
+  **on**, as a deliberate CAESAR extension. Not independently validated as a combination, but
+  `f(Ri)≈1` near-neutral means it matches B's validated behaviour in the common case, diverging
+  only under strong stability/instability, using the Richardson physics already independently
+  confirmed elsewhere in this module.
+
+Also fixed in this pass: `wind_function()` was applying the `c` exponent to `(a+b·windSpeed2)`
+as a whole rather than to `windSpeed2` alone — invisible under the old `c=1` default (no-op),
+would have caused an ~8x magnitude error the moment `c=2` (the bundled default) was introduced.
