@@ -378,11 +378,11 @@ namespace caesar1
         public double albedoWaterBase = 0.08, albedoSedimentCoeff = 0, suspCondRef = 1;
         public double windFunc_a = 1e-6, windFunc_b = 1e-6, windFunc_c = 1;
         public double waterTempInitialValue = 15.0; // TEMP_V1 - constant initial water temperature, GUI-set
-        public bool useBundledSensibleLatent = true;      // C/B family (default) vs A
-        public bool useRichardsonStabilityCorrection = true; // C (default) vs B; forced true when useBundledSensibleLatent==false
-        public double windFunc_a_bundled = 9.2, windFunc_b_bundled = 0.46, windFunc_c_bundled = 2.0;
-        public double windFunc_a_separated = 1e-6, windFunc_b_separated = 1e-6, windFunc_c_separated = 1.0;
-
+        // TEMP_V1: sensible/latent heat formulation selector -- see TEMP_V1_Implementation_Status.md
+        public bool useBundledSensibleLatent = true;          // true=Option C/B (CE-QUAL-W2 bundled, default), false=Option A (HEC-RAS separated, Eq 2.10/2.11)
+        public bool useRichardsonStabilityCorrection = true;  // Option C (default) vs Option B; forced true when useBundledSensibleLatent==false
+        public double windFunc_a_bundled = 9.2, windFunc_b_bundled = 0.46, windFunc_c_bundled = 2.0;         // CE-QUAL-W2 AFW/BFW/CFW, confirmed production defaults
+        public double windFunc_a_separated = 1e-6, windFunc_b_separated = 1e-6, windFunc_c_separated = 1.0;  // Eq 2.11's own stated order of magnitude, unconfirmed
         // TC mining
         int minesitenumber = 0;
 
@@ -12873,6 +12873,9 @@ namespace caesar1
                 double[] q_atm_zone = new double[nMetZones];
                 double[] q_sw_hecras_zone = new double[nMetZones]; // only valid/used if useHecRasAlbedo
 
+                double q_h = sensible_heat_flux(T_a, T_w, wind2_zone[zone], Ri, pressure_zone[zone]); // TEMP_V1: added pressure_zone[zone]
+                double q_l = latent_heat_flux(T_a, T_w, humidity_zone[zone], pressure_zone[zone], wind2_zone[zone], Ri); // unchanged
+
                 for (int zn = 0; zn < nMetZones; zn++)
                 {
                     airTemp_zone[zn] = interpolate_met(hourly_air_temp, cycle, zn);
@@ -13095,7 +13098,7 @@ namespace caesar1
             double b = useBundledSensibleLatent ? windFunc_b_bundled : windFunc_b_separated;
             double c = useBundledSensibleLatent ? windFunc_c_bundled : windFunc_c_separated;
             double fRi = useRichardsonStabilityCorrection ? richardson_stability_function(Ri) : 1.0;
-            return fRi * (a + b * Math.Pow(windSpeed2, c));
+            return fRi * (a + b * Math.Pow(windSpeed2, c)); // TEMP_V1: exponent applies to windSpeed2 only (Eq 2.11 / CE-QUAL-W2 FW), corrected from (a+b*u)^c
         }
 
         // TEMP_V1 - e_s, saturation vapour pressure (mb), HEC-RAS Eq. 2.9, exact coefficients
@@ -13125,42 +13128,66 @@ namespace caesar1
             return (2500.8 - 2.36 * tempC) * 1000.0;
         }
 
-        // TEMP_V1 - sensible heat flux, q_h, HEC-RAS Eq. 2.10. Returns W/m2, signed:
-        // positive = gain to the water (air warmer than water), negative = loss (air cooler).
-        // windSpeed2 must already be corrected to 2 m height.
-        double sensible_heat_flux(double airTempC, double waterTempC, double windSpeed2, double Ri)
+        double sensible_heat_flux(double airTempC, double waterTempC, double windSpeed2, double Ri, double pressureMb)
         {
-            const double Cp_air = 1005.0; // J/(kg.C), specific heat of air at constant pressure
+            return useBundledSensibleLatent
+                ? sensible_heat_flux_bundled(airTempC, waterTempC, windSpeed2, Ri)
+                : sensible_heat_flux_separated(airTempC, waterTempC, windSpeed2, Ri, pressureMb);
+        }
 
+        // TEMP_V1 - Option C/B: CE-QUAL-W2 bundled form (heat-exchange.f90 RC term). Confirmed W/m2
+        // output directly, via temperature.F90 RN=RS+RANLW-RB-RE-RC -> HEATEX trace (no conversion
+        // factor between terms). No separate rho/Cp multiplication -- already implicit in FW.
+        double sensible_heat_flux_bundled(double airTempC, double waterTempC, double windSpeed2, double Ri)
+        {
+            const double BOWEN_CONSTANT = 0.47; // matches CE-QUAL-W2 AND our own Eq 2.18/2.20
+            double FW = wind_function(windSpeed2, Ri);
+            return diffusivityRatio * FW * BOWEN_CONSTANT * (airTempC - waterTempC);
+        }
+
+        // TEMP_V1 - Option A: literal HEC-RAS Eq 2.10. windFunc_*_separated coefficients are the
+        // source's own stated "order 1e-6" -- NOT independently confirmed by any worked example.
+        // Documented as unconfirmed; kept available for literal fidelity to the printed equation.
+        double sensible_heat_flux_separated(double airTempC, double waterTempC, double windSpeed2, double Ri, double pressureMb)
+        {
+            const double Cp_air = 1005.0;
             double Tw_K = waterTempC + 273.15;
             double es_water = saturation_vapour_pressure(waterTempC);
-            double rho_s = air_density(1013.25, es_water, Tw_K); // saturated air density at the water surface temperature, standard pressure assumption (see note below)
-
+            double rho_s = air_density(pressureMb, es_water, Tw_K); // TEMP_V1: now uses actual pressure, not hardcoded 1013.25
             double f_us = wind_function(windSpeed2, Ri);
-
             return diffusivityRatio * Cp_air * rho_s * (airTempC - waterTempC) * f_us;
         }
 
-        // TEMP_V1 - latent heat flux, q_l, HEC-RAS Eq. 2.8. Returns W/m2, signed:
-        // positive = gain to the water (condensation, T_w < T_d), negative = loss
-        // (evaporation, T_w > T_d) - per the report's own sign convention (Section 2.1.4).
-        // windSpeed2 must already be corrected to 2 m height.
+
         double latent_heat_flux(double airTempC, double waterTempC, double relativeHumidityPercent, double pressureMb, double windSpeed2, double Ri)
+        {
+            return useBundledSensibleLatent
+                ? latent_heat_flux_bundled(airTempC, waterTempC, relativeHumidityPercent, windSpeed2, Ri)
+                : latent_heat_flux_separated(airTempC, waterTempC, relativeHumidityPercent, pressureMb, windSpeed2, Ri);
+        }
+
+        // TEMP_V1 - Option C/B: CE-QUAL-W2 bundled form (heat-exchange.f90 RE term). es/ea in mmHg
+        // via mb->mmHg conversion of our confirmed Eq 2.9 saturation_vapour_pressure() -- reuses the
+        // one verified vapour-pressure source rather than introducing CE-QUAL-W2's separate Magnus
+        // formula. Positive = gain (condensation, Tw<Td), matching our sign convention throughout.
+        double latent_heat_flux_bundled(double airTempC, double waterTempC, double relativeHumidityPercent, double windSpeed2, double Ri)
+        {
+            const double MB_TO_MMHG = 0.750062;
+            double es = saturation_vapour_pressure(waterTempC) * MB_TO_MMHG;
+            double ea = (relativeHumidityPercent / 100.0) * saturation_vapour_pressure(airTempC) * MB_TO_MMHG;
+            double FW = wind_function(windSpeed2, Ri);
+            return FW * (ea - es);
+        }
+
+        // TEMP_V1 - Option A: literal HEC-RAS Eq 2.8, unchanged from previous implementation.
+        double latent_heat_flux_separated(double airTempC, double waterTempC, double relativeHumidityPercent, double pressureMb, double windSpeed2, double Ri)
         {
             double Tw_K = waterTempC + 273.15;
             double es_water = saturation_vapour_pressure(waterTempC);
-            double es_air = saturation_vapour_pressure(airTempC);
-            double ea = (relativeHumidityPercent / 100.0) * es_air;
-
+            double ea = (relativeHumidityPercent / 100.0) * saturation_vapour_pressure(airTempC);
             double rho_s = air_density(pressureMb, es_water, Tw_K);
             double L = latent_heat_of_vaporisation(waterTempC);
             double f_us = wind_function(windSpeed2, Ri);
-
-            // Report's sign convention (q_l positive = loss when Tw > Td, i.e. es > ea)
-            // is the OPPOSITE of "positive = gain" used for every other flux term (q_sw,
-            // q_atm, q_b, q_h) - so this returns the NEGATIVE of the report's q_l, to keep
-            // a single consistent "positive = gain" convention across all flux terms for
-            // the assembly step (avoids sign errors when summing q_net).
             return -((0.622 / pressureMb) * L * rho_s * (es_water - ea) * f_us);
         }
 
@@ -18763,6 +18790,16 @@ namespace caesar1
                             TempTab_textBox_startdate.Text = xreader.ReadElementString("TempStartDateTime"); // TEMP_V1
                             DateTime.TryParse(TempTab_textBox_startdate.Text, out simulationStartDateTime);
 
+                            /* xwriter.WriteElementString("TempUseBundledHeat", XmlConvert.ToString(useBundledSensibleLatent));
+                            xwriter.WriteElementString("TempUseRichardsonCorrection", XmlConvert.ToString(useRichardsonStabilityCorrection));
+                            xwriter.WriteElementString("TempWindFuncA_Bundled", windFunc_a_bundled.ToString());
+                            xwriter.WriteElementString("TempWindFuncB_Bundled", windFunc_b_bundled.ToString());
+                            xwriter.WriteElementString("TempWindFuncC_Bundled", windFunc_c_bundled.ToString());
+                            xwriter.WriteElementString("TempWindFuncA_Separated", windFunc_a_separated.ToString());
+                            xwriter.WriteElementString("TempWindFuncB_Separated", windFunc_b_separated.ToString());
+                            xwriter.WriteElementString("TempWindFuncC_Separated", windFunc_c_separated.ToString()); */
+
+
                         }
                         catch (Exception eTemp)
                         {
@@ -19372,6 +19409,14 @@ namespace caesar1
                 xwriter.WriteElementString("TempFileDewpoint", TempTab_textBox_dewpoint.Text);
                 xwriter.WriteElementString("TempFileSourceTemp", TempTab_textBox_sourcetemp.Text); // TEMP_V1
                 xwriter.WriteElementString("TempStartDateTime", TempTab_textBox_startdate.Text); // TEMP_V1
+                xwriter.WriteElementString("TempUseBundledHeat", XmlConvert.ToString(useBundledSensibleLatent));
+                xwriter.WriteElementString("TempUseRichardsonCorrection", XmlConvert.ToString(useRichardsonStabilityCorrection));
+                xwriter.WriteElementString("TempWindFuncA_Bundled", windFunc_a_bundled.ToString());
+                xwriter.WriteElementString("TempWindFuncB_Bundled", windFunc_b_bundled.ToString());
+                xwriter.WriteElementString("TempWindFuncC_Bundled", windFunc_c_bundled.ToString());
+                xwriter.WriteElementString("TempWindFuncA_Separated", windFunc_a_separated.ToString());
+                xwriter.WriteElementString("TempWindFuncB_Separated", windFunc_b_separated.ToString());
+                xwriter.WriteElementString("TempWindFuncC_Separated", windFunc_c_separated.ToString());
 
 
                 xwriter.WriteEndElement();
@@ -20097,6 +20142,23 @@ namespace caesar1
         {
             double.TryParse(TempTab_textBox_initialtemp.Text, out waterTempInitialValue);
         }
+
+        private void TempTab_radio_heatformulation_CheckedChanged(object sender, EventArgs e)
+        {
+            useBundledSensibleLatent = TempTab_radio_bundledheat.Checked;
+            TempTab_checkBox_richardsoncorrection.Enabled = useBundledSensibleLatent;
+            if (!useBundledSensibleLatent)
+            {
+                TempTab_checkBox_richardsoncorrection.Checked = true; // Eq 2.11 as printed always includes f(Ri); no sourced variant without it
+                useRichardsonStabilityCorrection = true;
+            }
+        }
+
+        private void TempTab_checkBox_richardsoncorrection_CheckedChanged(object sender, EventArgs e)
+        {
+            useRichardsonStabilityCorrection = TempTab_checkBox_richardsoncorrection.Checked;
+        }
+
         private void menuItem10_Click(object sender, EventArgs e)
         {
             menuItem10.Checked = (!menuItem10.Checked);
