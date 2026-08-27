@@ -378,6 +378,10 @@ namespace caesar1
         public double albedoWaterBase = 0.08, albedoSedimentCoeff = 0, suspCondRef = 1;
         public double windFunc_a = 1e-6, windFunc_b = 1e-6, windFunc_c = 1;
         public double waterTempInitialValue = 15.0; // TEMP_V1 - constant initial water temperature, GUI-set
+        public bool useBundledSensibleLatent = true;      // C/B family (default) vs A
+        public bool useRichardsonStabilityCorrection = true; // C (default) vs B; forced true when useBundledSensibleLatent==false
+        public double windFunc_a_bundled = 9.2, windFunc_b_bundled = 0.46, windFunc_c_bundled = 2.0;
+        public double windFunc_a_separated = 1e-6, windFunc_b_separated = 1e-6, windFunc_c_separated = 1.0;
 
         // TC mining
         int minesitenumber = 0;
@@ -13087,8 +13091,11 @@ namespace caesar1
         // declaration (Step 1).
         double wind_function(double windSpeed2, double Ri)
         {
-            double fRi = richardson_stability_function(Ri);
-            return fRi * Math.Pow(windFunc_a + windFunc_b * windSpeed2, windFunc_c);
+            double a = useBundledSensibleLatent ? windFunc_a_bundled : windFunc_a_separated;
+            double b = useBundledSensibleLatent ? windFunc_b_bundled : windFunc_b_separated;
+            double c = useBundledSensibleLatent ? windFunc_c_bundled : windFunc_c_separated;
+            double fRi = useRichardsonStabilityCorrection ? richardson_stability_function(Ri) : 1.0;
+            return fRi * (a + b * Math.Pow(windSpeed2, c));
         }
 
         // TEMP_V1 - e_s, saturation vapour pressure (mb), HEC-RAS Eq. 2.9, exact coefficients
