@@ -891,6 +891,14 @@ namespace caesar1
         private TextBox TempTab_textBox_thermalinterval;
         private Label TempTab_label_mettimestep;
         private TextBox TempTab_textBox_mettimestep;
+        private GroupBox TempTab_groupBox_heatformulation;
+        private RadioButton TempTab_radio_bundledheat;
+        private RadioButton TempTab_radio_separatedheat;
+        private CheckBox TempTab_checkBox_richardsoncorrection;
+        private Label TempTab_label_a_bundled, TempTab_label_b_bundled, TempTab_label_c_bundled;
+        private TextBox TempTab_textBox_a_bundled, TempTab_textBox_b_bundled, TempTab_textBox_c_bundled;
+        private Label TempTab_label_a_separated, TempTab_label_b_separated, TempTab_label_c_separated;
+        private TextBox TempTab_textBox_a_separated, TempTab_textBox_b_separated, TempTab_textBox_c_separated;
 
         // TEMP_V1 - site parameters
         private GroupBox TempTab_groupBox_site;
@@ -1409,6 +1417,22 @@ namespace caesar1
             this.TempTab_textBox_thermalinterval = new System.Windows.Forms.TextBox();
             this.TempTab_label_mettimestep = new System.Windows.Forms.Label();
             this.TempTab_textBox_mettimestep = new System.Windows.Forms.TextBox();
+            this.TempTab_groupBox_heatformulation = new System.Windows.Forms.GroupBox();
+            this.TempTab_radio_bundledheat = new System.Windows.Forms.RadioButton();
+            this.TempTab_radio_separatedheat = new System.Windows.Forms.RadioButton();
+            this.TempTab_checkBox_richardsoncorrection = new System.Windows.Forms.CheckBox();
+            this.TempTab_label_a_bundled = new System.Windows.Forms.Label();
+            this.TempTab_label_b_bundled = new System.Windows.Forms.Label();
+            this.TempTab_label_c_bundled = new System.Windows.Forms.Label();
+            this.TempTab_textBox_a_bundled = new System.Windows.Forms.TextBox();
+            this.TempTab_textBox_b_bundled = new System.Windows.Forms.TextBox();
+            this.TempTab_textBox_c_bundled = new System.Windows.Forms.TextBox();
+            this.TempTab_label_a_separated = new System.Windows.Forms.Label();
+            this.TempTab_label_b_separated = new System.Windows.Forms.Label();
+            this.TempTab_label_c_separated = new System.Windows.Forms.Label();
+            this.TempTab_textBox_a_separated = new System.Windows.Forms.TextBox();
+            this.TempTab_textBox_b_separated = new System.Windows.Forms.TextBox();
+            this.TempTab_textBox_c_separated = new System.Windows.Forms.TextBox();
 
             this.TempTab_groupBox_site = new System.Windows.Forms.GroupBox();
             this.TempTab_label_latitude = new System.Windows.Forms.Label();
@@ -5634,6 +5658,7 @@ namespace caesar1
             this.TempTab.Controls.Add(this.TempTab_label_dewpoint); // TEMP_V1
             this.TempTab.Controls.Add(this.TempTab_textBox_dewpoint); // TEMP_V1 
             this.TempTab.Controls.Add(this.TempTab_groupBox_scheme); // TEMP_V1
+            this.TempTab.Controls.Add(this.TempTab_groupBox_heatformulation);
             this.TempTab.Controls.Add(this.TempTab_groupBox_site); // TEMP_V1
             this.TempTab.Controls.Add(this.TempTab_groupBox_initial); // TEMP_V1
             this.TempTab.Controls.Add(this.TempTab_label_sourcetemp); // TEMP_V1
@@ -5845,6 +5870,83 @@ namespace caesar1
             this.TempTab_textBox_mettimestep.Size = new System.Drawing.Size(60, 20);
             this.TempTab_textBox_mettimestep.Text = "60";
             this.TempTab_textBox_mettimestep.TextChanged += new System.EventHandler(this.TempTab_textBox_mettimestep_TextChanged);
+            //
+            // TempTab_groupBox_heatformulation - TEMP_V1
+            //
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_radio_bundledheat);
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_radio_separatedheat);
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_checkBox_richardsoncorrection);
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_label_a_bundled);
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_textBox_a_bundled);
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_label_b_bundled);
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_textBox_b_bundled);
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_label_c_bundled);
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_textBox_c_bundled);
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_label_a_separated);
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_textBox_a_separated);
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_label_b_separated);
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_textBox_b_separated);
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_label_c_separated);
+            this.TempTab_groupBox_heatformulation.Controls.Add(this.TempTab_textBox_c_separated);
+            this.TempTab_groupBox_heatformulation.Location = new System.Drawing.Point(760, 17);
+            this.TempTab_groupBox_heatformulation.Size = new System.Drawing.Size(340, 220);
+            this.TempTab_groupBox_heatformulation.TabStop = false;
+            this.TempTab_groupBox_heatformulation.Text = "Sensible/latent heat formulation";
+            //
+            this.TempTab_radio_bundledheat.AutoSize = true;
+            this.TempTab_radio_bundledheat.Checked = true;
+            this.TempTab_radio_bundledheat.Location = new System.Drawing.Point(15, 24);
+            this.TempTab_radio_bundledheat.TabStop = true;
+            this.TempTab_radio_bundledheat.Text = "CE-QUAL-W2 bundled (default)";
+            this.TempTab_radio_bundledheat.UseVisualStyleBackColor = true;
+            this.TempTab_radio_bundledheat.CheckedChanged += new System.EventHandler(this.TempTab_radio_heatformulation_CheckedChanged);
+            //
+            this.TempTab_radio_separatedheat.AutoSize = true;
+            this.TempTab_radio_separatedheat.Location = new System.Drawing.Point(15, 47);
+            this.TempTab_radio_separatedheat.TabStop = true;
+            this.TempTab_radio_separatedheat.Text = "HEC-RAS separated-term (unconfirmed coeffs)";
+            this.TempTab_radio_separatedheat.UseVisualStyleBackColor = true;
+            this.TempTab_radio_separatedheat.CheckedChanged += new System.EventHandler(this.TempTab_radio_heatformulation_CheckedChanged);
+            //
+            this.TempTab_checkBox_richardsoncorrection.AutoSize = true;
+            this.TempTab_checkBox_richardsoncorrection.Checked = true;
+            this.TempTab_checkBox_richardsoncorrection.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.TempTab_checkBox_richardsoncorrection.Location = new System.Drawing.Point(15, 75);
+            this.TempTab_checkBox_richardsoncorrection.Text = "Apply Richardson stability correction";
+            this.TempTab_checkBox_richardsoncorrection.UseVisualStyleBackColor = true;
+            this.TempTab_checkBox_richardsoncorrection.CheckedChanged += new System.EventHandler(this.TempTab_checkBox_richardsoncorrection_CheckedChanged);
+            //
+            this.TempTab_label_a_bundled.AutoSize = true;
+            this.TempTab_label_a_bundled.Location = new System.Drawing.Point(15, 105);
+            this.TempTab_label_a_bundled.Text = "Bundled a / b / c";
+            this.TempTab_textBox_a_bundled.Location = new System.Drawing.Point(140, 102);
+            this.TempTab_textBox_a_bundled.Size = new System.Drawing.Size(50, 20);
+            this.TempTab_textBox_a_bundled.Text = "9.2";
+            this.TempTab_textBox_a_bundled.TextChanged += new System.EventHandler(this.TempTab_windfunc_bundled_TextChanged);
+            this.TempTab_textBox_b_bundled.Location = new System.Drawing.Point(195, 102);
+            this.TempTab_textBox_b_bundled.Size = new System.Drawing.Size(50, 20);
+            this.TempTab_textBox_b_bundled.Text = "0.46";
+            this.TempTab_textBox_b_bundled.TextChanged += new System.EventHandler(this.TempTab_windfunc_bundled_TextChanged);
+            this.TempTab_textBox_c_bundled.Location = new System.Drawing.Point(250, 102);
+            this.TempTab_textBox_c_bundled.Size = new System.Drawing.Size(50, 20);
+            this.TempTab_textBox_c_bundled.Text = "2.0";
+            this.TempTab_textBox_c_bundled.TextChanged += new System.EventHandler(this.TempTab_windfunc_bundled_TextChanged);
+            //
+            this.TempTab_label_a_separated.AutoSize = true;
+            this.TempTab_label_a_separated.Location = new System.Drawing.Point(15, 135);
+            this.TempTab_label_a_separated.Text = "Separated a / b / c";
+            this.TempTab_textBox_a_separated.Location = new System.Drawing.Point(140, 132);
+            this.TempTab_textBox_a_separated.Size = new System.Drawing.Size(50, 20);
+            this.TempTab_textBox_a_separated.Text = "0.000001";
+            this.TempTab_textBox_a_separated.TextChanged += new System.EventHandler(this.TempTab_windfunc_separated_TextChanged);
+            this.TempTab_textBox_b_separated.Location = new System.Drawing.Point(195, 132);
+            this.TempTab_textBox_b_separated.Size = new System.Drawing.Size(50, 20);
+            this.TempTab_textBox_b_separated.Text = "0.000001";
+            this.TempTab_textBox_b_separated.TextChanged += new System.EventHandler(this.TempTab_windfunc_separated_TextChanged);
+            this.TempTab_textBox_c_separated.Location = new System.Drawing.Point(250, 132);
+            this.TempTab_textBox_c_separated.Size = new System.Drawing.Size(50, 20);
+            this.TempTab_textBox_c_separated.Text = "1.0";
+            this.TempTab_textBox_c_separated.TextChanged += new System.EventHandler(this.TempTab_windfunc_separated_TextChanged);
             //
             // TempTab_groupBox_site - TEMP_V1
             //
@@ -12873,9 +12975,6 @@ namespace caesar1
                 double[] q_atm_zone = new double[nMetZones];
                 double[] q_sw_hecras_zone = new double[nMetZones]; // only valid/used if useHecRasAlbedo
 
-                double q_h = sensible_heat_flux(T_a, T_w, wind2_zone[zone], Ri, pressure_zone[zone]); // TEMP_V1: added pressure_zone[zone]
-                double q_l = latent_heat_flux(T_a, T_w, humidity_zone[zone], pressure_zone[zone], wind2_zone[zone], Ri); // unchanged
-
                 for (int zn = 0; zn < nMetZones; zn++)
                 {
                     airTemp_zone[zn] = interpolate_met(hourly_air_temp, cycle, zn);
@@ -12944,7 +13043,7 @@ namespace caesar1
                             double q_b = water_longwave(T_w);
 
                             double Ri = richardson_number(T_a, T_w, wind2_zone[zone], pressure_zone[zone], humidity_zone[zone]);
-                            double q_h = sensible_heat_flux(T_a, T_w, wind2_zone[zone], Ri);
+                            double q_h = sensible_heat_flux(T_a, T_w, wind2_zone[zone], Ri, pressure_zone[zone]);
                             double q_l = latent_heat_flux(T_a, T_w, humidity_zone[zone], pressure_zone[zone], wind2_zone[zone], Ri);
 
                             // All terms now use a consistent "positive = gain to the water"
@@ -18790,14 +18889,26 @@ namespace caesar1
                             TempTab_textBox_startdate.Text = xreader.ReadElementString("TempStartDateTime"); // TEMP_V1
                             DateTime.TryParse(TempTab_textBox_startdate.Text, out simulationStartDateTime);
 
-                            /* xwriter.WriteElementString("TempUseBundledHeat", XmlConvert.ToString(useBundledSensibleLatent));
-                            xwriter.WriteElementString("TempUseRichardsonCorrection", XmlConvert.ToString(useRichardsonStabilityCorrection));
-                            xwriter.WriteElementString("TempWindFuncA_Bundled", windFunc_a_bundled.ToString());
-                            xwriter.WriteElementString("TempWindFuncB_Bundled", windFunc_b_bundled.ToString());
-                            xwriter.WriteElementString("TempWindFuncC_Bundled", windFunc_c_bundled.ToString());
-                            xwriter.WriteElementString("TempWindFuncA_Separated", windFunc_a_separated.ToString());
-                            xwriter.WriteElementString("TempWindFuncB_Separated", windFunc_b_separated.ToString());
-                            xwriter.WriteElementString("TempWindFuncC_Separated", windFunc_c_separated.ToString()); */
+                            TempTab_radio_bundledheat.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("TempUseBundledHeat"));
+                            TempTab_radio_separatedheat.Checked = !TempTab_radio_bundledheat.Checked;
+                            useBundledSensibleLatent = TempTab_radio_bundledheat.Checked;
+
+                            TempTab_checkBox_richardsoncorrection.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("TempUseRichardsonCorrection"));
+                            useRichardsonStabilityCorrection = TempTab_checkBox_richardsoncorrection.Checked;
+
+                            TempTab_textBox_a_bundled.Text = xreader.ReadElementString("TempWindFuncA_Bundled");
+                            double.TryParse(TempTab_textBox_a_bundled.Text, out windFunc_a_bundled);
+                            TempTab_textBox_b_bundled.Text = xreader.ReadElementString("TempWindFuncB_Bundled");
+                            double.TryParse(TempTab_textBox_b_bundled.Text, out windFunc_b_bundled);
+                            TempTab_textBox_c_bundled.Text = xreader.ReadElementString("TempWindFuncC_Bundled");
+                            double.TryParse(TempTab_textBox_c_bundled.Text, out windFunc_c_bundled);
+
+                            TempTab_textBox_a_separated.Text = xreader.ReadElementString("TempWindFuncA_Separated");
+                            double.TryParse(TempTab_textBox_a_separated.Text, out windFunc_a_separated);
+                            TempTab_textBox_b_separated.Text = xreader.ReadElementString("TempWindFuncB_Separated");
+                            double.TryParse(TempTab_textBox_b_separated.Text, out windFunc_b_separated);
+                            TempTab_textBox_c_separated.Text = xreader.ReadElementString("TempWindFuncC_Separated");
+                            double.TryParse(TempTab_textBox_c_separated.Text, out windFunc_c_separated);
 
 
                         }
@@ -20129,6 +20240,34 @@ namespace caesar1
         {
             double.TryParse(TempTab_textBox_windheight.Text, out windMeasurementHeight);
         }
+
+        private void TempTab_radio_heatformulation_CheckedChanged(object sender, EventArgs e)
+        {
+            useBundledSensibleLatent = TempTab_radio_bundledheat.Checked;
+            TempTab_checkBox_richardsoncorrection.Enabled = useBundledSensibleLatent;
+            if (!useBundledSensibleLatent)
+            {
+                TempTab_checkBox_richardsoncorrection.Checked = true;
+                useRichardsonStabilityCorrection = true;
+            }
+        }
+        private void TempTab_checkBox_richardsoncorrection_CheckedChanged(object sender, EventArgs e)
+        {
+            useRichardsonStabilityCorrection = TempTab_checkBox_richardsoncorrection.Checked;
+        }
+        private void TempTab_windfunc_bundled_TextChanged(object sender, EventArgs e)
+        {
+            double.TryParse(TempTab_textBox_a_bundled.Text, out windFunc_a_bundled);
+            double.TryParse(TempTab_textBox_b_bundled.Text, out windFunc_b_bundled);
+            double.TryParse(TempTab_textBox_c_bundled.Text, out windFunc_c_bundled);
+        }
+        private void TempTab_windfunc_separated_TextChanged(object sender, EventArgs e)
+        {
+            double.TryParse(TempTab_textBox_a_separated.Text, out windFunc_a_separated);
+            double.TryParse(TempTab_textBox_b_separated.Text, out windFunc_b_separated);
+            double.TryParse(TempTab_textBox_c_separated.Text, out windFunc_c_separated);
+        }
+
         private void TempTab_textBox_startdate_TextChanged(object sender, EventArgs e) // TEMP_V1
         {
             DateTime parsed;
@@ -20141,22 +20280,6 @@ namespace caesar1
         private void TempTab_textBox_initialtemp_TextChanged(object sender, EventArgs e) // TEMP_V1
         {
             double.TryParse(TempTab_textBox_initialtemp.Text, out waterTempInitialValue);
-        }
-
-        private void TempTab_radio_heatformulation_CheckedChanged(object sender, EventArgs e)
-        {
-            useBundledSensibleLatent = TempTab_radio_bundledheat.Checked;
-            TempTab_checkBox_richardsoncorrection.Enabled = useBundledSensibleLatent;
-            if (!useBundledSensibleLatent)
-            {
-                TempTab_checkBox_richardsoncorrection.Checked = true; // Eq 2.11 as printed always includes f(Ri); no sourced variant without it
-                useRichardsonStabilityCorrection = true;
-            }
-        }
-
-        private void TempTab_checkBox_richardsoncorrection_CheckedChanged(object sender, EventArgs e)
-        {
-            useRichardsonStabilityCorrection = TempTab_checkBox_richardsoncorrection.Checked;
         }
 
         private void menuItem10_Click(object sender, EventArgs e)
