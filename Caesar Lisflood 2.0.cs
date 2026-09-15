@@ -13187,7 +13187,7 @@ namespace caesar1
             if (Ri <= -1.0) return 12.3;
             if (Ri <= -0.01) return Math.Pow(1.0 - 22.0 * Ri, 0.8);
             if (Ri < 0.01) return 1.0;
-            if (Ri < 2.0) return Math.Pow(1.0 + 34.0 * Ri, -0.8);  // TEMP_V1: corrected from -34.0, confirmed against ClearWater
+            if (Ri < 2.0) return Math.Pow(1.0 + 34.0 * Ri, -0.8);
             return 0.03;
         }
 
