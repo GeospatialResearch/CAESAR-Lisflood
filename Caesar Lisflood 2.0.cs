@@ -13144,14 +13144,12 @@ namespace caesar1
             return Rs;
         }
 
-        // TEMP_V1 - moist air density (kg/m3), standard formulation, used only by
-        // richardson_number() below. P in mb, e (vapour pressure) in mb, T in K.
+        // TEMP_V1: replaced with the mixing-ratio form, matching ClearWater-modules
+        // tsm/processes.py density_air()/density_air_sat() exactly (same lineage as HEC-ResSim).
         double air_density(double pressureMb, double vapourPressureMb, double tempK)
         {
-            const double Rd = 287.05; // J/(kg.K), specific gas constant for dry air
-            double P_Pa = pressureMb * 100.0;
-            double e_Pa = vapourPressureMb * 100.0;
-            return (P_Pa / (Rd * tempK)) * (1.0 - 0.378 * (e_Pa / P_Pa));
+            double mixingRatio = 0.622 * vapourPressureMb / (pressureMb - vapourPressureMb);
+            return 0.348 * (pressureMb / tempK) * (1.0 + mixingRatio) / (1.0 + 1.61 * mixingRatio);
         }
 
         // TEMP_V1 - Richardson number, HEC-RAS Eq. 2.13: buoyancy (density difference between
@@ -13174,16 +13172,22 @@ namespace caesar1
             double rho_air = air_density(pressureMb, ea, Ta_K);
             double rho_sat = air_density(pressureMb, es_water, Tw_K); // air saturated at the water surface temperature
 
-            return g * (rho_air - rho_sat) / (rho_air * windSpeed2 * windSpeed2);
+            return -(2.0 * g * (rho_air - rho_sat) / (rho_air * windSpeed2 * windSpeed2));
+            //return g * (rho_air - rho_sat) / (rho_air * windSpeed2 * windSpeed2);
         }
 
         // TEMP_V1 - f(Ri), Richardson-number stability correction, HEC-RAS Eqs. 2.14a-e (piecewise).
         double richardson_stability_function(double Ri)
         {
+            // TEMP_V1: bounded per ClearWater-modules tsm/processes.py ri_function() and
+            // HEC-ResSim WQ manual eq. 15a/16d domain limits (Ri <= -1 -> 12.3; 0.01 <= Ri < 2 -> formula)
+            if (Ri > 2.0) Ri = 2.0;
+            if (Ri < -1.0) Ri = -1.0;
+
             if (Ri <= -1.0) return 12.3;
             if (Ri <= -0.01) return Math.Pow(1.0 - 22.0 * Ri, 0.8);
             if (Ri < 0.01) return 1.0;
-            if (Ri < 2.0) return Math.Pow(1.0 - 34.0 * Ri, -0.8);
+            if (Ri < 2.0) return Math.Pow(1.0 + 34.0 * Ri, -0.8);  // TEMP_V1: corrected from -34.0, confirmed against ClearWater
             return 0.03;
         }
 
