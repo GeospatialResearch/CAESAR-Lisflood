@@ -8,7 +8,7 @@
         <maxerodelimit>0.05</maxerodelimit>
         <cellsize>10</cellsize>
         <memorylimit>1</memorylimit>
-        <minq>0.05</minq>
+        <minq>0.2</minq>
         <creeprate>0.0000025</creeprate>
         <lateralerosionrate>0.5</lateralerosionrate>
         <maxiter>1000000000</maxiter>
@@ -29,7 +29,7 @@
         <wsslope>false</wsslope>
         <veltaubox>true</veltaubox>
         <catchment_mode>false</catchment_mode>
-        <reach_mode>true</reach_mode>
+        <reach_mode>false</reach_mode>
         <lat1>false</lat1>
         <lat2>false</lat2>
         <lat3>false</lat3>
@@ -202,7 +202,7 @@
         <uniquefilecheck>true</uniquefilecheck>
         <Filenames>
             <Desc>DEM Data File</Desc>
-            <Name>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\Carlisle\Domain_LIDAR_5M_Mean.asc</Name>
+            <Name>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\squaredem_small.asc</Name>
         </Filenames>
         <Filenames>
             <Desc>Grain Data File</Desc>
@@ -229,21 +229,21 @@
             <Name>null</Name>
         </Filenames>
         <Sources>
-            <input>true</input>
-            <X>834</X>
-            <Y>48</Y>
+            <input>false</input>
+            <X>275</X>
+            <Y>19</Y>
             <Filename>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\Carlisle\main1.csv</Filename>
         </Sources>
         <Sources>
-            <input>true</input>
-            <X>296</X>
-            <Y>602</Y>
+            <input>false</input>
+            <X>99</X>
+            <Y>200</Y>
             <Filename>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\Carlisle\cummersdale1.csv</Filename>
         </Sources>
         <Sources>
-            <input>true</input>
-            <X>585</X>
-            <Y>602</Y>
+            <input>false</input>
+            <X>194</X>
+            <Y>201</Y>
             <Filename>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\Carlisle\harraby1.csv</Filename>
         </Sources>
         <Sources>
@@ -295,10 +295,10 @@
         <iterationsfile>iter.dat</iterationsfile>
     </OutputFile-Parms>
     <Display>
-        <top> 96</top>
-        <left> 604</left>
-        <width> 1510</width>
-        <height> 858</height>
+        <top> 249</top>
+        <left> 186</left>
+        <width> 1542</width>
+        <height> 857</height>
     </Display>
     <Lateral>
         <oldlat>false</oldlat>
@@ -352,14 +352,14 @@
         <lateralsmoothing>0.0001</lateralsmoothing>
         <froude_limit>0.8</froude_limit>
         <mannings>0.04</mannings>
-        <TidalorStage>false</TidalorStage>
+        <TidalorStage>true</TidalorStage>
         <MinQmaxvalue>1000.0</MinQmaxvalue>
-        <TidalXmin>0</TidalXmin>
-        <TidalXmax>0</TidalXmax>
-        <TidalYmin>0</TidalYmin>
-        <TidalYmax>0</TidalYmax>
-        <TidalFileName />
-        <TidalInputStep>1440</TidalInputStep>
+        <TidalXmin>1</TidalXmin>
+        <TidalXmax>2</TidalXmax>
+        <TidalYmin>2</TidalYmin>
+        <TidalYmax>1</TidalYmax>
+        <TidalFileName>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\waterlevel.txt</TidalFileName>
+        <TidalInputStep>60</TidalInputStep>
         <bedrock_erosion_threshold>0</bedrock_erosion_threshold>
         <bedrock_erosion_rate>0</bedrock_erosion_rate>
         <rfnum>1</rfnum>
@@ -389,7 +389,7 @@
         <TraceRainZonation>false</TraceRainZonation>
         <TraceRainZonationMapfile>null</TraceRainZonationMapfile>
         <TraceSolutes>false</TraceSolutes>
-        <OutputDirectory>test_simplifiedtemp</OutputDirectory>
+        <OutputDirectory>test_squaredem_small</OutputDirectory>
         <OutDirDateTime>false</OutDirDateTime>
         <OilSimulation>false</OilSimulation>
         <OilYmin>0</OilYmin>
@@ -456,7 +456,7 @@
         <TempFileCloudcover>null</TempFileCloudcover>
         <TempFilePressure>null</TempFilePressure>
         <TempFileDewpoint>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\Carlisle\test_dewpoint.txt</TempFileDewpoint>
-        <TempFileSourceTemp>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\Carlisle\test_sourcetemps.txt</TempFileSourceTemp>
+        <TempFileSourceTemp />
         <TempStartDateTime>2000-06-21 00:00</TempStartDateTime>
         <TempUseBundledHeat>true</TempUseBundledHeat>
         <TempUseRichardsonCorrection>true</TempUseRichardsonCorrection>

@@ -202,7 +202,7 @@
         <uniquefilecheck>true</uniquefilecheck>
         <Filenames>
             <Desc>DEM Data File</Desc>
-            <Name>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\carlisle15m.txt</Name>
+            <Name>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\Carlisle\carlisle15m.txt</Name>
         </Filenames>
         <Filenames>
             <Desc>Grain Data File</Desc>
@@ -232,19 +232,19 @@
             <input>true</input>
             <X>275</X>
             <Y>19</Y>
-            <Filename>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\main1.csv</Filename>
+            <Filename>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\Carlisle\main1.csv</Filename>
         </Sources>
         <Sources>
             <input>true</input>
             <X>99</X>
             <Y>200</Y>
-            <Filename>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\cummersdale1.csv</Filename>
+            <Filename>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\Carlisle\cummersdale1.csv</Filename>
         </Sources>
         <Sources>
             <input>true</input>
             <X>194</X>
             <Y>201</Y>
-            <Filename>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\harraby1.csv</Filename>
+            <Filename>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\Carlisle\harraby1.csv</Filename>
         </Sources>
         <Sources>
             <input>false</input>
@@ -295,10 +295,10 @@
         <iterationsfile>iter.dat</iterationsfile>
     </OutputFile-Parms>
     <Display>
-        <top> 0</top>
-        <left> -1</left>
-        <width> 1936</width>
-        <height> 1056</height>
+        <top> 118</top>
+        <left> 870</left>
+        <width> 1542</width>
+        <height> 857</height>
     </Display>
     <Lateral>
         <oldlat>false</oldlat>
@@ -437,11 +437,11 @@
         <MultiTracer>false</MultiTracer>
         <MultiGrain>false</MultiGrain>
         <TempSimulate>true</TempSimulate>
-        <TempSimplifiedScheme>true</TempSimplifiedScheme>
+        <TempSimplifiedScheme>false</TempSimplifiedScheme>
         <TempHecRasLongwave>true</TempHecRasLongwave>
         <TempHecRasAlbedo>true</TempHecRasAlbedo>
-        <TempThermalInterval>10</TempThermalInterval>
-        <TempMetTimeStep>60</TempMetTimeStep>
+        <TempThermalInterval>60</TempThermalInterval>
+        <TempMetTimeStep>3600</TempMetTimeStep>
         <TempSiteLatitude>50</TempSiteLatitude>
         <TempSiteLongitude>270</TempSiteLongitude>
         <TempSiteTimeZone>0</TempSiteTimeZone>
@@ -449,13 +449,22 @@
         <TempWindHeight>2</TempWindHeight>
         <TempInitialValue>21</TempInitialValue>
         <TempInitialRaster>null</TempInitialRaster>
-        <TempFileAirTemp>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\test_temperature.txt</TempFileAirTemp>
-        <TempFileShortwave>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\test_shortwave.txt</TempFileShortwave>
-        <TempFileWindspeed>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\test_windspeed.txt</TempFileWindspeed>
+        <TempFileAirTemp>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\Carlisle\test_temperature.txt</TempFileAirTemp>
+        <TempFileShortwave>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\Carlisle\test_shortwave.txt</TempFileShortwave>
+        <TempFileWindspeed>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\Carlisle\test_windspeed.txt</TempFileWindspeed>
         <TempFileHumidity>null</TempFileHumidity>
         <TempFileCloudcover>null</TempFileCloudcover>
         <TempFilePressure>null</TempFilePressure>
         <TempFileDewpoint>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\test_dewpoint.txt</TempFileDewpoint>
-        <TempFileSourceTemp>C:\Users\mwi104\source\repos\CAESAR-Lisflood\testing\Carlisle\test_sourcetemps.txt</TempFileSourceTemp>
+        <TempFileSourceTemp>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\Carlisle\test_sourcetemps.txt</TempFileSourceTemp>
+        <TempStartDateTime>2000-06-21 00:00</TempStartDateTime>
+        <TempUseBundledHeat>true</TempUseBundledHeat>
+        <TempUseRichardsonCorrection>true</TempUseRichardsonCorrection>
+        <TempWindFuncA_Bundled>9.2</TempWindFuncA_Bundled>
+        <TempWindFuncB_Bundled>0.46</TempWindFuncB_Bundled>
+        <TempWindFuncC_Bundled>2</TempWindFuncC_Bundled>
+        <TempWindFuncA_Separated>1E-06</TempWindFuncA_Separated>
+        <TempWindFuncB_Separated>1E-06</TempWindFuncB_Separated>
+        <TempWindFuncC_Separated>1</TempWindFuncC_Separated>
     </Add_Ons>
 </Parms>

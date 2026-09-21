@@ -136,3 +136,89 @@ interchangeable** between formulations.
 Also fixed in this pass: `wind_function()` was applying the `c` exponent to `(a+b·windSpeed2)`
 as a whole rather than to `windSpeed2` alone — invisible under the old `c=1` default (no-op),
 would have caused an ~8x magnitude error the moment `c=2` (the bundled default) was introduced.
+
+
+## Richardson number, stability function, and wind function — resolved and cross-validated
+
+**Status: fully verified across all three sensible/latent heat formulation options (see below). Closed.**
+
+### Bugs found and fixed
+
+- **`richardson_number()` was missing the leading `-2.0` factor** from HEC-RAS Eq. 2.13
+  (`Ri = -2g(ρ_air-ρ_sat)/(ρ_air·u²)`). Confirmed against the primary source text directly
+  (Zhang & Johnson 2016, Eq. 2.13) two independent ways: the equation itself, and the report's
+  separately-stated sign convention ("unstable atmosphere: ρ_air > ρ_sat... Ri is positive for
+  stable, negative for unstable"). Cross-checked against ClearWater-modules'
+  `tsm/processes.py ri_number()`, which uses `+2.0` — traced to their own `density_air`/
+  `density_air_sat()` functions and found to be internally inconsistent with their own
+  `ri_function()` branch labelling (their `+2.0` produces the wrong sign relative to their own
+  stated unstable/stable classification), so treated as a bug in that codebase, not an
+  alternate convention. CAESAR's `-2.0` is correct.
+
+- **`richardson_stability_function()`'s stable branch used `(1-34·Ri)^-0.8`**, which goes complex
+  (NaN in `Math.Pow`) for any `Ri > 1/34 ≈ 0.029` — inside its own stated valid domain
+  (`0.01 ≤ Ri < 2`, per Eq. 2.14d). Corrected to `(1+34·Ri)^-0.8`, confirmed via: (a) structural
+  symmetry with the confirmed-correct unstable branch `(1-22·Ri)^0.8`, which is really
+  `(1+22|Ri|)^0.8` once Ri's negative sign is applied; (b) continuity at the `Ri=2` boundary
+  with the flat `f(Ri)=0.03` floor; (c) ClearWater-modules' `ri_function()`, which has the
+  identical `(1.0 + 34.0 * ri_number_bounded) ** (-0.80)`. **A later re-check of the primary
+  source text confirmed the report itself states `(1-34Ri)^-0.8`** (Eq. 2.14d as printed) —
+  this specific exponent form was retained as printed on the understanding that the source's
+  own domain statement is internally over-broad (mathematically the formula as literally
+  printed cannot hold for the full stated `Ri<2` domain), and the `+34` correction was applied
+  as the physically/numerically defensible reading, not as a literal transcription of what the
+  PDF shows. Documented here so this specific deviation-from-literal-text is traceable.
+- **Domain bounding added**: `Ri` is now clamped to `[-1.0, 2.0]` *before* the piecewise
+  evaluation (matching ClearWater's `np.select` pre-clamp, and the report's own domain
+  statements per branch), rather than relying on the branch conditions alone. This guarantees
+  `(1+34·Ri)` stays `≥1` (positive) across the whole valid range, eliminating the NaN case by
+  construction.
+
+- **`wind_function()` was applying the `c` exponent to `(a+b·windSpeed2)` as a whole**, rather
+  than to `windSpeed2` alone (Eq. 2.11: `f(u_w)=f(Ri)·(a+b·u_w^c)`; confirmed against
+  CE-QUAL-W2's `FW=AFW+BFW*WIND2**CFW`, exponent on wind only). Invisible under the original
+  `c=1` default (mathematically a no-op at that exponent); would have produced an ~8x magnitude
+  error the moment a bundled-formulation default of `c=2` was introduced. Fixed:
+  `fRi * (a + b * Math.Pow(windSpeed2, c))`.
+
+### Sensible/latent heat: three selectable formulations (resolved coefficient/magnitude problem)
+
+HEC-RAS Eq. 2.10/2.11 explicitly states the wind-function coefficients `a`,`b`,`c` as
+"user-defined" with no default given (order ~1e-6 for a/b) — confirmed directly from the
+primary source text. Cross-checked against CE-QUAL-W2 v4.5 (`heat-exchange.f90`/
+`temperature.F90`, ERDC-EL source), whose `AFW=9.2, BFW=0.46, CFW=2` (confirmed identical
+across two independent real CE-QUAL-W2 example applications) are used in a **bundled** form
+(`RC=FW·0.47·ΔT`, `RE=FW·Δe`, no separate ρ·Cp·L multiplication, confirmed W/m² output by
+tracing `RN=RS+RANLW-RB-RE-RC → HEATEX` with no unit conversion factor present) with **no**
+Richardson correction applied. These same 9.2/0.46/2 values were already independently present
+in CAESAR's own equilibrium/simplified scheme (Eq. 2.19) — internal cross-validation. Plugging
+9.2/0.46/2 into the *separated-term* equation structure overshoots physically plausible flux by
+~1000x — the two coefficient sets are not interchangeable between formulations.
+
+**Resolution — three selectable options**, GUI-exposed on the Water Quality tab
+(`useBundledSensibleLatent`, `useRichardsonStabilityCorrection`, separate coefficient sets
+`windFunc_*_bundled` / `windFunc_*_separated`):
+- **Option A** — literal Eq. 2.10/2.11, explicit ρ·Cp·L terms, `windFunc_*_separated`
+  (order 1e-6, source's own stated order, no worked example to confirm against). Not default.
+- **Option B** — CE-QUAL-W2 bundled form, `9.2/0.46/2`, Richardson correction off — exact
+  match to CE-QUAL-W2's validated production behaviour.
+- **Option C (default)** — same bundled form/coefficients as B, Richardson correction on, as a
+  deliberate CAESAR extension (not itself found in either source as a combination).
+
+### Verification performed
+
+All three options, plus `wind_function()`/`richardson_number()`/`richardson_stability_function()`
+in isolation, confirmed via targeted Immediate Window testing:
+- Sign of `q_h` correctly tracks `(T_a-T_w)` across all three options, including through the
+  Richardson correction's stable/unstable branches.
+- Option C's Richardson-driven suppression/enhancement factor cross-checked against hand
+  calculation of `(1±k·Ri)^±0.8` for multiple `Ri` values — matched to 3+ significant figures.
+- Strong-stability case (`Ri=1.36`, `T_a=35,T_w=15,wind=1`) confirmed ~95% suppression of
+  sensible heat flux relative to the no-Richardson baseline, both the direction (suppression,
+  not enhancement — this was the exact symptom of a since-fixed regression) and the numeric
+  factor independently re-derivable by hand.
+- Option A's tiny (fractional W/m²) magnitudes confirmed as expected/correct for its
+  documented-unconfirmed coefficient order, not a bug.
+
+**Outstanding**: none for this specific area. Steps 17/18 (`Caesar Lisflood 2.0.cs`) can be
+marked run-time-tested and verified at the function level, not just "compiles."

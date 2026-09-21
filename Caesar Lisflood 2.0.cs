@@ -62,6 +62,7 @@ using System.Windows.Forms;
 using System.Xml;  //JMW
 using System.Xml.Linq;
 using System.Xml.Schema;
+using System.Collections.Concurrent; // MDW - fix for thread-safe UI message updates during parallel processing: see erode()
 
 namespace caesar1
 {
@@ -9574,6 +9575,15 @@ namespace caesar1
                     inc++;
                 }
                 gr.Close();
+
+                // TEMP_V1: hold the last valid row flat for the remainder of the run if the met file
+                // is shorter than the simulation length (mirrors load_source_temp_file()'s gap-fill).
+                if (inc > 0 && inc < max_file_length)
+                {
+                    for (int r = inc; r < max_file_length; r++)
+                        for (int c = 0; c < nZones; c++)
+                            targetArray[r, c] = targetArray[inc - 1, c];
+                }
             }
             catch (Exception e)
             {
@@ -12347,7 +12357,8 @@ namespace caesar1
                     int x = down_scan[y, inc];
                     inc++;
 
-                    water_depth_prev[x, y] = water_depth[x, y];
+                    water_depth_prev[x, y] = water_depth[x, y]; 
+                    // Note: water_depth_prev is also used for water temperature and is updated in save_temperature_states() if isTraceWater == false
                     for (int z = 0; z < nSources; z++)
                     {
                         watertracer_prev[x, y, z] = watertracer[x, y, z];
@@ -12389,6 +12400,9 @@ namespace caesar1
                     inc++;
 
                     water_temp_prev[x, y] = water_temp[x, y];
+                    if (isTraceWater == false) water_depth_prev[x, y] = water_depth[x, y]; // TEMP_V1 fix
+                    // Note: water_depth_prev is also used for water source tracing and is updated in save_tracer_states() if isTraceWater == true
+
                 }
             });
         }
@@ -12868,7 +12882,7 @@ namespace caesar1
                         }
                         else if (depth_after_outflows <= 0.0 || water_depth_prev[x, y] <= 0.0 || water_temp_prev[x, y] == -9999)
                         {
-                            // cell was empty (or had no established temperature) before this
+                            // cell was empty (or had no established temperature) before tupdate_water_temperature_advection()is
                             // step - new temperature is simply the inflow average (A2)
                             water_temp[x, y] = dhdt_sumInTemp;
                         }
@@ -12893,6 +12907,23 @@ namespace caesar1
             double dt_seconds = thermal_update_interval * 60;
             double rho_w = 1000.0;   // kg/m3, constant (A18 - see spec doc)
             double Cpw = 4186.0;     // J/(kg.C)
+
+
+            //int dbg_x = 827, dbg_y = 59; // TEMP_V1 DEBUG
+            //int dbg_x = 276, dbg_y = 20; // TEMP_V1 DEBUG
+            //int dbg_x = 83, dbg_y = 125; // TEMP_V1 DEBUG
+            int dbg_x = 2, dbg_y = 4; // TEMP_V1 DEBUG
+            double T_w_before = water_temp[dbg_x, dbg_y]; // TEMP_V1 DEBUG - capture before this step's own thermal update
+                                                          //X co-ord 83 Y co-ord 125 : floodplain zone where very low temperature observed
+                                                          //X co-ord 242 Y co-ord 128 : floodplain zone where consistently high temperature observerd
+                                                          //X co-ord 30 Y co-ord 66 : downstream floodplain with high fluctuations
+                                                          //int dbg_x2 = 19, dbg_y2 = 201; // TEMP_V1 DEBUG
+                                                          //int dbg_x2 = 6, dbg_y2 = 67; // TEMP_V1 DEBUG
+                                                          //int dbg_x2 = 30, dbg_y2 = 66; // TEMP_V1 DEBUG
+            int dbg_x2 = 6, dbg_y2 = 4; // TEMP_V1 DEBUG
+
+            double T_w_before2 = water_temp[dbg_x2, dbg_y2]; // TEMP_V1 DEBUG - capture before this step's own thermal update
+
 
             if (useSimplifiedTempScheme == true)
             {
@@ -12951,6 +12982,8 @@ namespace caesar1
                         }
                     }
                 });
+
+
             }
             else
             {
@@ -13063,7 +13096,57 @@ namespace caesar1
                         }
                     }
                 });
+
+                
+                // TEMP_V1 DEBUG - temporary single-cell instrumented trace, remove before merging
+                if (water_depth[dbg_x, dbg_y] > water_depth_erosion_threshold && water_temp[dbg_x, dbg_y] != -9999)
+                {
+                    int zone = met_zonation[dbg_x, dbg_y];
+                    if (zone < 0 || zone >= nMetZones) zone = 0;
+                    double h = water_depth[dbg_x, dbg_y];
+                    double h_prev = water_depth_prev[dbg_x, dbg_y];
+
+                    double T_w = water_temp[dbg_x, dbg_y];
+                    double T_a = airTemp_zone[zone];
+                    double q_sw = useHecRasAlbedo ? q_sw_hecras_zone[zone] : shortwaveIn_zone[zone]; // simplified re-derivation; see note below
+                    double q_atm = q_atm_zone[zone];
+                    double q_b = water_longwave(T_w);
+                    double Ri = richardson_number(T_a, T_w, wind2_zone[zone], pressure_zone[zone], humidity_zone[zone]);
+                    double q_h = sensible_heat_flux(T_a, T_w, wind2_zone[zone], Ri, pressure_zone[zone]);
+                    double q_l = latent_heat_flux(T_a, T_w, humidity_zone[zone], pressure_zone[zone], wind2_zone[zone], Ri);
+                    double q_net = q_sw + q_atm - q_b + q_h + q_l;
+
+                    string dbgLine = string.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11}",
+                        cycle, h, h_prev, q_sw, q_atm, q_b, q_h, q_l, q_net, Ri, T_w, T_w_before);
+                    System.IO.File.AppendAllText("temp_debug_trace.csv", dbgLine + "\n");
+                }
+                if (water_depth[dbg_x2, dbg_y2] > water_depth_erosion_threshold && water_temp[dbg_x2, dbg_y2] != -9999)
+                {
+                    int zone = met_zonation[dbg_x2, dbg_y2];
+                    if (zone < 0 || zone >= nMetZones) zone = 0;
+                    double h = water_depth[dbg_x2, dbg_y2];
+                    double h_prev = water_depth_prev[dbg_x2, dbg_y2];
+
+                    double T_w = water_temp[dbg_x2, dbg_y2];
+                    double T_a = airTemp_zone[zone];
+                    double q_sw = useHecRasAlbedo ? q_sw_hecras_zone[zone] : shortwaveIn_zone[zone]; // simplified re-derivation; see note below
+                    double q_atm = q_atm_zone[zone];
+                    double q_b = water_longwave(T_w);
+                    double Ri = richardson_number(T_a, T_w, wind2_zone[zone], pressure_zone[zone], humidity_zone[zone]);
+                    double q_h = sensible_heat_flux(T_a, T_w, wind2_zone[zone], Ri, pressure_zone[zone]);
+                    double q_l = latent_heat_flux(T_a, T_w, humidity_zone[zone], pressure_zone[zone], wind2_zone[zone], Ri);
+                    double q_net = q_sw + q_atm - q_b + q_h + q_l;
+
+                    string dbgLine = string.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11}",
+                        cycle, h, h_prev, q_sw, q_atm, q_b, q_h, q_l, q_net, Ri, T_w, T_w_before2);
+                    System.IO.File.AppendAllText("temp_debug_trace2.csv", dbgLine + "\n");
+                }
+
             }
+
+
+
+
         }
 
 
@@ -14467,6 +14550,7 @@ namespace caesar1
                     }
                 }
                 if (tempMax > tempMin) tempRangeVal = tempMax - tempMin;
+                if (tempRangeVal < 5) tempRangeVal = 5; // minimum range for better visualisation of temperature differences: needs a user option to change this 
             }
 
             // All these loop through just the 'Active Area'
@@ -15112,6 +15196,7 @@ namespace caesar1
             time_factor = time_factor * 1.5;
             if (time_factor > max_time_step) time_factor = max_time_step;
 
+            var statusUpdates = new ConcurrentQueue<string>(); // avoiding non-threadsafe updates to the status panel by using a concurrent queue
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax, options, delegate (int y)
             {
@@ -15172,7 +15257,9 @@ namespace caesar1
                                     vel = vel_dir[x, y, p];
                                     if (vel > max_vel)
                                     {
-                                        this.tempStatusPanel.Text = Convert.ToString(x) + " " + Convert.ToString(y) + " " + Convert.ToString(vel);
+                                        string msg = x + " " + y + " " + vel;
+                                        statusUpdates.Enqueue(msg);
+                                        //this.tempStatusPanel.Text = Convert.ToString(x) + " " + Convert.ToString(y) + " " + Convert.ToString(vel);
                                         vel = max_vel; // if vel too high cut it
                                     }
 
@@ -15204,7 +15291,14 @@ namespace caesar1
                     }
                 }
             });
-
+            // after Parallel.For completes, pick the last update and marshal to UI thread
+            string latest = null;
+            while (statusUpdates.TryDequeue(out var s)) latest = s;
+            if (latest != null)
+            {
+                // safe marshal to UI thread
+                this.BeginInvoke((Action)(() => this.tempStatusPanel.Text = latest));
+            }
 
             int counter2 = 0;
             do
@@ -17588,6 +17682,10 @@ namespace caesar1
         }
         private void button2_Click(object sender, System.EventArgs e)
         {
+            // one-time, e.g. in button2_Click after load_data(), guarded so it only fires once per run
+            System.IO.File.WriteAllText("temp_debug_trace.csv", "cycle,water_depth,water_depth_prev,q_sw,q_atm,q_b,q_h,q_l,q_net,Ri,T_w,T_w_before\n");
+            System.IO.File.WriteAllText("temp_debug_trace2.csv", "cycle,water_depth,water_depth_prev,q_sw,q_atm,q_b,q_h,q_l,q_net,Ri,T_w,T_w_before\n");
+
             int ok;
             ok = read_header();
             int nnn;
@@ -17600,6 +17698,10 @@ namespace caesar1
                 initialise();
                 zero_values();
                 load_data();
+                
+                // TEMP_V1 DEBUG TESTING
+                water_depth[2, 4] = 0.5;
+                water_depth[6, 4] = 4.0;
 
                 // TEMP_V1 - dhdt_x/dhdt_y are needed by depth_update() and
                 // update_water_temperature_advection() whenever temperature simulation is
