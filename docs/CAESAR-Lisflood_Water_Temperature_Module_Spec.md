@@ -1,7 +1,8 @@
 # CAESAR-Lisflood Water Temperature Module — Implementation Specification (v1)
 
-**Status:** Design finalised, pending code implementation
+**Status:** Implemented (Steps 1-19). Core physics runtime-verified against hand derivation and cross-source checks. **A severe, unresolved runaway-temperature bug currently blocks full-scheme trust — see `TEMP_V1_Implementation_Status.md` §3 for details before relying on this document's equations in isolation.** The equations below have been updated to reflect corrections made during verification; they are the as-built equations, not only the original design.
 **Benchmark reference:** Zhang & Johnson (2016), *Aquatic Nutrient Simulation Modules (NSMs) Developed for Hydrologic and Hydraulic Models*, ERDC/EL TR-16-1, Section 2 (Water Temperature Simulation Module, "TEMP"), as implemented in HEC-RAS. Equation numbers below (e.g. "HEC-RAS Eq. 2.4") refer to that report.
+**Secondary cross-validation references** (used during verification where the primary source was ambiguous or gave no default): CE-QUAL-W2 v4.5 source (`heat-exchange.f90`, `temperature.F90`); ClearWater-modules (`clearwater_modules/tsm/processes.py`).
 
 ---
 
@@ -34,8 +35,9 @@ A user-facing switch selects which scheme is active for a given run. Default par
 | A9 | Shortwave: match HEC-RAS's solar-altitude-dependent reflection coefficient `R_s` (not a fixed albedo) as the **default**; retain a simplified fixed-albedo-with-suspended-sediment-adjustment as a selectable **CAESAR-extension** option | **Both**, HEC-RAS default |
 | A10 | Suspended-sediment albedo adjustment is explicitly labelled as a CAESAR-specific empirical extension, not part of the HEC-RAS benchmark, and only active when the non-default albedo option is selected | Confirmed |
 | A11 | Atmospheric longwave: match HEC-RAS's Swinbank-type, cloud-cover-only formula (no humidity term) as the **default**; retain a humidity-aware (Idso/Brunt-type) formula as a selectable **CAESAR-extension** option | **Both**, HEC-RAS default |
-| A12 | Sensible heat: shared wind function with latent heat, plus user-adjustable diffusivity ratio `K_h/K_w` (default 1.0, range 0.5–1.5) | Confirmed |
-| A13 | Wind function includes the Richardson-number atmospheric-stability correction `f(R_i)` (HEC-RAS Eqs. 2.13–2.14) | Confirmed |
+| A12 | Sensible heat: shared wind function with latent heat, plus user-adjustable diffusivity ratio `K_h/K_w` (default 1.0, range 0.5–1.5). **Amended during verification**: this diffusivity ratio applies only under the "separated" wind-function option (see A13a below); the "bundled" option uses a fixed Bowen-ratio constant instead, matching its cross-validation source | Confirmed, amended |
+| A13 | Wind function includes the Richardson-number atmospheric-stability correction `f(R_i)` (HEC-RAS Eqs. 2.13–2.14) | Confirmed as one of three selectable options — see A13a |
+| A13a | **Added during verification.** HEC-RAS's own wind-function coefficients (`a`,`b`,`c`, Eq. 2.11) are stated in the source as user-defined with no default given. Cross-checking against CE-QUAL-W2 found a different, production-validated coefficient set used in a structurally different ("bundled") formulation that cannot be mixed with the literal HEC-RAS term structure without a ~1000x magnitude error. Resolved by implementing three selectable, GUI-exposed sensible/latent heat formulations: **Option A** (literal HEC-RAS separated-term equations, unconfirmed order-1e-6 coefficients), **Option B** (CE-QUAL-W2 bundled form, coefficients 9.2/0.46/2, no Richardson correction — matches CE-QUAL-W2 exactly), **Option C, default** (same bundled form and coefficients as B, Richardson correction retained as a CAESAR extension). See §3.2 for the full equations. | Confirmed |
 | A13a | New energy-balance latent heat term is thermally-informative only; **not** coupled back into the existing hydraulic water-balance evaporation term (`evaporate()`/`k_evap`), which remains untouched in v1 | Confirmed |
 | A14 | Bed/sediment heat exchange (`q_sed`) deferred; HEC-RAS default parameters recorded now (§7) for future use | Confirmed |
 | A15 | Ice/freezing deferred; `water_temp` floored at 0 °C, documented as a known simplification | Confirmed |
@@ -64,9 +66,9 @@ All equations below are HEC-RAS §2 equations unless marked **[CAESAR ext.]**.
 ### 3.2 Full energy balance — flux terms
 
 ```
-q_net = q_sw + q_atm − q_b − q_h − q_l          (Eq. 2.1; q_sed deferred, §7)
+q_net = q_sw + q_atm − q_b + q_h + q_l          (as implemented; q_sed deferred, §7)
 ```
-Each term's own sign is determined by its physical gradient (e.g. `q_h`, `q_l` can each individually be positive or negative); they are not blanket-subtracted as constants.
+**Note on sign convention**: the raw HEC-RAS Eq. 2.1 convention is `q_net = q_sw + q_atm − q_b − q_h − q_l`, with `q_h`/`q_l` defined such that a positive value denotes a *loss*. As implemented here, `sensible_heat_flux()` and `latent_heat_flux()` are each written so that a positive return value always means a *gain* to the water, consistent with every other flux term in this module — this is why they are *added* above rather than subtracted. This is a deliberate, documented convention choice, confirmed correct via runtime validation (§3.2 below), not a discrepancy with the source.
 
 **Shortwave (Eq. 2.4–2.5), HEC-RAS default:**
 ```
@@ -108,37 +110,64 @@ q_atm = ε_atm · σ · T_a(K)⁴
 q_b = 0.97 · σ · T_w(K)⁴
 ```
 
-**Latent heat (Eqs. 2.8–2.9):**
+**IMPORTANT — superseded during verification.** The original design below (literal HEC-RAS Eqs. 2.8–2.11 with a single shared wind function) is retained as **Option A**, but is **not the default** as implemented. HEC-RAS's own source states its wind-function coefficients as user-defined with no default given, and testing found they cannot be combined with a second, cross-validated coefficient set discovered during verification. See "Sensible/latent heat formulation options" immediately below for the as-built architecture; the equations after that describe each option precisely.
+
+**Sensible/latent heat formulation options (as implemented, replacing the single design below):**
+
+Three formulations are selectable via `useBundledSensibleLatent` and `useRichardsonStabilityCorrection`, each with its own coefficient set (`windFunc_*_separated` / `windFunc_*_bundled`):
+
+| Option | `q_h`, `q_l` structure | Coefficients | Richardson correction | Notes |
+|---|---|---|---|---|
+| A | Literal Eqs. 2.8/2.10 below, explicit `ρ_s·Cp_air·L` terms | `a=b=1e-6, c=1` (HEC-RAS's own stated order; no default given in source) | Yes | Not the default; retained for textual fidelity |
+| B | Bundled (see below) | `a=9.2, b=0.46, c=2` (CE-QUAL-W2 production default) | No | Exact match to CE-QUAL-W2 behaviour |
+| C (default) | Bundled (see below) | Same as B | Yes | CAESAR extension; not validated as a combination in either source, but converges to B under near-neutral conditions |
+
+**Latent heat, Option A — literal HEC-RAS (Eqs. 2.8–2.9):**
 ```
 q_l = (0.622/P) · L · ρ_s · (e_s − e_a) · f(u_s)
 ```
-- `P` = atmospheric pressure (mb) — **new required met input** (see §4)
-- `L` = latent heat of vaporisation, T-dependent (standard empirical formula, function of `T_w`)
-- `ρ_s` = density of saturated air (function of `T_w`, per Eq. 2.13's density formulation)
-- `e_s` = saturation vapour pressure at `T_w`, from the empirical polynomial (Eq. 2.9)
-- `e_a` = actual vapour pressure of air, from relative humidity + air temperature (standard psychrometric relation)
-- `f(u_s)` = shared wind function (below)
+- `P` = atmospheric pressure (mb)
+- `L` = latent heat of vaporisation, T-dependent
+- `ρ_s` = density of saturated air (mixing-ratio form, matching ClearWater-modules exactly — see below)
+- `e_s` = saturation vapour pressure at `T_w` (Eq. 2.9, confirmed against source)
+- `e_a` = actual vapour pressure of air, from relative humidity + air temperature
+- `f(u_s)` = wind function, separated-coefficient variant (below)
 
-**Sensible heat (Eq. 2.10):**
+**Sensible heat, Option A — literal HEC-RAS (Eq. 2.10):**
 ```
 q_h = (K_h/K_w) · C_p_air · ρ_s · (T_a − T_w) · f(u_s)
 ```
-- `C_p_air` = specific heat capacity of air ≈ 1005 J kg⁻¹ °C⁻¹ (standard constant)
-- `K_h/K_w` = diffusivity ratio, default 1.0, user range 0.5–1.5
+- `C_p_air` ≈ 1005 J kg⁻¹ °C⁻¹
+- `K_h/K_w` = diffusivity ratio, default 1.0, user range 0.5–1.5 (applies only to this option)
+- `P` (site pressure) is now correctly passed into this function — the original design's fixed-1013.25-mb simplification was removed during verification.
 
-**Wind function (Eqs. 2.11–2.14):**
+**Latent and sensible heat, Options B/C — CE-QUAL-W2 bundled form:**
 ```
-f(u_s) = f(R_i) · (a + b·u_s2)^c
+q_l = FW · (e_a − e_s)                                    [e_a, e_s in mmHg]
+q_h = diffusivityRatio · FW · BOWEN_CONSTANT · (T_a − T_w)
 ```
-- `a`, `b`, `c` = user-tunable coefficients (defaults from literature, order 10⁻⁶ for a/b, ~1 for c)
-- `u_s2` = wind speed corrected to 2 m reference height via the log law (Eq. 2.12), using roughness length `z_0` = 0.001 m (if input wind < 2.3 m/s) or 0.015 m (if ≥ 2.3 m/s)
-- `f(R_i)` = Richardson-number stability correction (Eqs. 2.13–2.14a–e), piecewise:
+- `FW` = the wind function (below), evaluated with the *bundled* coefficient set
+- `BOWEN_CONSTANT = 0.47` (matches CE-QUAL-W2 exactly, and matches the constant already used in this module's own simplified scheme, Eq. 2.18/2.20 — independent internal cross-check)
+- `e_s`, `e_a` computed from this module's own confirmed Eq. 2.9 saturation vapour pressure (mb), converted to mmHg (`× 0.750062`) to match CE-QUAL-W2's calibration units, rather than introducing a second vapour-pressure formula
+- No separate density/specific-heat/latent-heat multiplication — confirmed via source inspection that CE-QUAL-W2's own flux assembly requires none (its `FW` already outputs W/m² directly)
+- `diffusivityRatio` here is an optional CAESAR-extension multiplier on the sensible term only, neutral at its default of 1.0
+
+**Wind function (both structures share this, coefficients differ by option):**
+```
+f(u_s) = f(R_i) · (a + b·u_s2^c)
+```
+**Corrected during verification**: the exponent `c` applies to `u_s2` alone, not to the whole `(a+b·u_s2)` sum — the original design's parenthesisation was ambiguous and the as-implemented version was found to contain this bug, since fixed. Confirmed against CE-QUAL-W2's `FW = AFW+BFW·WIND2^CFW` (exponent on wind speed only).
+- `a`, `b`, `c` = per-option coefficients, see table above
+- `u_s2` = wind speed corrected to 2 m reference height via the log law (Eq. 2.12)
+- `f(R_i)` = Richardson-number stability correction (Eqs. 2.13–2.14a–e), piecewise, **corrected during verification**:
   - unstable (`R_i ≤ −1`): `f(R_i) = 12.3`
   - unstable (`−1 < R_i ≤ −0.01`): `f(R_i) = (1 − 22·R_i)^0.8`
   - neutral (`−0.01 < R_i < 0.01`): `f(R_i) = 1`
-  - stable (`0.01 ≤ R_i < 2`): `f(R_i) = (1 − 34·R_i)^(−0.8)`
+  - stable (`0.01 ≤ R_i < 2`): `f(R_i) = (1 + 34·R_i)^(−0.8)` **(corrected from `1 − 34·R_i`, which produced NaN for any `Ri > 1/34`; confirmed correct via structural symmetry with the unstable branch, boundary continuity at Ri=2, and an exact match to ClearWater-modules)**
   - stable (`R_i ≥ 2`): `f(R_i) = 0.03`
-  - `R_i = g·(ρ_air − ρ_sat)/(ρ_air·u_s2²)`, `g` = 9.806 m s⁻²
+  - **`R_i` is now explicitly clamped to `[-1.0, 2.0]` before this piecewise evaluation** (added during verification, guarantees the stable branch's base term stays positive)
+  - `R_i = -2.0 · g·(ρ_air − ρ_sat)/(ρ_air·u_s2²)`, `g` = 9.806 m s⁻² **(corrected during verification — the leading `-2.0` factor was missing from the original design; confirmed against the primary source's equation and its separately stated sign convention: `ρ_air > ρ_sat` denotes an unstable atmosphere and a negative `Ri`)**
+  - `ρ_air`, `ρ_sat` now use the mixing-ratio density form `ρ = 0.348·(P/T_K)·(1+w)/(1+1.61·w)`, matching ClearWater-modules exactly (corrected from an earlier vapour-pressure form during verification)
 
 ### 3.3 Simplified (equilibrium temperature) balance — HEC-RAS §2.2
 
@@ -216,9 +245,12 @@ Constant `ρ_w = 1000 kg/m³` in v1. HEC-RAS Eq. 2.3 (temperature-only quartic f
 | `thermal_update_interval` | `double` | Minutes, default 60 |
 | `thermal_time` | `double` | Next scheduled thermal-update time (mirrors `save_time`, `creep_time` idiom) |
 | `siteLatitude`, `siteLongitude`, `siteTimeZone`, `siteElevation`, `windMeasurementHeight` | `double` | Single-value setup constants |
-| `diffusivityRatio` (`Kh_Kw`) | `double` | Default 1.0 |
+| `diffusivityRatio` (`Kh_Kw`) | `double` | Default 1.0. Under the bundled formulation (below) this is an optional CAESAR-extension multiplier on the sensible term only; under the separated formulation it is the literal Eq. 2.10 `Kh/Kw` |
 | `albedoWaterBase`, `albedoSedimentCoeff`, `suspCondRef` | `double` | CAESAR-extension albedo option parameters |
-| `windFunc_a`, `windFunc_b`, `windFunc_c` | `double` | Wind-function coefficients |
+| `useBundledSensibleLatent` | `bool` | **Added during verification.** Selects the sensible/latent heat formulation family: bundled (CE-QUAL-W2-derived, default) vs. separated (literal HEC-RAS) |
+| `useRichardsonStabilityCorrection` | `bool` | **Added during verification.** Whether `f(R_i)` is applied to the wind function; forced `true` when the separated formulation is active |
+| `windFunc_a_bundled`, `windFunc_b_bundled`, `windFunc_c_bundled` | `double` | **Added during verification.** Default 9.2 / 0.46 / 2.0 (CE-QUAL-W2 production values) |
+| `windFunc_a_separated`, `windFunc_b_separated`, `windFunc_c_separated` | `double` | **Added during verification.** Default 1e-6 / 1e-6 / 1.0 (HEC-RAS source's own stated order of magnitude) |
 
 ---
 
@@ -253,6 +285,8 @@ Constant `ρ_w = 1000 kg/m³` in v1. HEC-RAS Eq. 2.3 (temperature-only quartic f
 - **Variable water density** — constant `ρ_w` used in v1 (A18). Deferred as a properly-scoped future piece of work rather than a quick patch: should combine temperature (HEC-RAS Eq. 2.3), salinity, and suspended-sediment concentration in a single combined formulation, since the model will have (or already has) the underlying data for all three (grain-size/suspended-load tracking already exists; salinity becomes relevant once tidal/estuarine reaches are modelled, and the existing oil-spill code's `ro_water` constant is a precedent for salinity-influenced density mattering here). Implementing only the temperature term now would need reworking once salinity/sediment effects are added, so this is deliberately left as one combined future task.
 - **Coupling of energy-balance latent heat to the hydraulic water balance** (`evaporate()`) — kept decoupled (A13a).
 
+**Not deferred by design — currently blocking, tracked in `TEMP_V1_Implementation_Status.md` §3:** a severe runaway-temperature bug found via a controlled test (both schemes affected, both shallow and deep cells affected) is unresolved as of this revision. A related but secondary shallow-cell numerical stability issue (explicit forward-Euler with no subcycling in the full scheme) has an identified root cause and a designed-but-unimplemented fix. Neither of these is a scoping decision; both are open defects. See the status document for full detail before treating either scheme as production-ready.
+
 ---
 
 ## 8. GUI additions (new "Water Quality" tab)
@@ -265,7 +299,8 @@ Constant `ρ_w = 1000 kg/m³` in v1. HEC-RAS Eq. 2.3 (temperature-only quartic f
 - Met time step box, met-zonation raster file box (mirrors rainfall-zonation controls)
 - Site constants: latitude, longitude, time zone, elevation, wind measurement height
 - Thermal update interval (minutes)
-- Diffusivity ratio, wind-function coefficients (a, b, c), albedo/sediment coefficients — advanced/calibration group box, defaulted from literature values so most users never need to touch them
+- Diffusivity ratio, albedo/sediment coefficients — advanced/calibration group box, defaulted from literature values so most users never need to touch them
+- **Added during verification**: sensible/latent heat formulation group box — radio buttons for bundled (default) vs. separated formulation, a Richardson-correction checkbox (disabled and forced on when separated is selected, since no sourced variant of the literal HEC-RAS equations omits it), and two coefficient-triplet rows (bundled a/b/c, separated a/b/c), each enabled only when its formulation is active
 - Output/visualisation: new entry in top-graphics menu and `comboBox1`, new save-option checkbox
 
 ---

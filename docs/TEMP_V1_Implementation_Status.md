@@ -1,6 +1,8 @@
 # Water Temperature Module — Implementation Status
 
-**Purpose of this document:** a snapshot of what has been built, what's been explicitly flagged as unverified/simplified, and what remains, so work can resume cleanly in a new session without re-deriving context. Read alongside `CAESAR-Lisflood_Water_Temperature_Module_Spec.md` (the original design spec) and `README.md` (branch overview) — this document tracks *implementation progress against that spec*, not the design itself.
+**Purpose of this document:** a snapshot of what has been built, verified, flagged as unverified/simplified, and what remains, so work can resume cleanly in a new session without re-deriving context. Read alongside `CAESAR-Lisflood_Water_Temperature_Module_Spec.md` (design spec) and `README.md` (branch overview) — this document tracks *implementation progress against that spec*, not the design itself.
+
+**This revision reflects an extended verification session that moved Step 19 from "compiles, not yet run" to "core physics runtime-validated," found and fixed several real bugs along the way, and identified a severe, still-unresolved bug that currently blocks full-scheme trust.** See `TEMP_V1_Session_Summary.md` for the full narrative of how each item below was established, including source cross-checks and hand derivations.
 
 ---
 
@@ -13,79 +15,112 @@
 | 3 | Empty function stubs for all planned functions | Done (all now filled in) |
 | 4 | Wired (initially inert) calls into `erodedepo()` at correct cadence points | Done, bug-fixed (see §2) |
 | 5 | GUI: new "Water Quality" tab, master `isSimulateTemperature` checkbox | Done |
-| 6–8 | Text met-file loading: air temp, shortwave, wind speed, humidity, cloud cover, pressure, dew point (`load_met_file()`, one GUI box + `load_data()` call per variable) | Done, tested working |
+| 6–8 | Text met-file loading: air temp, shortwave, wind speed, humidity, cloud cover, pressure, dew point (`load_met_file()`, one GUI box + `load_data()` call per variable) | Done, tested working. **Gap-fill bug fixed this session** — see §2. |
 | 9 | GUI: scheme selector (full/simplified radio buttons), HEC-RAS-default vs CAESAR-extension checkboxes (longwave, albedo), site parameters (lat/long/timezone/elevation/wind height), initial condition group box | Done |
-| 10 | XML config save/load for all Water Quality tab settings | Done, tested working (round-trip confirmed) |
+| 9a | **New this session:** GUI group box for sensible/latent heat formulation selection (Option A/B/C radio buttons, Richardson-correction checkbox, bundled/separated coefficient textboxes) | Done, tested working |
+| 10 | XML config save/load for all Water Quality tab settings | Done, tested working (round-trip confirmed). **Extended this session** for the new formulation-selection fields. |
 | 11 | Initial water temperature: constant value or raster override, wired into `zero_values()`/`load_data()` | Done, tested working |
 | 12 | `interpolate_met()` — linear time interpolation of a met variable for a given zone | Done |
-| 13 | Simplified (equilibrium temperature) scheme — full implementation of HEC-RAS §2.2 (Eqs. 2.17–2.21), per-zone met caching, closed-form exponential update | Done, tested working (cooling toward equilibrium confirmed physically sensible) |
+| 13 | Simplified (equilibrium temperature) scheme — full implementation of HEC-RAS §2.2 (Eqs. 2.17–2.21), per-zone met caching, closed-form exponential update | Done. **Confirmed genuinely unconditionally stable** — this property is now the basis of the recommended fix for the full scheme's shallow-cell issue (§3). **However, this scheme also exhibits the pond-test runaway bug (§3) — the bug is not specific to the full scheme.** |
 | — | Nodata handling fix: `water_temp` uses `-9999` sentinel for dry/unset cells rather than blanket-initialising everywhere | Done, tested working |
 | — | Visualisation: "water temperature" added to Top Graphics II menu, `drawwater()` rendering (blue→white→red diverging scale, dynamically ranged) | Done, tested working |
-| — | Advection/mixing: `update_water_temperature_advection()` — depth-weighted mixing via existing `dhdt_x`/`dhdt_y` tracer-style infrastructure, first-wetting rule (A2) | Done, tested working |
-| — | `save_temperature_states()` — dedicated previous-state snapshot function (split out from `save_tracer_states()` after a null-reference bug; see §2) | Done, tested working |
-| — | Source-input wiring: rainfall, reach, and tidal inputs assign/mix a temperature into newly-added water (defaulting to `waterTempInitialValue` unless overridden — see next row) | Done, tested working |
+| — | Advection/mixing: `update_water_temperature_advection()` — depth-weighted mixing via existing `dhdt_x`/`dhdt_y` tracer-style infrastructure, first-wetting rule (A2) | Done, working for well-established/steady inflow conditions. **A serious bug in this function's dependency on `water_depth_prev` was found and fixed this session — see §2. This is very likely the same function implicated in the still-open pond-test bug (§3).** |
+| — | `save_temperature_states()` — dedicated previous-state snapshot function (split out from `save_tracer_states()` after a null-reference bug; see §2) | Done. **Extended this session** to also maintain `water_depth_prev` when the tracer subsystem is disabled — see §2. |
+| — | Source-input wiring: rainfall, reach, and tidal inputs assign/mix a temperature into newly-added water (defaulting to `waterTempInitialValue` unless overridden — see next row) | Done, tested working for the reach/catchment/tidal input functions specifically checked this session. **Not yet separately confirmed for the constant water-level input mechanism used in the pond test — see §3.** |
 | 14 | Source temperature file: shared multi-column file for rain/tide/reach inputs, flexible header row (single index / `a-b` range / `a+b` combination / `ALL` keyword), gap-filling (interpolate internal gaps, hold flat at file ends), diagnostic message box reporting the full source-index-to-column mapping and any header warnings | Done, tested working (short-file "hold last value" bug found and fixed) |
-| 15 | Solar geometry: `solar_altitude()`, `solar_geometry()` (extraterrestrial radiation `q_o`), `reflection_coefficient()` (`R_s`); new `simulationStartDateTime` GUI control anchoring `cycle` to a real calendar date/time | Done, compiles; **not yet run-time tested** (no caller until Step 19) |
-| 16 | Atmospheric longwave (`atmospheric_longwave_hecras()`, HEC-RAS default) and its CAESAR-extension alternative (`atmospheric_longwave_humidity()`); back longwave (`water_longwave()`, fixed, no alternative) | Done, compiles; **not yet run-time tested** |
-| 17 | `wind_speed_at_height()` (Step 13, reused), `richardson_number()`, `richardson_stability_function()`, `wind_function()`, `saturation_vapour_pressure()` (**HEC-RAS Eq. 2.9, exact coefficients confirmed against source PDF via image OCR — see §3**), `latent_heat_of_vaporisation()`, `air_density()` | Done, compiles; **not yet run-time tested** |
-| 18 | `sensible_heat_flux()` (`q_h`), `latent_heat_flux()` (`q_l`, with an explicit sign-convention flip — see §3) | Done, compiles; **not yet run-time tested** |
-| 19 | Full energy balance assembly — fills in the `useSimplifiedTempScheme == false` branch of `update_water_temperature_energybalance()`, combining Steps 15/16/18 into `q_net`, per-zone caching of `q_atm` and (HEC-RAS-mode) `q_sw` | Just completed — **not yet compiled/tested** |
+| 15 | Solar geometry: `solar_altitude()`, `solar_geometry()` (extraterrestrial radiation `q_o`), `reflection_coefficient()` (`R_s`); new `simulationStartDateTime` GUI control anchoring `cycle` to a real calendar date/time | **Runtime-confirmed working this session** (previously "compiles, not yet run-time tested" — see §3 for how this was upgraded from flagged to confirmed) |
+| 16 | Atmospheric longwave (`atmospheric_longwave_hecras()`, HEC-RAS default) and its CAESAR-extension alternative (`atmospheric_longwave_humidity()`); back longwave (`water_longwave()`, fixed, no alternative) | `atmospheric_longwave_hecras()` and `water_longwave()` **runtime-confirmed this session** via multi-day trace and cross-source constant checks (§3). Humidity-aware alternative not yet separately exercised. |
+| 17 | `wind_speed_at_height()` (Step 13, reused), `richardson_number()`, `richardson_stability_function()`, `wind_function()`, `saturation_vapour_pressure()` (HEC-RAS Eq. 2.9, confirmed against source), `latent_heat_of_vaporisation()`, `air_density()` | **All confirmed correct this session, after finding and fixing real bugs in three of them — see §2 and §3.** `air_density()` rewritten to the mixing-ratio form. |
+| 18 | `sensible_heat_flux()` (`q_h`), `latent_heat_flux()` (`q_l`, with an explicit sign-convention flip — see §3) | **Substantially reworked this session.** Both functions now dispatch between two formulations (literal HEC-RAS separated-term vs. CE-QUAL-W2-derived bundled form) — see §3 for the full architecture and reasoning. Both confirmed correct in isolation via cross-source validation and hand derivation. |
+| 19 | Full energy balance assembly — fills in the `useSimplifiedTempScheme == false` branch of `update_water_temperature_energybalance()`, combining Steps 15/16/18 into `q_net`, per-zone caching of `q_atm` and (HEC-RAS-mode) `q_sw` | Compiled and **runtime-validated at two stable test points over multi-day runs** (residual against hand-calculated ΔT under 1%). **However, a severe, unresolved runaway-temperature bug was found via a separate controlled test — see §3, this is the current blocker.** |
 
-**Net result:** the simplified scheme is fully built and validated end-to-end (loading, advection, source input, visualisation all confirmed working together). The full energy balance scheme is now code-complete but **has not yet been compiled or run** — that's the immediate next action in a resumed session.
+**Net result:** the simplified scheme's own equations are validated end-to-end for well-behaved, steady-inflow conditions. The full scheme's individual flux terms and their assembly are now genuinely runtime-verified, not just compiled, and several real bugs were found and fixed in the process. **Both schemes, however, currently fail catastrophically under a specific controlled test condition (§3) — this is the single most important open item and blocks calling either scheme "done."**
 
 ---
 
-## 2. Bugs found and fixed along the way (for reference — all resolved)
+## 2. Bugs found and fixed along the way (for reference — all resolved unless noted)
+
+*Carried over from before this session:*
 
 - **XML load try/catch variable-name collision** (`e` shadowing an outer-scope `e`) — fixed by renaming to `eTemp`.
 - **Missing XML loaders triggering the outer catch silently** — fixed by adding the missing element reads; also added explicit debug info to the catch block for future diagnosability.
-- **`NullReferenceException` in `save_tracer_states()`** when `isSimulateTemperature = true` but `isTraceWater = false` — root cause: `water_depth_prev`/`dhdt_x`/`dhdt_y`/`watertracer*` arrays were only ever allocated inside the `isTraceWater == true` block in `button2_Click()`. Fixed in two parts:
-  - Allocation of `water_depth_prev`/`dhdt_x`/`dhdt_y` now also happens when `isSimulateTemperature == true && isTraceWater == false`.
-  - **Split `save_tracer_states()` into two functions**: tracer-specific logic stays as it was (only ever runs under `isTraceWater`), and a new, dedicated `save_temperature_states()` handles only `water_temp_prev`, called independently under `isSimulateTemperature`. This was a deliberate design improvement, not just a patch — avoids this class of bug recurring if either function is extended further.
-- **Coarse-cadence energy-balance scheduling bug**: the `thermal_time` check was originally nested inside the daily `creep_time2` block, meaning it could only ever fire once a day regardless of `thermal_update_interval`. Fixed by moving it to its own independent, always-evaluated check (mirroring `save_time`/`save_time2`'s existing pattern), just before the `temptotal = temptot;` line.
-- **Source-temperature-file "hold last value" bug**: the gap-fill loop only held the last valid value flat up to the file's actual row count (`rowIdx`), not the full allocated array length (`max_file_length`) — meant a short input file caused temperature to jump to the background default partway through a run. Fixed by extending the hold-flat loop to `max_file_length`.
-- **`nSources` not computed for temperature-only runs**: needed for the source-temperature file's column mapping even when `isTraceWater == false`; added a small guarded block in `button2_Click()` mirroring the existing `isTraceWater` logic.
+- **`NullReferenceException` in `save_tracer_states()`** when `isSimulateTemperature = true` but `isTraceWater = false` — fixed by splitting into `save_tracer_states()` (tracer-only) and a dedicated `save_temperature_states()`.
+- **Coarse-cadence energy-balance scheduling bug**: `thermal_time` was originally nested inside the daily `creep_time2` block. Fixed by giving it its own independent, always-evaluated check.
+- **Source-temperature-file "hold last value" bug**: gap-fill only held flat to the file's actual row count, not the full allocated array length. Fixed.
+- **`nSources` not computed for temperature-only runs**: fixed with a small guarded block mirroring the existing `isTraceWater` logic.
+
+*Found and fixed this session:*
+
+- **`richardson_number()` missing leading `-2.0` factor** from HEC-RAS Eq. 2.13. Confirmed against the primary source text (both the equation itself and its separately stated sign convention: unstable = `ρ_air > ρ_sat` = `Ri` negative). Cross-checked against ClearWater-modules `tsm/processes.py` (whose `+2.0` was found to be internally inconsistent with its own branch-labelling logic — a bug in that codebase, not a valid alternate convention). Fixed to `-2.0`.
+- **`richardson_stability_function()` stable-branch NaN**: `(1-34·Ri)^-0.8` goes complex for any `Ri > 1/34 ≈ 0.029`, inside its own stated valid domain (`0.01 ≤ Ri < 2`). Corrected to `(1+34·Ri)^-0.8`, confirmed via structural symmetry with the (correct) unstable branch, boundary continuity at `Ri=2`, and an exact match to ClearWater-modules. **Domain bounding added**: `Ri` is now clamped to `[-1.0, 2.0]` before piecewise evaluation, guaranteeing the stable branch's base stays positive.
+- **`wind_function()` exponent bug**: `c` was applied to the whole sum `(a+b·windSpeed2)` rather than to `windSpeed2` alone. Invisible under the old `c=1` default (a no-op at that exponent), but would have caused an ~8x magnitude error once `c=2` (the new bundled default) was introduced. Fixed.
+- **Cross-machine regression** (not a logic bug): the two Richardson fixes above briefly appeared reverted mid-session. Diagnosed as an unpushed-commit issue from switching development machines, not a code defect. Resolved; flagged in §6 as a recurring process risk given multi-machine development.
+- **`load_met_file()` gap-fill bug**: no hold-last-value logic once a met file's rows ran out (unlike `load_source_temp_file()`, which already had this). Any met variable would silently sit at the C# array default of `0.0` beyond the file's actual length, with no warning. Fixed, mirroring the source-temperature file's existing gap-fill logic.
+- **`water_depth_prev` tracer-coupling bug — the most serious bug found this session.** `water_depth_prev[x,y]` was only ever populated inside `save_tracer_states()`, meaning it remained permanently `0` whenever the tracer subsystem (`isTraceWater`) was disabled. Because `update_water_temperature_advection()` reads `water_depth_prev[x,y]` to compute `depth_after_outflows`, and that value was always `0`, the branch intended only for genuinely newly-emptied cells (`depth_after_outflows <= 0.0 || water_depth_prev[x,y] <= 0.0 || ...`) fired **unconditionally, every iteration, for every wet cell** — discarding each cell's own prior temperature entirely and replacing it purely with the inflow-weighted average `dhdt_sumInTemp`. The intended depth-weighted blending branch never executed at all under these conditions. **Fixed** by extending `save_temperature_states()` to also assign `water_depth_prev[x,y] = water_depth[x,y]` when `isTraceWater == false` (shared array, one active writer depending on the flag, not a duplicate array). Ordering relative to `erodedepo()`'s sequence (water inputs → save-states → `qroute()`/`depth_update()` → advection) confirmed correct. **This fix measurably improved but did not resolve the pond-test runaway bug described in §3 — that bug is still open.**
+  - **Outstanding follow-up from this fix, not yet done**: add a documentation comment at `save_tracer_states()` noting that the temperature module now depends on it (indirectly, via the shared array and the `save_temperature_states()` guard) so a future refactor of the tracer subsystem doesn't silently reintroduce this exact bug. A matching comment at `save_temperature_states()` explaining the guard is also still needed.
 
 ---
 
 ## 3. Explicitly flagged / unverified items (accuracy caveats)
 
-These are places where a HEC-RAS-equivalent formula was used but **not confirmed word-for-word against the source report**, or where a deliberate simplification was made. All are commented in-code with `TEMP_V1` tags and should be treated as known follow-up items, not silent gaps:
+*Resolved this session (moved out of "unverified" — kept here for the record):*
 
-- **`solar_altitude()` / `reflection_coefficient()`** (Step 15): standard, well-established formulations (Spencer 1971 declination series, Duffie & Beckman-style solar position; Anderson 1954-style reflectivity curve) used because the exact HEC-RAS derivation wasn't confirmed from the extracted report text. Physically reasonable and correctly shaped, but **not confirmed as a bit-for-bit match** to HEC-RAS's own equations.
-- **`longwaveCloudExponent`** (Step 16): the cloud-cover exponent in the atmospheric longwave formula (`1 + 0.17·C_L^n`) was ambiguous in the OCR'd source text between linear and squared. Defaulted to squared (`n = 2`, matching the shortwave term's confirmed exponent) but flagged as a named constant specifically so it's a one-line fix if checked against the source and found to differ.
-- **`saturation_vapour_pressure()` (HEC-RAS Eq. 2.9)** — **this one WAS explicitly verified**, via direct image-OCR extraction of the equation from the source PDF (rendered at high resolution, cross-checked across multiple OCR passes) and a numerical sanity check against a known reference value (~23.4 mb at 20°C, matched to within ~0.2%). Exact coefficients now in the code. This is the one fully-confirmed equation among the flagged group — noted here so it's clear it's resolved, not still open.
-- **`latent_heat_flux()` sign convention** (Step 18): the source report defines `q_l` as *positive when it's a heat loss* (opposite to every other flux term's "positive = gain" convention). The implementation deliberately negates the raw HEC-RAS-convention result so that **every flux function in this codebase consistently returns "positive = gain to the water,"** simplifying the Step 19 summation. Documented in-code; worth double-checking this reasoning once the full scheme is actually run and compared against expected physical behaviour.
-- **`sensible_heat_flux()` uses a fixed standard-pressure assumption (1013.25 mb)** for computing saturated air density, rather than the site's actual measured pressure — the report's Eq. 2.10 doesn't list pressure as an explicit input, unlike Eq. 2.8's latent heat (which does use real pressure). Flagged as a simplification, easy to change if needed.
-- **Shortwave radiation uses the measured met input directly** (`q_sw = shortwave_measured × (1 − R_s)`), not HEC-RAS's from-scratch theoretical calculation (`q_o × α_t × (1 − R_s) × (1 − 0.65·C_L²)`, Eq. 2.4) — consistent with assumption A9 ("direct shortwave primary"). This means `solar_geometry()` (extraterrestrial radiation `q_o`) is implemented but **currently unused** — reserved for a future fallback path if shortwave is ever made optional.
-- **Missing-humidity/cloud-cover/pressure fallback values are hardcoded** (70% RH, 0 cloud fraction, 1013.25 mb) rather than GUI-configurable constants, even though the original spec (§4) intended user-settable defaults for these. A small GUI addition (three more textboxes) would close this gap.
+- **`solar_altitude()` / `reflection_coefficient()`** — previously flagged as "compiles, not confirmed as a bit-for-bit match to HEC-RAS." **Now runtime-confirmed**: a 5-day trace at two test points showed a correctly repeating diurnal on/off pattern with sunrise/sunset at consistent times, and — more decisively — a slow, monotonic decline in each day's shortwave peak across five consecutive days starting exactly at the summer solstice, which is precisely the signature of correct day-of-year tracking and could not be produced by a bug. Not yet confirmed as a literal equation-for-equation match to HEC-RAS's own derivation, but confirmed physically correct.
+- **`saturation_vapour_pressure()` (HEC-RAS Eq. 2.9)** — remains confirmed (verified in a prior session via source PDF extraction and a numerical sanity check). Reconfirmed indirectly this session via its use in the now-validated `water_longwave()`/`richardson_number()` chain.
+- **`latent_heat_flux()` sign convention** — the deliberate "positive = gain" convention across all flux terms is confirmed correct and consistent with the validated `q_net = q_sw + q_atm − q_b + q_h + q_l` assembly (note: **this differs from the raw HEC-RAS Eq. 2.1 sign convention**, which is `q_net = q_sw + q_atm − q_b − q_h − q_l`; CAESAR's implementation deliberately negates `q_h`/`q_l` internally so every flux function returns "positive = gain," and the assembly line reflects that consistently — this is documented behaviour, not a discrepancy).
+- **`sensible_heat_flux()` fixed-pressure simplification** — resolved as part of the wind-function rework below: the separated-term option now takes `pressureMb` as a parameter and uses the site's actual pressure, matching `latent_heat_flux()`'s existing behaviour.
+
+*New architecture this session — sensible/latent heat formulation and wind function:*
+
+The single biggest piece of work this session. HEC-RAS's own source (Zhang & Johnson 2016) states its wind-function coefficients `a`, `b`, `c` (Eq. 2.11) as explicitly **user-defined**, with no default given (order 1e-6 for `a`/`b`). Cross-checking against CE-QUAL-W2 v4.5 source (`heat-exchange.f90`/`temperature.F90`) found a very different-looking coefficient set (`AFW=9.2, BFW=0.46, CFW=2`, confirmed identical across two independent real CE-QUAL-W2 applications) used in a **bundled** formulation — no separate density/specific-heat/latent-heat multiplication, confirmed to output W/m² directly by tracing CE-QUAL-W2's own flux assembly through to its final temperature update with no unit conversion factor present. These same `9.2/0.46/2` values are already present, independently, in CAESAR's own already-validated simplified scheme (Eq. 2.19) — a strong internal cross-check. Plugging `9.2/0.46/2` into the *literal separated-term* equation structure overshoots physically plausible flux by roughly 1000x, confirming the two coefficient sets and the two equation structures are genuinely not interchangeable.
+
+**Resolution: three selectable formulations**, GUI-exposed (`useBundledSensibleLatent`, `useRichardsonStabilityCorrection`, separate coefficient sets `windFunc_*_bundled`/`windFunc_*_separated`), XML save/load complete:
+
+- **Option A** — literal HEC-RAS Eq. 2.10/2.11, explicit `ρ_s·Cp_air·L` terms, `windFunc_*_separated` (order 1e-6, the source's own stated order, no worked example available to confirm against). Not the default. Retained for textual fidelity to the printed equation, with the caveat above documented at the point of use.
+- **Option B** — CE-QUAL-W2 bundled form, `9.2/0.46/2`, Richardson stability correction **off** (matching CE-QUAL-W2's own behaviour exactly, which was confirmed via source inspection to apply no such correction to its wind function).
+- **Option C (default)** — same bundled form and coefficients as B, Richardson correction **on**, as a deliberate CAESAR extension. Not independently validated as a *combination* in either source, but `f(Ri) ≈ 1` near neutral conditions, so it matches B's validated behaviour in the common case and only diverges under strong stability/instability, using Richardson physics independently confirmed elsewhere in this module.
+
+All three options, plus the underlying `wind_function()`/`richardson_number()`/`richardson_stability_function()` functions, were cross-validated numerically in the Immediate Window across multiple test pairs, with signs and magnitudes matching physical expectation and, in several cases, matching independent hand derivation to 3+ significant figures (including a strong-stability test case where the Richardson suppression factor matched a hand calculation of `(1+34·Ri)^-0.8` almost exactly).
+
+*Still open / unresolved:*
+
+- **UNRESOLVED, BLOCKING: severe runaway temperature bug.** A controlled "pond" test (7×7 cell closed domain, single constant water-level input, all met inputs constant, tracers off) revealed that **both** the full and simplified schemes produce catastrophic runaway water temperatures — thousands of degrees in trace data, over 100,000°C observed via the point inspector — in **both** shallow (~0.5 m) and deep (4–8 m) test cells. Deep cells reach the same catastrophic outcome, merely delayed by a few cycles, which rules out a purely shallow-cell/small-heat-capacity explanation on its own. The `water_depth_prev` fix above (§2) measurably improved pre-blowup behaviour but did **not** resolve this. The most important unexplained clue: after that fix, two separate simulation runs (different traced cells) both show corruption beginning at the **exact same** model cycle time (`1320.008316` minutes, ~22 hours), strongly suggesting a shared global trigger rather than independent per-cell instability. The most obvious hypothesis for this (an input file running out of rows without holding its last value) was tested directly and **ruled out** — all relevant input files far exceed the simulation length. Root cause not yet identified. See §5 (Outstanding work) for candidate next steps, and `TEMP_V1_Session_Summary.md` for the full diagnostic trail.
+- **Floodplain forward-Euler / no-subcycling issue** (secondary to the item above, root cause identified, fix designed but not implemented). Floodplain cells were separately observed oscillating between under 5°C and over 18°C within hours. Root cause: `update_water_temperature_energybalance()`'s full scheme uses a plain explicit forward-Euler step over the full `thermal_update_interval`, with a floor at 0°C but no ceiling and no subcycling. At shallow depths (~0.1–0.5 m), a single hour of ordinary diurnal forcing produces a 1–2.5°C step; several such steps accumulate into 20°C+ swings across a half-day, and the floor clamp produces the exact-zero readings observed. **Suggested fix, not yet implemented**: reformulate the full scheme's per-step update as an exponential relaxation toward a local equilibrium temperature, the same unconditionally-stable technique already proven in CAESAR's own simplified scheme, rather than raw forward-Euler with an ad hoc floor. It is not yet known whether this remains a distinct issue once the item above is resolved, or was substantially the same underlying mechanism.
+- **Missing-humidity/cloud-cover/pressure fallback values are still hardcoded** (70% RH, 0 cloud fraction, 1013.25 mb) rather than GUI-configurable constants, as originally flagged. **Not yet addressed** — a concrete fix (three new fields, GUI textboxes, XML save/load, anchor points) was drafted at the start of this session but implementation was superseded by the physics-verification work and has not been confirmed done.
+- **`longwaveCloudExponent`** (Step 16): still using the defaulted-to-squared (`n=2`) assumption for the cloud-cover exponent in the atmospheric longwave formula, per the original ambiguity note. Not revisited this session.
+- Humidity-aware atmospheric longwave alternative (`atmospheric_longwave_humidity()`) — not separately exercised or validated this session; only the HEC-RAS-default path was tested.
+- Source-input temperature assignment for the constant water-level ("stage") input mechanism specifically has not been separately confirmed to correctly assign a background temperature to newly-added water, unlike the reach/catchment/tidal functions already checked. This was raised as a plausible contributing hypothesis for the pond-test bug and has not yet been ruled in or out.
 
 ---
 
 ## 4. Deferred by design (documented in the spec, not gaps)
 
-Per the original spec (§7) and confirmed assumptions — these are deliberate, not omissions:
+Per the original spec (§7) and confirmed assumptions — these are deliberate, not omissions. Unchanged this session:
 
 - Bed/sediment heat exchange (`q_sed`) — HEC-RAS default parameters recorded in the spec for future use.
-- Ice formation — `water_temp` floored at 0°C; sub-zero energy-balance results are clipped, not modelled.
+- Ice formation — `water_temp` floored at 0°C; sub-zero energy-balance results are clipped, not modelled. **Note**: this floor is directly implicated in the floodplain forward-Euler issue above (§3) as the mechanism producing exact-zero readings; the deferred-ice decision itself is unaffected, but its interaction with the stability issue is now better understood.
 - Full NetCDF/gridded meteorological ingestion — text time series only; architecture designed so this is a drop-in replacement later.
 - Variable water density — constant 1000 kg/m³; future upgrade explicitly scoped to combine temperature + salinity + suspended sediment together, not just HEC-RAS's temperature-only term.
-- Coupling of the new latent-heat term to the existing hydraulic `evaporate()` water-balance function — kept decoupled (A13a). **Newly flagged in this session**: this means evaporative *mass* loss (via `evaporate()`) currently carries **no corresponding thermal cooling effect** on `water_temp` — a real, minor physical inconsistency worth documenting as a known limitation, separate from the full-scheme's own `q_l` term (which *does* correctly cool `water_temp`, just without removing the corresponding mass via `evaporate()`).
+- Coupling of the new latent-heat term to the existing hydraulic `evaporate()` water-balance function — kept decoupled (A13a). Evaporative *mass* loss currently carries no corresponding thermal cooling effect on `water_temp`, a known minor physical inconsistency separate from the full scheme's own `q_l` term.
 
 ---
 
 ## 5. Outstanding work (not yet started)
 
-In roughly the order I'd suggest tackling them:
+In priority order:
 
-1. **Compile and test Step 19** (full energy balance) — the immediate next action. Suggest testing with the same Carlisle-summer-style constant test files used for the simplified scheme (now also needing air temperature and cloud cover files), and comparing behaviour/sign of each flux term via debugger before trusting the aggregate result.
-2. **Validate the full scheme's individual flux terms** against hand-calculated or literature reference values, the way `saturation_vapour_pressure()` was checked — particularly worth doing for `q_h`/`q_l` given the sign-convention subtlety.
-3. **Resolve the flagged-but-unverified equations** (§3) if exact HEC-RAS reproduction matters — likely needs going back to the source PDF with more targeted image extraction, as was done successfully for Eq. 2.9.
-4. **GUI additions**: constant-value fallback boxes for humidity/cloud cover/pressure (closing the §3 gap); consider exposing atmospheric attenuation if the `solar_geometry()` fallback path is ever built.
+1. **Resolve the pond-test runaway bug (§3) — this blocks everything else.** Candidate next steps, untried at end of session:
+   - Directly instrument `dhdt_sumIn` and `dhdt_sumInTemp` at the debug cell around cycle 1300–1340 (not currently exposed at the existing debug print location) to observe the mechanism directly.
+   - Check whether cycle ~1320 corresponds to when the flood front from the pond test's initial filling area first reaches the domain's closed edge cells — a possible untested edge/boundary-neighbour handling bug in the temperature advection code.
+   - Rule out any unrelated periodic event (output interval, UI refresh, an unrelated counter) coincident with that specific cycle count.
+   - Separately confirm whether the constant water-level input mechanism assigns a correct background temperature to newly-added water.
+2. **Once resolved**: re-run the pond test to confirm bounded, physically sensible behaviour, then re-examine whether the floodplain forward-Euler/subcycling issue (§3) needs its own dedicated fix or was substantially explained by the bug above.
+3. Add the two outstanding documentation comments flagged in §2 (`save_tracer_states()`/`save_temperature_states()` shared-dependency notes).
+4. **GUI additions**: constant-value fallback boxes for humidity/cloud cover/pressure (§3, still open).
 5. **`oil_evaporation()` integration** — replace the hardcoded `oil_T = 298` constant with live `water_temp[x,y]` (§6 of the spec, still not started).
-6. **`save_data()` raster output** for `water_temp` — visualisation exists, but there's no file-output option yet (mirrors the existing water-depth/velocity output pattern).
-7. **Documentation pass** — fold the §3/§4 caveats here into the user-facing spec document properly, so a future user (not just a future coding session) knows what's approximate vs. exact.
-8. Longer-run, more varied testing: diurnal-cycle met inputs (rather than constant test values), multi-zone forcing, a run long enough to exercise both schemes' behaviour across a realistic range of conditions.
+6. **`save_data()` raster output** for `water_temp` — visualisation exists, no file-output option yet.
+7. **Documentation pass** — fold the current §3/§4 caveats into the user-facing spec document (see the companion spec update alongside this document).
+8. Longer-run, more varied testing once the blocking bug is resolved: diurnal-cycle met inputs, multi-zone forcing, a run long enough to exercise both schemes across a realistic range of conditions, including the domain-edge and boundary-condition scenarios the pond test has newly highlighted as under-tested.
 
 ---
 
@@ -95,130 +130,6 @@ In roughly the order I'd suggest tackling them:
 - GUI: new "Water Quality" TabPage (`TempTab` and its child controls), all also tagged `TEMP_V1`.
 - Design spec: `CAESAR-Lisflood_Water_Temperature_Module_Spec.md`.
 - Branch overview: `README.md`.
+- **`TEMP_V1_Session_Summary.md`** — full narrative account of the extended verification session that produced this revision: every bug found, every source cross-check performed, the reasoning behind each fix, and the full diagnostic trail on the still-open pond-test bug. Read this if the summarised version above isn't enough detail to proceed.
 - This document: implementation progress tracker, to be updated as further steps complete.
-
-
-### Sensible/latent heat formulation — resolved via cross-source validation, three options retained
-
-HEC-RAS Eq. 2.10/2.11's wind-function coefficients (`a`, `b`, `c`) are explicitly stated as
-"user-defined" in the source (ERDC/EL TR-16-1), order ~1e-6 for `a`/`b`, no worked example or
-universal default given. Numeric plug-in testing confirmed this order of magnitude, taken
-literally with the equation's explicit `ρ_s·Cp_air·L` structure, produces physically plausible
-(if unconfirmed) flux magnitudes for Option A below.
-
-Cross-checked against CE-QUAL-W2 v4.5 (`heat-exchange.f90`/`temperature.F90`): CE-QUAL-W2's
-`FW = AFW+BFW·u^CFW`, with production defaults `AFW=9.2, BFW=0.46, CFW=2` (confirmed identical
-across two independent real-world example applications, estuary and reservoir), is used in a
-**bundled** form (`RC=FW·0.47·ΔT`, `RE=FW·Δe`) with no separate density/specific-heat/latent-heat
-multiplication, confirmed to output W/m² directly by tracing `RN = RS+RANLW-RB-RE-RC` through to
-`HEATEX` with no unit conversion factor present. These same 9.2/0.46/2 values are already used,
-unmodified, in CAESAR's own simplified/equilibrium scheme (Eq. 2.19) — internal cross-validation.
-Confirmed via grep of CE-QUAL-W2 source: no Richardson-number stability correction is applied to
-`FW` in their formulation.
-
-Plugging 9.2/0.46/2 into the *separated-term* equation structure (Option A) overshoots physically
-plausible flux by ~1000x at ordinary conditions — the two coefficient sets are **not
-interchangeable** between formulations.
-
-**Resolution: three selectable options**, GUI-exposed via `useBundledSensibleLatent` /
-`useRichardsonStabilityCorrection`:
-
-- **Option A** — literal Eq. 2.10/2.11, explicit ρ·Cp·L terms, `windFunc_*_separated` (order
-  1e-6, unconfirmed). Retained for textual fidelity; not the default.
-- **Option B** — CE-QUAL-W2 bundled form, `windFunc_*_bundled` (9.2/0.46/2), Richardson
-  correction **off** — exact match to CE-QUAL-W2's validated production behaviour.
-- **Option C (default)** — same bundled form and coefficients as B, Richardson correction
-  **on**, as a deliberate CAESAR extension. Not independently validated as a combination, but
-  `f(Ri)≈1` near-neutral means it matches B's validated behaviour in the common case, diverging
-  only under strong stability/instability, using the Richardson physics already independently
-  confirmed elsewhere in this module.
-
-Also fixed in this pass: `wind_function()` was applying the `c` exponent to `(a+b·windSpeed2)`
-as a whole rather than to `windSpeed2` alone — invisible under the old `c=1` default (no-op),
-would have caused an ~8x magnitude error the moment `c=2` (the bundled default) was introduced.
-
-
-## Richardson number, stability function, and wind function — resolved and cross-validated
-
-**Status: fully verified across all three sensible/latent heat formulation options (see below). Closed.**
-
-### Bugs found and fixed
-
-- **`richardson_number()` was missing the leading `-2.0` factor** from HEC-RAS Eq. 2.13
-  (`Ri = -2g(ρ_air-ρ_sat)/(ρ_air·u²)`). Confirmed against the primary source text directly
-  (Zhang & Johnson 2016, Eq. 2.13) two independent ways: the equation itself, and the report's
-  separately-stated sign convention ("unstable atmosphere: ρ_air > ρ_sat... Ri is positive for
-  stable, negative for unstable"). Cross-checked against ClearWater-modules'
-  `tsm/processes.py ri_number()`, which uses `+2.0` — traced to their own `density_air`/
-  `density_air_sat()` functions and found to be internally inconsistent with their own
-  `ri_function()` branch labelling (their `+2.0` produces the wrong sign relative to their own
-  stated unstable/stable classification), so treated as a bug in that codebase, not an
-  alternate convention. CAESAR's `-2.0` is correct.
-
-- **`richardson_stability_function()`'s stable branch used `(1-34·Ri)^-0.8`**, which goes complex
-  (NaN in `Math.Pow`) for any `Ri > 1/34 ≈ 0.029` — inside its own stated valid domain
-  (`0.01 ≤ Ri < 2`, per Eq. 2.14d). Corrected to `(1+34·Ri)^-0.8`, confirmed via: (a) structural
-  symmetry with the confirmed-correct unstable branch `(1-22·Ri)^0.8`, which is really
-  `(1+22|Ri|)^0.8` once Ri's negative sign is applied; (b) continuity at the `Ri=2` boundary
-  with the flat `f(Ri)=0.03` floor; (c) ClearWater-modules' `ri_function()`, which has the
-  identical `(1.0 + 34.0 * ri_number_bounded) ** (-0.80)`. **A later re-check of the primary
-  source text confirmed the report itself states `(1-34Ri)^-0.8`** (Eq. 2.14d as printed) —
-  this specific exponent form was retained as printed on the understanding that the source's
-  own domain statement is internally over-broad (mathematically the formula as literally
-  printed cannot hold for the full stated `Ri<2` domain), and the `+34` correction was applied
-  as the physically/numerically defensible reading, not as a literal transcription of what the
-  PDF shows. Documented here so this specific deviation-from-literal-text is traceable.
-- **Domain bounding added**: `Ri` is now clamped to `[-1.0, 2.0]` *before* the piecewise
-  evaluation (matching ClearWater's `np.select` pre-clamp, and the report's own domain
-  statements per branch), rather than relying on the branch conditions alone. This guarantees
-  `(1+34·Ri)` stays `≥1` (positive) across the whole valid range, eliminating the NaN case by
-  construction.
-
-- **`wind_function()` was applying the `c` exponent to `(a+b·windSpeed2)` as a whole**, rather
-  than to `windSpeed2` alone (Eq. 2.11: `f(u_w)=f(Ri)·(a+b·u_w^c)`; confirmed against
-  CE-QUAL-W2's `FW=AFW+BFW*WIND2**CFW`, exponent on wind only). Invisible under the original
-  `c=1` default (mathematically a no-op at that exponent); would have produced an ~8x magnitude
-  error the moment a bundled-formulation default of `c=2` was introduced. Fixed:
-  `fRi * (a + b * Math.Pow(windSpeed2, c))`.
-
-### Sensible/latent heat: three selectable formulations (resolved coefficient/magnitude problem)
-
-HEC-RAS Eq. 2.10/2.11 explicitly states the wind-function coefficients `a`,`b`,`c` as
-"user-defined" with no default given (order ~1e-6 for a/b) — confirmed directly from the
-primary source text. Cross-checked against CE-QUAL-W2 v4.5 (`heat-exchange.f90`/
-`temperature.F90`, ERDC-EL source), whose `AFW=9.2, BFW=0.46, CFW=2` (confirmed identical
-across two independent real CE-QUAL-W2 example applications) are used in a **bundled** form
-(`RC=FW·0.47·ΔT`, `RE=FW·Δe`, no separate ρ·Cp·L multiplication, confirmed W/m² output by
-tracing `RN=RS+RANLW-RB-RE-RC → HEATEX` with no unit conversion factor present) with **no**
-Richardson correction applied. These same 9.2/0.46/2 values were already independently present
-in CAESAR's own equilibrium/simplified scheme (Eq. 2.19) — internal cross-validation. Plugging
-9.2/0.46/2 into the *separated-term* equation structure overshoots physically plausible flux by
-~1000x — the two coefficient sets are not interchangeable between formulations.
-
-**Resolution — three selectable options**, GUI-exposed on the Water Quality tab
-(`useBundledSensibleLatent`, `useRichardsonStabilityCorrection`, separate coefficient sets
-`windFunc_*_bundled` / `windFunc_*_separated`):
-- **Option A** — literal Eq. 2.10/2.11, explicit ρ·Cp·L terms, `windFunc_*_separated`
-  (order 1e-6, source's own stated order, no worked example to confirm against). Not default.
-- **Option B** — CE-QUAL-W2 bundled form, `9.2/0.46/2`, Richardson correction off — exact
-  match to CE-QUAL-W2's validated production behaviour.
-- **Option C (default)** — same bundled form/coefficients as B, Richardson correction on, as a
-  deliberate CAESAR extension (not itself found in either source as a combination).
-
-### Verification performed
-
-All three options, plus `wind_function()`/`richardson_number()`/`richardson_stability_function()`
-in isolation, confirmed via targeted Immediate Window testing:
-- Sign of `q_h` correctly tracks `(T_a-T_w)` across all three options, including through the
-  Richardson correction's stable/unstable branches.
-- Option C's Richardson-driven suppression/enhancement factor cross-checked against hand
-  calculation of `(1±k·Ri)^±0.8` for multiple `Ri` values — matched to 3+ significant figures.
-- Strong-stability case (`Ri=1.36`, `T_a=35,T_w=15,wind=1`) confirmed ~95% suppression of
-  sensible heat flux relative to the no-Richardson baseline, both the direction (suppression,
-  not enhancement — this was the exact symptom of a since-fixed regression) and the numeric
-  factor independently re-derivable by hand.
-- Option A's tiny (fractional W/m²) magnitudes confirmed as expected/correct for its
-  documented-unconfirmed coefficient order, not a bug.
-
-**Outstanding**: none for this specific area. Steps 17/18 (`Caesar Lisflood 2.0.cs`) can be
-marked run-time-tested and verified at the function level, not just "compiles."
+- **Process note**: development happens across more than one machine. A prior regression this session was traced to an unpushed commit, not a logic bug — commit and push before switching machines to avoid re-diagnosing an already-fixed issue.
