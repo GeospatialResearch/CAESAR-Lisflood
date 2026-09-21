@@ -20,6 +20,9 @@ balance formulation. Two schemes are implemented: a simplified/equilibrium schem
 full explicit energy-balance scheme (shortwave, atmospheric longwave, back radiation,
 sensible heat, latent heat).
 
+Working branch on GitHub:
+https://github.com/GeospatialResearch/CAESAR-Lisflood/tree/Temperature
+
 ## 2. Technical Stack & Rules
 
 - **Language/framework**: C# / .NET WinForms (Visual Studio, Debug-mode testing).
