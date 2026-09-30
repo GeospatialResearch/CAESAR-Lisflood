@@ -13302,8 +13302,8 @@ namespace caesar1
                             // only term that's always subtracted.
                             double q_net = q_sw + q_atm - q_b + q_h + q_l;
 
-                            //double depth = water_depth[x, y];
-                            double depth = water_depth[x, y] + 0.070;   // TEMPORARY DIAGNOSTIC, not a fix
+                            double depth = water_depth[x, y];
+                            
                             if (depth < water_depth_erosion_threshold) depth = water_depth_erosion_threshold;
 
                             double deltaT = (q_net * dt_seconds) / (rho_w * Cpw * depth);
