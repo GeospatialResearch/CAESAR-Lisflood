@@ -373,9 +373,16 @@ namespace caesar1
         public double met_data_time_step = 60;
         public double thermal_update_interval = 60;
         public double thermal_time = 0;
+        public double lastThermalCycle = 0;   // TEMP_V1
+        public double thermalStepMinutes = 0; // TEMP_V1 - actual elapsed model time for the current thermal step
         public double siteLatitude = 0, siteLongitude = 0, siteTimeZone = 0,
             siteElevation = 0, windMeasurementHeight = 10;
-        public double diffusivityRatio = 1.0;
+        public double diffusivityRatio = 1.0; // TEMP_V1 - HEC-RAS Eq 2.10 diffusivity ratio.
+                                              // Applies to the SEPARATED sensible-heat form (Option A) ONLY.
+                                              // Must NOT be applied to the bundled CE-QUAL-W2 form, whose
+                                              // Bowen constant 0.47 already embeds it. Not GUI-exposed or
+                                              // XML-persisted; if that is ever added, keep it disabled
+                                              // whenever useBundledSensibleLatent == true.
         public double albedoWaterBase = 0.08, albedoSedimentCoeff = 0, suspCondRef = 1;
         public double windFunc_a = 1e-6, windFunc_b = 1e-6, windFunc_c = 1;
         public double waterTempInitialValue = 15.0; // TEMP_V1 - constant initial water temperature, GUI-set
@@ -838,6 +845,8 @@ namespace caesar1
         private TextBox g4_box;
         private TextBox g3_box;
         private TextBox grain_index_file;
+        private TextBox initialdepthloadbox;   // WATERINIT_V1
+        private Label label_initialdepth;      // WATERINIT_V1
         private Label label121;
         private CheckBox landslide_grainsize;
         private MenuItem menuItem16;
@@ -1010,6 +1019,8 @@ namespace caesar1
             this.label124 = new System.Windows.Forms.Label();
             this.label122 = new System.Windows.Forms.Label();
             this.grain_index_file = new System.Windows.Forms.TextBox();
+            this.initialdepthloadbox = new System.Windows.Forms.TextBox();   // WATERINIT_V1
+            this.label_initialdepth = new System.Windows.Forms.Label();      // WATERINIT_V1
             this.label121 = new System.Windows.Forms.Label();
             this.tracer_file = new System.Windows.Forms.TextBox();
             this.tracer_num = new System.Windows.Forms.TextBox();
@@ -1849,6 +1860,8 @@ namespace caesar1
             this.FilesTab.Controls.Add(this.label122);
             this.FilesTab.Controls.Add(this.grain_index_file);
             this.FilesTab.Controls.Add(this.label121);
+            this.FilesTab.Controls.Add(this.initialdepthloadbox);   // WATERINIT_V1
+            this.FilesTab.Controls.Add(this.label_initialdepth);    // WATERINIT_V1
             this.FilesTab.Controls.Add(this.tracer_file);
             this.FilesTab.Controls.Add(this.tracer_num);
             this.FilesTab.Controls.Add(this.checkBox_tracer);
@@ -1930,6 +1943,22 @@ namespace caesar1
             this.label121.Size = new System.Drawing.Size(76, 13);
             this.label121.TabIndex = 211;
             this.label121.Text = "Grain index file";
+            //
+            // initialdepthloadbox - WATERINIT_V1
+            //
+            this.initialdepthloadbox.Location = new System.Drawing.Point(131, 154);
+            this.initialdepthloadbox.Name = "initialdepthloadbox";
+            this.initialdepthloadbox.Size = new System.Drawing.Size(120, 20);
+            this.initialdepthloadbox.TabIndex = 213;
+            this.initialdepthloadbox.Text = "null";
+            //
+            // label_initialdepth - WATERINIT_V1
+            //
+            this.label_initialdepth.AutoSize = true;
+            this.label_initialdepth.Location = new System.Drawing.Point(28, 157);
+            this.label_initialdepth.Name = "label_initialdepth";
+            this.label_initialdepth.Text = "Initial depth file";
+            this.label_initialdepth.TabIndex = 214;
             //
             // tracer_file
             //
@@ -7044,8 +7073,11 @@ namespace caesar1
                 // independent of creep_time2's daily schedule
                 if (isSimulateTemperature == true && cycle > thermal_time)
                 {
+                    thermalStepMinutes = cycle - lastThermalCycle;
+                    if (thermalStepMinutes <= 0) thermalStepMinutes = thermal_update_interval;
                     update_water_temperature_energybalance();
-                    thermal_time += thermal_update_interval;
+                    lastThermalCycle = cycle;
+                    while (thermal_time < cycle) thermal_time += thermal_update_interval; // catch up if a hydraulic step overshot
                 }
 
                 // Gez
@@ -7111,7 +7143,7 @@ namespace caesar1
                     }
                     else
                     {
-                        water_temp[x, y] = ((water_temp[x, y] * prev_depth) + (sourceTemp_rain * water_add_amt)) / water_depth[x, y];
+                        water_temp[x, y] = ((water_temp[x, y] * prev_depth) + (sourceTemp_rain * water_add_amt)) / (prev_depth + water_add_amt);
                     }
                 }
 
@@ -7400,7 +7432,7 @@ namespace caesar1
                     }
                     else
                     {
-                        water_temp[x, y] = ((water_temp[x, y] * prev_depth) + (sourceTemp_reach * dhdt)) / water_depth[x, y];
+                        water_temp[x, y] = ((water_temp[x, y] * prev_depth) + (sourceTemp_reach * dhdt)) / (prev_depth + dhdt);
                     }
                 }
 
@@ -7501,28 +7533,50 @@ namespace caesar1
                     if (elev[x, y] > -9999 && input > elev[x, y])
                     {
                         prev_depth = water_depth[x, y];
+                        double T_before_stage = water_temp[x, y]; // TEMP_V1 DEBUG
                         dhdt = (input - elev[x, y]);// -water_depth[x, y]; CHECK THIS IS RIGHT
                         //water_depth[x, y] = input - elev[x, y];
                         water_depth[x, y] = dhdt;
 
                         // TEMP_V1 - assign/mix temperature of tidal/stage input water.
-                        // NOTE: mirrors the existing watertracer logic just below, which also treats
-                        // "dhdt" as an added depth even though water_depth[x,y] is fully overwritten above
-                        // (a pre-existing quirk in the base code, flagged there as "CHECK THIS IS RIGHT" -
-                        // not something this step attempts to fix).
+                        // NOTE: in this function the base code's "dhdt" is the TOTAL new depth
+                        // (water_depth[x,y] is overwritten, not incremented), unlike the reach and
+                        // catchment input functions where it is a genuine increment. The depth of
+                        // water actually ADDED this iteration is therefore water_depth - prev_depth.
+                        // Blending with "dhdt" here makes the two mixing weights sum to
+                        // (prev_depth + water_depth) instead of water_depth, which turns the update
+                        // into T_new = T_src + T_old*(prev_depth/water_depth) and adds roughly one
+                        // source temperature per iteration without bound. See status doc §2.
                         if (isSimulateTemperature == true)
                         {
-                            double sourceTemp_tidal = get_source_temperature(0, cycle); // TEMP_V1 - stage/tide is always source index 0
+                            double sourceTemp_tidal = get_source_temperature(0, cycle); // stage/tide is always source index 0
+                            double added_depth = water_depth[x, y] - prev_depth;
+
                             if (prev_depth <= 0.0 || water_temp[x, y] == -9999)
                             {
                                 water_temp[x, y] = sourceTemp_tidal;
                             }
-                            else
+                            else if (added_depth > 0.0)
                             {
-                                water_temp[x, y] = ((water_temp[x, y] * prev_depth) + (sourceTemp_tidal * dhdt)) / water_depth[x, y];
+                                // Denominator built from the numerator's own terms, so the weight-sum
+                                // identity is algebraic and cannot be broken by changes to the
+                                // hydraulics line above.
+                                water_temp[x, y] = ((water_temp[x, y] * prev_depth) + (sourceTemp_tidal * added_depth))
+                                                   / (prev_depth + added_depth);
                             }
+                            // added_depth <= 0: stage steady or falling, no new water added.
+                            // Temperature is intensive, so removing water changes nothing. Leave as is.
                         }
 
+                        // TEMP_V1 DEBUG - stage-input mass-budget residual. Remove once confirmed.
+                        /*if (isSimulateTemperature == true)
+                        {
+                            double residual = water_depth[x, y] - (prev_depth + dhdt);
+                            System.IO.File.AppendAllText("stage_mass_residual.csv",
+                                string.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8}\n",
+                                    cycle, x, y, prev_depth, dhdt, water_depth[x, y],
+                                    residual, T_before_stage, water_temp[x, y]));
+                        }*/
 
                         // code below is commented out but where you can add Suspended sediment input at tidal boundary
                         //if (water_depth[x, y] > 0) Vsusptot[x, y] = water_depth[x, y] * 0.001;//0.0005 is 500mg l.. approx.
@@ -8586,6 +8640,67 @@ namespace caesar1
                 gr.Close();
             }
 
+            // WATERINIT_V1 - initial water depth raster. ESRI ASCII grid, same 6-line header and
+            // row/column convention as the elevation and grain-index grids. Optional; "null" leaves
+            // the domain dry, as before. Values are water DEPTHS in metres, not water-surface
+            // elevations. Zero, negative and -9999 values are treated as "no initial water" rather
+            // than as data. Enables pond/lake initial conditions, faster model spin-up, and
+            // temperature runs with no water input at all (see the timestep note in the status doc).
+            FILE_NAME = this.initialdepthloadbox.Text;
+            if (FILE_NAME != "null")
+            {
+                if (File.Exists(FILE_NAME))
+                {
+                    try
+                    {
+                        StreamReader gr = File.OpenText(FILE_NAME);
+                        for (z = 1; z <= 6; z++) input = gr.ReadLine();   // skip the ESRI header
+                        y = 1;
+                        while ((input = gr.ReadLine()) != null && y <= ymax)
+                        {
+                            string[] lineArray = input.Split(delimiterChars);
+                            xcounter = 1;
+                            for (x = 0; x <= (lineArray.Length - 1); x++)
+                            {
+                                if (lineArray[x] != "" && xcounter <= xmax)
+                                {
+                                    double dval = double.Parse(lineArray[x]);
+                                    if (dval > 0.0 && dval != -9999 && elev[xcounter, y] > -9999)
+                                    {
+                                        water_depth[xcounter, y] = dval;
+                                    }
+                                    xcounter++;
+                                }
+                            }
+                            y++;
+                        }
+                        gr.Close();
+
+                        // WATERINIT_V1 - prime maxdepth and the scan area so the FIRST iteration sees
+                        // this water. maxdepth is only ever recomputed inside depth_update(), and
+                        // scan_area() is not called until counter reaches 5 (line ~6844, and only
+                        // after qroute()/depth_update()), so without these lines the first few
+                        // iterations run against a stale maxdepth (the field default of 10) and an
+                        // empty down_scan, and the initial water is invisible to the hydraulics.
+                        maxdepth = 0;
+                        for (int xd = 1; xd <= xmax; xd++)
+                            for (int yd = 1; yd <= ymax; yd++)
+                                if (water_depth[xd, yd] > maxdepth) maxdepth = water_depth[xd, yd];
+                        if (maxdepth <= water_depth_erosion_threshold) maxdepth = water_depth_erosion_threshold;
+                        scan_area();
+                    }
+                    catch (Exception eInitDepth)
+                    {
+                        MessageBox.Show("Error loading the initial water depth raster. Continuing with a dry domain." +
+                            "\n\nDebug info: \n" + eInitDepth.Message + "\n\nStackTrace:\n" + eInitDepth.StackTrace);
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("Initial water depth raster file not found: " + FILE_NAME + ". Continuing with a dry domain.");
+                }
+            }
+
             int inc1 = 1;
 
             try
@@ -8916,7 +9031,9 @@ namespace caesar1
                     if (useSimplifiedTempScheme == true && this.TempTab_textBox_dewpoint.Text != "null")
                         load_met_file(this.TempTab_textBox_dewpoint.Text, delimiterChars, hourly_dewpoint);
 
-                    // TEMP_V1 - initial water temperature raster (optional; overrides the constant value set in zero_values())
+                    // TEMP_V1 - initial water temperature raster (optional). Overrides the -9999 sentinel set by
+                    // zero_values() on a per-cell basis; cells it does not cover fall back to waterTempInitialValue
+                    // below if they start wet.
                     if (this.TempTab_textBox_initialraster.Text != "null")
                     {
                         try
@@ -8951,22 +9068,6 @@ namespace caesar1
                                     y++;
                                 }
                                 sr.Close();
-
-                                // TEMP_V1 - assign the constant initial value to any cell that starts wet
-                                // (water_depth already loaded above) and wasn't already set by the raster.
-                                // Dry / out-of-domain cells remain at the -9999 nodata sentinel until they
-                                // first wet during the run (handled by the advection function, next step).
-                                for (int xt = 1; xt <= xmax; xt++)
-                                {
-                                    for (int yt = 1; yt <= ymax; yt++)
-                                    {
-                                        if (elev[xt, yt] > -9999 && water_depth[xt, yt] > water_depth_erosion_threshold && water_temp[xt, yt] == -9999)
-                                        {
-                                            water_temp[xt, yt] = waterTempInitialValue;
-                                            water_temp_prev[xt, yt] = waterTempInitialValue;
-                                        }
-                                    }
-                                }
                             }
                             else
                             {
@@ -8977,6 +9078,32 @@ namespace caesar1
                         {
                             MessageBox.Show("Error loading the initial water temperature raster. Using the constant value instead." +
                                 "\n\nDebug info: \n" + eTempRaster.Message + "\n\nStackTrace:\n" + eTempRaster.StackTrace);
+                        }
+                    }
+
+                    // TEMP_V1 - give every initially-wet cell a starting temperature. This MUST run
+                    // whenever temperature is enabled, NOT only when an initial raster was supplied:
+                    // zero_values() sets every cell to the -9999 nodata sentinel, and this is the only
+                    // place that ever assigns waterTempInitialValue at load time. A run with an initial
+                    // depth raster (WATERINIT_V1) but no temperature raster would otherwise start with a
+                    // domain full of water at -9999, which the advection function preserves (no inflow +
+                    // nodata -> stays nodata) and which both energy balance schemes skip, so the pond
+                    // would never acquire a temperature at all.
+                    //
+                    // Cells already set by the raster keep their raster value (water_temp != -9999 test).
+                    // Cells that start dry stay at -9999 and are given a temperature when they first wet
+                    // during the run, by the advection function or by the source-input mixing blocks.
+                    // Requires water_depth to be populated first: the initial depth raster is loaded
+                    // earlier in load_data(), just after the grain index file.
+                    for (int xt = 1; xt <= xmax; xt++)
+                    {
+                        for (int yt = 1; yt <= ymax; yt++)
+                        {
+                            if (elev[xt, yt] > -9999 && water_depth[xt, yt] > 0.0 && water_temp[xt, yt] == -9999)
+                            {
+                                water_temp[xt, yt] = waterTempInitialValue;
+                                water_temp_prev[xt, yt] = waterTempInitialValue;
+                            }
                         }
                     }
                 }
@@ -12904,7 +13031,7 @@ namespace caesar1
         // run on the thermal_time schedule (see erodedepo()).
         void update_water_temperature_energybalance()
         {
-            double dt_seconds = thermal_update_interval * 60;
+            double dt_seconds = thermalStepMinutes * 60;
             double rho_w = 1000.0;   // kg/m3, constant (A18 - see spec doc)
             double Cpw = 4186.0;     // J/(kg.C)
 
@@ -12923,6 +13050,13 @@ namespace caesar1
             int dbg_x2 = 6, dbg_y2 = 4; // TEMP_V1 DEBUG
 
             double T_w_before2 = water_temp[dbg_x2, dbg_y2]; // TEMP_V1 DEBUG - capture before this step's own thermal update
+
+            // TEMP_V1 - solar geometry is needed by BOTH schemes now that net_shortwave() is
+            // shared. Computed once per thermal step; it is cell- and zone-independent.
+            double dayOfYear, hourOfDay;
+            get_day_and_hour(cycle, out dayOfYear, out hourOfDay);
+            double solarAltitude = solar_altitude(dayOfYear, hourOfDay);
+            double Rs = reflection_coefficient(solarAltitude);
 
 
             if (useSimplifiedTempScheme == true)
@@ -12951,12 +13085,12 @@ namespace caesar1
                         int x = down_scan[y, inc];
                         inc++;
 
-                        if (water_depth[x, y] > water_depth_erosion_threshold)
+                        if (water_depth[x, y] > water_depth_erosion_threshold && water_temp[x, y] != -9999)
                         {
                             int zone = met_zonation[x, y];
                             if (zone < 0 || zone >= nMetZones) zone = 0;
 
-                            double q_sw = shortwave_zone[zone];
+                            double q_sw = net_shortwave(x, y, shortwave_zone[zone], Rs);
                             double T_d = dewpoint_zone[zone];
                             double u_w7 = wind7_zone[zone];
                             double T_w = water_temp[x, y];
@@ -12966,7 +13100,9 @@ namespace caesar1
                             double beta = 0.35 + 0.015 * T_bar + 0.0012 * T_bar * T_bar;      // Eq. 2.20
                             double K_T = 4.5 + 0.05 * T_w + (beta + 0.47) * f_uw7;            // Eq. 2.18
 
-                            if (K_T <= 0) K_T = 0.0001; // guard against a degenerate/negative exchange coefficient
+                            // TEMP_V1: Eq 2.18's own physical minimum is ~11.6 W/m2/K at T_w = 0 C, so this floor
+                            // can only engage on a corrupted T_w. 0.0001 would give T_eq = T_d + 10^4*q_sw.
+                            if (K_T < 5.0) K_T = 5.0;
 
                             double T_eq = T_d + q_sw / K_T;                                   // Eq. 2.21
 
@@ -12983,6 +13119,57 @@ namespace caesar1
                     }
                 });
 
+                // TEMP_V1 DEBUG - simplified-scheme single-cell trace. Separate files from the
+                // full-scheme trace because the diagnostic columns differ. Remove before merging.
+                for (int d = 0; d < 2; d++)
+                {
+                    int dx = (d == 0) ? dbg_x : dbg_x2;
+                    int dy = (d == 0) ? dbg_y : dbg_y2;
+                    double T_before = (d == 0) ? T_w_before : T_w_before2;
+                    string dbgFile = (d == 0) ? "temp_debug_trace_simplified.csv"
+                                              : "temp_debug_trace_simplified2.csv";
+
+                    if (water_depth[dx, dy] > water_depth_erosion_threshold && water_temp[dx, dy] != -9999)
+                    {
+                        int zone = met_zonation[dx, dy];
+                        if (zone < 0 || zone >= nMetZones) zone = 0;
+
+                        double h = water_depth[dx, dy];
+                        double T_w = water_temp[dx, dy];
+
+                        // Re-derive the scheme's own intermediates exactly as the cell loop does.
+                        double q_sw = net_shortwave(dx, dy, shortwave_zone[zone], Rs);
+                        double T_d = dewpoint_zone[zone];
+                        double u_w7 = wind7_zone[zone];
+
+                        double f_uw7 = 9.2 + 0.46 * u_w7 * u_w7;
+                        // Re-derive the scheme's intermediates from T_w_before, which is the temperature the
+                        // cell loop actually used. Deriving them from the post-update water_temp does NOT work
+                        // here: K_T, T_eq and decay all depend on T_w, so the logged relaxation identity would
+                        // only close to about 0.06 C. With T_before it closes to machine precision, which makes
+                        // this trace self-checking with no external recomputation.
+                        double T_bar = (T_before + T_d) / 2.0;
+                        double beta = 0.35 + 0.015 * T_bar + 0.0012 * T_bar * T_bar;
+                        double K_T = 4.5 + 0.05 * T_before + (beta + 0.47) * f_uw7;
+                        if (K_T < 5.0) K_T = 5.0;
+                        double T_eq = T_d + q_sw / K_T;
+
+                        double depth = h;
+                        if (depth < water_depth_erosion_threshold) depth = water_depth_erosion_threshold;
+                        double decay = Math.Exp(-K_T * dt_seconds / (rho_w * Cpw * depth));
+
+                        if (!System.IO.File.Exists(dbgFile))
+                        {
+                            System.IO.File.AppendAllText(dbgFile,
+                                "cycle,dt_min,water_depth,water_depth_prev,q_sw,T_d,u_w7,f_uw7,beta,K_T,T_eq,decay,T_w,T_w_before\n");
+                        }
+
+                        System.IO.File.AppendAllText(dbgFile, string.Format(
+                            "{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12},{13}\n",
+                            cycle, thermalStepMinutes, h, water_depth_prev[dx, dy], q_sw, T_d, u_w7,
+                            f_uw7, beta, K_T, T_eq, decay, T_w, T_before));
+                    }
+                }
 
             }
             else
@@ -12990,10 +13177,6 @@ namespace caesar1
                 // TEMP_V1 - full energy balance scheme (HEC-RAS Eqs 2.1-2.14; see Steps 15-18
                 // and the spec doc for individual term derivations).
 
-                double dayOfYear, hourOfDay;
-                get_day_and_hour(cycle, out dayOfYear, out hourOfDay);
-                double solarAltitude = solar_altitude(dayOfYear, hourOfDay);
-                double Rs = reflection_coefficient(solarAltitude);
                 // NOTE: solar_geometry() (extraterrestrial radiation q_o) is not used here -
                 // q_sw is built from the measured shortwave met input (A9: direct-measured
                 // primary). q_o/solar_geometry() remains reserved for a future fallback path
@@ -13006,7 +13189,6 @@ namespace caesar1
                 double[] cloud_zone = new double[nMetZones];
                 double[] pressure_zone = new double[nMetZones];
                 double[] q_atm_zone = new double[nMetZones];
-                double[] q_sw_hecras_zone = new double[nMetZones]; // only valid/used if useHecRasAlbedo
 
                 for (int zn = 0; zn < nMetZones; zn++)
                 {
@@ -13029,10 +13211,7 @@ namespace caesar1
                         ? atmospheric_longwave_hecras(airTemp_zone[zn], cloud_zone[zn])
                         : atmospheric_longwave_humidity(airTemp_zone[zn], cloud_zone[zn], humidity_zone[zn]);
 
-                    if (useHecRasAlbedo == true)
-                    {
-                        q_sw_hecras_zone[zn] = shortwaveIn_zone[zn] * (1.0 - Rs);
-                    }
+
                 }
 
                 var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
@@ -13052,25 +13231,7 @@ namespace caesar1
                             double T_w = water_temp[x, y];
                             double T_a = airTemp_zone[zone];
 
-                            double q_sw;
-                            if (useHecRasAlbedo == true)
-                            {
-                                q_sw = q_sw_hecras_zone[zone];
-                            }
-                            else
-                            {
-                                // TEMP_V1 - CAESAR-extension: fixed base albedo + suspended-
-                                // sediment adjustment (empirical, not part of HEC-RAS; see spec A10).
-                                double suspConc = 0.0;
-                                for (int T = 0; T <= tracers; T++) suspConc += Vsusptot[x, y, T];
-                                suspConc = suspConc / water_depth[x, y];
-
-                                double albedo_eff = albedoWaterBase + albedoSedimentCoeff * Math.Min(1.0, suspConc / suspCondRef);
-                                if (albedo_eff > 1.0) albedo_eff = 1.0;
-                                if (albedo_eff < 0.0) albedo_eff = 0.0;
-
-                                q_sw = shortwaveIn_zone[zone] * (1.0 - albedo_eff);
-                            }
+                            double q_sw = net_shortwave(x, y, shortwaveIn_zone[zone], Rs);
 
                             double q_atm = q_atm_zone[zone];
                             double q_b = water_longwave(T_w);
@@ -13108,7 +13269,7 @@ namespace caesar1
 
                     double T_w = water_temp[dbg_x, dbg_y];
                     double T_a = airTemp_zone[zone];
-                    double q_sw = useHecRasAlbedo ? q_sw_hecras_zone[zone] : shortwaveIn_zone[zone]; // simplified re-derivation; see note below
+                    double q_sw = net_shortwave(dbg_x, dbg_y, shortwaveIn_zone[zone], Rs); 
                     double q_atm = q_atm_zone[zone];
                     double q_b = water_longwave(T_w);
                     double Ri = richardson_number(T_a, T_w, wind2_zone[zone], pressure_zone[zone], humidity_zone[zone]);
@@ -13129,7 +13290,7 @@ namespace caesar1
 
                     double T_w = water_temp[dbg_x2, dbg_y2];
                     double T_a = airTemp_zone[zone];
-                    double q_sw = useHecRasAlbedo ? q_sw_hecras_zone[zone] : shortwaveIn_zone[zone]; // simplified re-derivation; see note below
+                    double q_sw = net_shortwave(dbg_x2, dbg_y2, shortwaveIn_zone[zone], Rs); 
                     double q_atm = q_atm_zone[zone];
                     double q_b = water_longwave(T_w);
                     double Ri = richardson_number(T_a, T_w, wind2_zone[zone], pressure_zone[zone], humidity_zone[zone]);
@@ -13231,7 +13392,10 @@ namespace caesar1
         // tsm/processes.py density_air()/density_air_sat() exactly (same lineage as HEC-ResSim).
         double air_density(double pressureMb, double vapourPressureMb, double tempK)
         {
-            double mixingRatio = 0.622 * vapourPressureMb / (pressureMb - vapourPressureMb);
+            double e = vapourPressureMb;
+            if (e > pressureMb * 0.99) e = pressureMb * 0.99; // TEMP_V1 guard: vapour pressure cannot approach total pressure.
+                                                              // Only reachable for T_w above ~100 C, i.e. already-corrupt state.
+            double mixingRatio = 0.622 * e / (pressureMb - e);
             return 0.348 * (pressureMb / tempK) * (1.0 + mixingRatio) / (1.0 + 1.61 * mixingRatio);
         }
 
@@ -13324,11 +13488,17 @@ namespace caesar1
         // TEMP_V1 - Option C/B: CE-QUAL-W2 bundled form (heat-exchange.f90 RC term). Confirmed W/m2
         // output directly, via temperature.F90 RN=RS+RANLW-RB-RE-RC -> HEATEX trace (no conversion
         // factor between terms). No separate rho/Cp multiplication -- already implicit in FW.
+        // NOTE: diffusivityRatio is deliberately NOT applied here. CE-QUAL-W2's Bowen constant
+        // 0.47 already embeds the thermal-to-vapour diffusivity ratio, so multiplying by it again
+        // double counts, and the bundled latent term (latent_heat_flux_bundled) applies no such
+        // factor either, so applying it here alone made the two bundled terms inconsistent with
+        // each other. diffusivityRatio belongs only to the separated Eq 2.10 form. See status doc
+        // §3b item 7.
         double sensible_heat_flux_bundled(double airTempC, double waterTempC, double windSpeed2, double Ri)
         {
             const double BOWEN_CONSTANT = 0.47; // matches CE-QUAL-W2 AND our own Eq 2.18/2.20
             double FW = wind_function(windSpeed2, Ri);
-            return diffusivityRatio * FW * BOWEN_CONSTANT * (airTempC - waterTempC);
+            return FW * BOWEN_CONSTANT * (airTempC - waterTempC);
         }
 
         // TEMP_V1 - Option A: literal HEC-RAS Eq 2.10. windFunc_*_separated coefficients are the
@@ -13396,6 +13566,47 @@ namespace caesar1
         // inline so it's trivial to correct in one place if checked against the original report
         // and found to differ for the longwave term specifically.
         const double longwaveCloudExponent = 2.0;
+
+        // TEMP_V1 - net (absorbed) shortwave radiation at the water surface, W/m2.
+        // Shared deliberately by BOTH the full and simplified schemes so the two cannot
+        // diverge in how they treat albedo. They previously did: the simplified scheme used
+        // raw incoming shortwave, overestimating absorption by roughly 3-8% relative to the
+        // full scheme. HEC-RAS Eq 2.21's equilibrium temperature takes NET shortwave, the
+        // same quantity as Eq 2.1's q_sw term.
+        //   useHecRasAlbedo == true  : HEC-RAS solar-altitude-dependent reflection R_s (Eq 2.4).
+        //                              Rs is precomputed once per thermal step by the caller via
+        //                              reflection_coefficient(solar_altitude(...)); it is zone-
+        //                              and cell-independent, so it is passed in rather than
+        //                              recomputed per cell.
+        //   useHecRasAlbedo == false : CAESAR-extension fixed base albedo plus an empirical
+        //                              suspended-sediment adjustment (not HEC-RAS; spec A10).
+        // x,y are used only by the sediment path. Read-only w.r.t. shared state, so safe to
+        // call from inside the Parallel.For cell loops.
+        double net_shortwave(int x, int y, double shortwaveIn, double Rs)
+        {
+            if (useHecRasAlbedo == true)
+            {
+                return shortwaveIn * (1.0 - Rs);
+            }
+
+            double albedo_eff = albedoWaterBase;
+
+            // Guard: suspCondRef is user-set and a value of 0 would give 0/0 = NaN, which
+            // Math.Min propagates and which would then silently poison q_net for the cell.
+            if (albedoSedimentCoeff != 0.0 && suspCondRef > 0.0 && water_depth[x, y] > 0.0)
+            {
+                double suspConc = 0.0;
+                for (int T = 0; T <= tracers; T++) suspConc += Vsusptot[x, y, T];
+                suspConc = suspConc / water_depth[x, y];
+
+                albedo_eff += albedoSedimentCoeff * Math.Min(1.0, suspConc / suspCondRef);
+            }
+
+            if (albedo_eff > 1.0) albedo_eff = 1.0;
+            if (albedo_eff < 0.0) albedo_eff = 0.0;
+
+            return shortwaveIn * (1.0 - albedo_eff);
+        }
 
         // TEMP_V1 - atmospheric (downwelling) longwave radiation, q_atm, HEC-RAS default
         // (Eq. 2.6): Swinbank (1963) clear-sky formula with a cloud-cover correction.
@@ -13721,9 +13932,9 @@ namespace caesar1
 
                     if (SpatVarManningsCheckbox.Checked == true) spat_var_mannings[x, y] = mannings;
 
-                    water_temp[x, y] = -9999; // TEMP_V1 - nodata sentinel; set to a real value
-                    water_temp_prev[x, y] = -9999; // only for initially-wet cells, once water_depth is known (see load_data())
-
+                    water_temp[x, y] = -9999;      // TEMP_V1 - nodata sentinel. Initially-wet cells are given a real
+                    water_temp_prev[x, y] = -9999; // value in load_data(), after water_depth is known. Do not assign
+                                                   // waterTempInitialValue here: water_depth is not loaded yet.
                 }
             }
 
@@ -17699,10 +17910,6 @@ namespace caesar1
                 zero_values();
                 load_data();
                 
-                // TEMP_V1 DEBUG TESTING
-                water_depth[2, 4] = 0.5;
-                water_depth[6, 4] = 4.0;
-
                 // TEMP_V1 - dhdt_x/dhdt_y are needed by depth_update() and
                 // update_water_temperature_advection() whenever temperature simulation is
                 // active, even if water-source tracing itself is switched off. water_depth_prev
@@ -18942,6 +19149,20 @@ namespace caesar1
                         // more add ons for spatially variable grainsize
                         landslide_grainsize.Checked = XmlConvert.ToBoolean(xreader.ReadElementString("MultiGrain"));
 
+                        // WATERINIT_V1 - own try/catch so config files written before this element existed still
+                        // load. ReadElementString throws without advancing when the element is absent, so the
+                        // reader position stays valid for the TEMP_V1 block that follows. Same pattern as that
+                        // block already uses for the same reason.
+                        try
+                        {
+                            initialdepthloadbox.Text = xreader.ReadElementString("InitialDepthFile");
+                        }
+                        catch (Exception eInitDepthXml)
+                        {
+                            initialdepthloadbox.Text = "null";
+                        }
+
+
                         // TEMP_V1 - water temperature module settings (own try/catch: safe against older config files without these elements)
                         try
                         {
@@ -19602,6 +19823,7 @@ namespace caesar1
                 xwriter.WriteElementString("MultiTracer", XmlConvert.ToString(checkBox_tracer.Checked));
                 // more add ons for spatially variable grainsize
                 xwriter.WriteElementString("MultiGrain", XmlConvert.ToString(landslide_grainsize.Checked));
+                xwriter.WriteElementString("InitialDepthFile", initialdepthloadbox.Text); // WATERINIT_V1
 
                 // TEMP_V1 - water temperature module settings
                 xwriter.WriteElementString("TempSimulate", XmlConvert.ToString(TempTab_checkBox.Checked));

@@ -295,8 +295,8 @@
         <iterationsfile>iter.dat</iterationsfile>
     </OutputFile-Parms>
     <Display>
-        <top> 249</top>
-        <left> 186</left>
+        <top> 83</top>
+        <left> 273</left>
         <width> 1542</width>
         <height> 857</height>
     </Display>
@@ -436,6 +436,7 @@
         <tracerindex>null</tracerindex>
         <MultiTracer>false</MultiTracer>
         <MultiGrain>false</MultiGrain>
+        <InitialDepthFile>C:\Users\mwi104\source\repos\GeospatialResearch\CAESAR-Lisflood\testing\squaredem_small_depthstart.asc</InitialDepthFile>
         <TempSimulate>true</TempSimulate>
         <TempSimplifiedScheme>false</TempSimplifiedScheme>
         <TempHecRasLongwave>true</TempHecRasLongwave>
