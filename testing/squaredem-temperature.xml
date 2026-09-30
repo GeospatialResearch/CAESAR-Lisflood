@@ -295,8 +295,8 @@
         <iterationsfile>iter.dat</iterationsfile>
     </OutputFile-Parms>
     <Display>
-        <top> 83</top>
-        <left> 273</left>
+        <top> 155</top>
+        <left> 237</left>
         <width> 1542</width>
         <height> 857</height>
     </Display>
@@ -352,7 +352,7 @@
         <lateralsmoothing>0.0001</lateralsmoothing>
         <froude_limit>0.8</froude_limit>
         <mannings>0.04</mannings>
-        <TidalorStage>true</TidalorStage>
+        <TidalorStage>false</TidalorStage>
         <MinQmaxvalue>1000.0</MinQmaxvalue>
         <TidalXmin>1</TidalXmin>
         <TidalXmax>2</TidalXmax>

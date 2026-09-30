@@ -172,6 +172,7 @@ namespace caesar1
         double max_vel = 5;
         double sand_out = 0;
         double maxdepth = 10;
+        double maxflux = 0;   // TEMP_V1 - largest |qx| or |qy| in the domain, m2/s
         double courant_number = 0.7;
         double erode_call = 0;
         double erode_mult = 1;
@@ -6772,6 +6773,35 @@ namespace caesar1
                     time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
                 }
 
+                // TEMP_V1 - clock control when water temperature is active.
+                //
+                // CAESAR deliberately lets time_factor (the clock, cycle += time_factor/60, ratcheted
+                // up 1.5x per call inside erode() to max_time_step) run ahead of local_time_factor (the
+                // step actually integrated by qroute()/depth_update()). That acceleration is valid for
+                // geomorphology, which does nothing while water is still, and it is ALSO valid for
+                // temperature while the water is still, because advective heat transport then has
+                // nothing to do. It is not valid once water is moving: surface heat exchange would be
+                // applied over the clock's elapsed time while heat advection was applied over
+                // local_time_factor, mis-weighting the two by the acceleration factor.
+                if (isSimulateTemperature == true)
+                {
+                    // (a) The clock must never outrun the requested thermal cadence, otherwise
+                    //     thermal_update_interval is silently overridden by max_time_step and the
+                    //     energy balance simply fires once per iteration at whatever the clock says.
+                    double thermal_cap = thermal_update_interval * 60.0;
+                    if (time_factor > thermal_cap) time_factor = thermal_cap;
+
+                    // (b) The clock may only run ahead of the hydraulic step while the water is
+                    //     demonstrably at rest. Over a step of time_factor seconds the largest depth
+                    //     change at any cell face is maxflux*time_factor/DX metres; below 1 micrometre
+                    //     there is nothing to advect. Above it, pin the clock to the Courant limit.
+                    double courant_limit = courant_number * (DX / Math.Sqrt(gravity * maxdepth));
+                    if ((maxflux * time_factor / DX) > 1e-6 && time_factor > courant_limit)
+                    {
+                        time_factor = courant_limit;
+                    }
+                }
+
                 double local_time_factor = time_factor;
                 if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
 
@@ -8334,7 +8364,12 @@ namespace caesar1
 
             }
             sr.Close();
-
+            /*if (xcounter - 1 < xmax)
+            {
+                MessageBox.Show("Warning: row " + y + " of " + FILE_NAME + " has only " +
+                    (xcounter - 1) + " values but ncols is " + xmax +
+                    ". Missing cells retain their default value and will behave as holes in the terrain.");
+            }*/
             // load hydro coverage
             ///////////////////////////////////////
 
@@ -8676,6 +8711,13 @@ namespace caesar1
                         }
                         gr.Close();
 
+                        /*if (xcounter - 1 < xmax)
+                        {
+                            MessageBox.Show("Warning: row " + y + " of " + FILE_NAME + " has only " +
+                                (xcounter - 1) + " values but ncols is " + xmax +
+                                ". Missing cells retain their default value and behavious may not be as expected.");
+                        }*/
+
                         // WATERINIT_V1 - prime maxdepth and the scan area so the FIRST iteration sees
                         // this water. maxdepth is only ever recomputed inside depth_update(), and
                         // scan_area() is not called until counter reaches 5 (line ~6844, and only
@@ -8683,6 +8725,7 @@ namespace caesar1
                         // iterations run against a stale maxdepth (the field default of 10) and an
                         // empty down_scan, and the initial water is invisible to the hydraulics.
                         maxdepth = 0;
+                        maxflux = 1.0;   // TEMP_V1 - force the first iteration to pin the clock until a real flux is known
                         for (int xd = 1; xd <= xmax; xd++)
                             for (int yd = 1; yd <= ymax; yd++)
                                 if (water_depth[xd, yd] > maxdepth) maxdepth = water_depth[xd, yd];
@@ -12426,14 +12469,19 @@ namespace caesar1
             if (local_time_factor > (courant_number * (DX / Math.Sqrt(gravity * (maxdepth))))) local_time_factor = courant_number * (DX / Math.Sqrt(gravity * (maxdepth)));
             double[] tempmaxdepth2;
             tempmaxdepth2 = new Double[ymax + 2];
+            double[] tempmaxflux2;
+            tempmaxflux2 = new Double[ymax + 2];   // TEMP_V1
 
             maxdepth = 0;
+            maxflux = 0;   // TEMP_V1
 
             var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 };
             Parallel.For(1, ymax + 1, options, delegate (int y)
             {
                 int inc = 1;
                 double tempmaxdepth = 0;
+                double tempmaxflux = 0;   // TEMP_V1
+
                 while (down_scan[y, inc] > 0)
                 {
                     int x = down_scan[y, inc];
@@ -12450,6 +12498,13 @@ namespace caesar1
 
                     // update water depths
                     water_depth[x, y] += local_time_factor * (qx[x + 1, y] - qx[x, y] + qy[x, y + 1] - qy[x, y]) / DX;
+
+                    // TEMP_V1 - largest face flux in the domain, used to decide whether the model clock
+                    // may run ahead of the hydraulic step when temperature is active. Same reduction
+                    // pattern as maxdepth, so it carries the same one-iteration lag.
+                    if (Math.Abs(qx[x, y]) > tempmaxflux) tempmaxflux = Math.Abs(qx[x, y]);
+                    if (Math.Abs(qy[x, y]) > tempmaxflux) tempmaxflux = Math.Abs(qy[x, y]);
+
                     // now update SS concs
                     if (isSuspended[1])
                     {
@@ -12465,9 +12520,11 @@ namespace caesar1
                     }
                 }
                 tempmaxdepth2[y] = tempmaxdepth;
+                tempmaxflux2[y] = tempmaxflux;   // TEMP_V1
             });
             // reduction
             for (int y = 1; y <= ymax; y++) if (tempmaxdepth2[y] > maxdepth) maxdepth = tempmaxdepth2[y];
+            for (int y = 1; y <= ymax; y++) if (tempmaxflux2[y] > maxflux) maxflux = tempmaxflux2[y];   // TEMP_V1
         }
 
 
@@ -13245,7 +13302,8 @@ namespace caesar1
                             // only term that's always subtracted.
                             double q_net = q_sw + q_atm - q_b + q_h + q_l;
 
-                            double depth = water_depth[x, y];
+                            //double depth = water_depth[x, y];
+                            double depth = water_depth[x, y] + 0.070;   // TEMPORARY DIAGNOSTIC, not a fix
                             if (depth < water_depth_erosion_threshold) depth = water_depth_erosion_threshold;
 
                             double deltaT = (q_net * dt_seconds) / (rho_w * Cpw * depth);
