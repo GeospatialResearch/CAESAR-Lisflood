@@ -104,6 +104,9 @@
     <Compile Include="Caesar Lisflood 2.0.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Form1.Headless.cs">
+      <DependentUpon>Caesar Lisflood 2.0.cs</DependentUpon>
+    </Compile>
     <Compile Include="Form2.cs">
       <SubType>Form</SubType>
     </Compile>

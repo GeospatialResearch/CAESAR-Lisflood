@@ -73,7 +73,7 @@ namespace caesar1
 
 
 
-    public class Form1 : System.Windows.Forms.Form
+    public partial class Form1 : System.Windows.Forms.Form // CLI_V1: partial, see Form1.Headless.cs
     {
 
 
@@ -6693,7 +6693,7 @@ namespace caesar1
             soil_development_time = cycle;
             time_1 = cycle;
 
-            mygraphics = this.CreateGraphics();
+            if (!headless) mygraphics = this.CreateGraphics(); // CLI_V1: would create a window handle
 
 
             //slide_5();
@@ -6731,9 +6731,12 @@ namespace caesar1
 
             gameClock.Interval = 100;
             gameClock.Tick += new EventHandler(update_screen_outputs);
-            gameClock.Start();
+            if (!headless) gameClock.Start(); // CLI_V1: screen updates only, no message loop in headless mode
 
-            backgroundWorker1.RunWorkerAsync();
+            // CLI_V1: headless mode runs the main loop synchronously on the calling thread, so the
+            // CLI knows when the run has finished and any exception reaches it (in GUI mode an
+            // exception inside BackgroundWorker.DoWork is silently swallowed).
+            if (headless) erodedepo(); else backgroundWorker1.RunWorkerAsync();
 
         }
 
@@ -7109,7 +7112,7 @@ namespace caesar1
             } while (cycle / 60 < maxcycle);
 
             watch.Stop();
-            MessageBox.Show($"finished. Runtime: {watch.Elapsed} ");
+            Notify($"finished. Runtime: {watch.Elapsed} ", NotifyLevel.Info); // CLI_V1
             // end of main loop!!
         }
 
@@ -9904,7 +9907,7 @@ namespace caesar1
                 else
                     mappingReport += "  " + idx + " : " + srcName + " -> column " + (sourceTempColumnFor[idx] + 1) + "\n";
             }
-            MessageBox.Show(mappingReport);
+            Notify(mappingReport, NotifyLevel.Info); // CLI_V1
         }
 
         // TEMP_V1 - time-interpolated lookup of a source's temperature at the current cycle.
@@ -15605,7 +15608,7 @@ namespace caesar1
             if (latest != null)
             {
                 // safe marshal to UI thread
-                this.BeginInvoke((Action)(() => this.tempStatusPanel.Text = latest));
+                if (!headless) this.BeginInvoke((Action)(() => this.tempStatusPanel.Text = latest)); // CLI_V1: BeginInvoke throws without a window handle
             }
 
             int counter2 = 0;
@@ -17986,7 +17989,7 @@ namespace caesar1
             if (menuItem17.Checked == true) save_data(8, 0);   // save  volume balance file OIL_V1_PDF
             if (menuItemOilconc.Checked == true) save_data(9, 0);   // save oilconcentration file OIL_V1_PDF
 
-            this.Close();
+            if (!headless) this.Close(); // CLI_V1: headless reuses the final-save block above
         }
         private void button2_Click(object sender, System.EventArgs e)
         {
@@ -18215,7 +18218,7 @@ namespace caesar1
             if (in_out_difference != 0) message += "\n\nYou have set the input/output difference to be greater than zero, which means the model will speed up/run in steady state  when the difference between water input and output is less than this value";
 
             message += "\n\nAll other variables are OK";
-            MessageBox.Show(message);
+            Notify(message, NotifyLevel.Advisory); // CLI_V1
 
             //main_loop(this, null);
             simLoadState = true; // MDW: added to signify that data are loaded, allowing a fix to an exception which happens when selecting an item from the graphics menu before data are loaded
@@ -18268,7 +18271,7 @@ namespace caesar1
             }
             catch
             {
-                MessageBox.Show("Error with output folder : " + textBoxOutDir.Text + "/nFalling back to using current directory for outputs");
+                Notify("Error with output folder : " + textBoxOutDir.Text + "/nFalling back to using current directory for outputs", NotifyLevel.Error); // CLI_V1
                 outdir = "";
             }
 
@@ -18493,9 +18496,6 @@ namespace caesar1
         }
         private void menuItemConfigFileOpen_Click(object sender, System.EventArgs e)
         {
-            XmlTextReader xreader;
-            String dum;
-
             OpenFileDialog openFileDialog1 = new OpenFileDialog();
 
             openFileDialog1.InitialDirectory = workdir;
@@ -18505,7 +18505,21 @@ namespace caesar1
 
             if (openFileDialog1.ShowDialog() == DialogResult.OK)
             {
-                cfgname = openFileDialog1.FileName;
+                load_config_file(openFileDialog1.FileName); // CLI_V1
+            }
+        }
+
+        // CLI_V1 - the body below is the former body of menuItemConfigFileOpen_Click, unchanged.
+        // Split out so that headless mode can load a config without the file dialog. The bare
+        // block brace below stands in for the old "if (ShowDialog...)" brace, so the body keeps its
+        // original indentation and its original closing braces.
+        private void load_config_file(string path)
+        {
+            XmlTextReader xreader;
+            String dum;
+
+            {
+                cfgname = path;
 
                 xreader = new XmlTextReader(cfgname);
 
